@@ -1,16 +1,17 @@
 patterns:
 - pattern: testing/*
   insights:
-  - Running pytest without --all-extras failed due to missing pytest-cov dependency
-    from pyproject.toml addopts. Using 'uv run --all-extras pytest' ensures all optional
-    test dependencies are available, preventing false failures in CI/QA verification.
+  - QA agent couldn't run pytest locally due to missing pytest-cov plugin and addopts
+    configuration issues, while dev agent reported 87 tests passing. Shared virtual
+    environment or dependency lockfile would ensure consistent test execution across
+    agents.
   revision_rate: null
-  success_rate: 1.0
+  success_rate: 0.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - testing
-  - technical
+  - process
   sample_count: 1
 - pattern: architecture/*
   insights:
@@ -29,11 +30,12 @@ patterns:
   sample_count: 1
 - pattern: code-review/*
   insights:
-  - 'When adding `# pragma: no cover` comments to exclude lines from coverage, always
-    add a justification explaining why (e.g., ''entry point bypassed by CliRunner'').
-    QA flagged unexplained pragmas as incomplete work, requiring revision.'
+  - QA agent identified that discover_sessions missed real Claude session paths and
+    parse_session_file wasn't using ClaudeParser, making --include-conversation a
+    no-op. These functional integration issues passed unit tests but would have failed
+    real-world usage. QA review adds value beyond test coverage.
   revision_rate: null
-  success_rate: 1.0
+  success_rate: 0.0
   avg_duration: null
   recommended_workflow: null
   tags:
@@ -96,12 +98,12 @@ patterns:
   sample_count: 1
 - pattern: debugging/*
   insights:
-  - The dev agent initially investigated a 'failed' prior mission and discovered the
-    code was complete but uncommitted. This debug meeting pattern - investigating
-    artifacts before assuming failure - prevented duplicate work and identified the
-    true root cause as orchestration issues.
+  - Dev signaled done, QA found issues and signaled needs_revision, dev fixed and
+    re-signaled done, QA approved - all within one workflow cycle. This tight feedback
+    loop (dev fix in ~1 minute after QA review) is more efficient than multi-cycle
+    iterations.
   revision_rate: null
-  success_rate: 1.0
+  success_rate: 0.0
   avg_duration: null
   recommended_workflow: null
   tags:
@@ -191,4 +193,18 @@ patterns:
   tags:
   - parser-implementation
   - technical
+  sample_count: 1
+- pattern: workflow-infrastructure/*
+  insights:
+  - When an agent completes its work and signals done/approved, but its process dies
+    before the workflow orchestrator confirms termination, the entire workflow is
+    marked as failed despite successful task completion. The orchestrator should check
+    for completion signals before flagging agent death as workflow failure.
+  revision_rate: null
+  success_rate: 0.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - workflow-infrastructure
+  - process
   sample_count: 1

@@ -1,0 +1,7 @@
+agents:
+- cli: claude
+  role: foundation-builder
+- cli: codex
+  role: foundation-verifier
+name: session-insights-foundation
+workflow: ''
