@@ -1,0 +1,10 @@
+agent_id: 7b05375b
+created_at: '2026-02-05T18:29:00.324180'
+message: 'QA review: HEAD contains only planning artifact changes; `git diff HEAD~1..HEAD
+  -- src tests` is empty. Requirements for wiring analyze CLI to parsers are not implemented.
+  No tests were run for this commit. Please provide code changes and rerun tests.'
+metadata: null
+role: qa
+signal: needs_revision
+signal_id: 135627dc
+workflow_id: mission-2eabad9a-cycle-3-execute-wire-cli-to-existing-parsers

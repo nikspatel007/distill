@@ -1,19 +1,18 @@
 patterns:
 - pattern: architecture/*
   insights:
-  - "The task 'implement-analyze-command' targeted functionality that already existed\
-    \ from cycle 16 (commit 5a0f625 added the analyze/sessions command skeleton).\
-    \ A Gate 0 check (`git ls-files --error-unmatch src/session_insights/cli.py` or\
-    \ checking if the analyze command already existed) would have caught this before\
-    \ the cycle started. This is the same root cause as cycles 10, 11, 13, and the\
-    \ prior C2 iteration \u2014 tasks assigned for features that already exist."
+  - Rather than implementing full parsing logic, the task defined a minimal stub that
+    accepts --dir, prints a message, and exits. This approach allowed the team to
+    validate CLI wiring, entrypoint configuration, and test infrastructure independently
+    from business logic. Subsequent cycles can add real parsing without re-risking
+    the plumbing.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - architecture
-  - process
+  - technical
   sample_count: 1
 - pattern: git-workflow/*
   insights:
@@ -48,12 +47,11 @@ patterns:
   sample_count: 1
 - pattern: testing/*
   insights:
-  - "The test count (212 passing) was identical before and after the commit, which\
-    \ should have been a red flag since the task claimed to implement new functionality.\
-    \ A genuine implementation task should add new tests or at minimum modify existing\
-    \ ones. QA should flag unchanged test counts on implementation tasks as suspicious\
-    \ \u2014 if new code was truly added, the test count should increase or at least\
-    \ some tests should change."
+  - The workflow delivered tests/integration/test_cli_e2e.py (193 lines) that invoke
+    the CLI as a real subprocess via python -m. This pattern caught the entrypoint
+    misconfiguration (cli:main vs cli:run) that unit tests alone missed. Subprocess-level
+    E2E tests are essential for CLI projects because they exercise the actual invocation
+    path users experience.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -138,11 +136,11 @@ patterns:
   sample_count: 1
 - pattern: code-review/*
   insights:
-  - The QA agent approved the workflow by running `pytest -q` (212 passed) without
-    checking whether the current commit actually added or changed any source files.
-    All 212 tests passed because they were from a prior cycle (C1-new, commit 56e97f6).
-    QA review must include `git diff HEAD~1..HEAD -- src/ tests/` to verify the commit
-    under review contains real code changes, not just workflow artifacts.
+  - QA agent caught that the dev's initial implementation included full parsing pipeline
+    instead of the specified stub-only behavior. The second revision caught an entrypoint
+    wiring issue preventing CLI invocation. Both catches prevented shipping incorrect
+    code and were resolved within minutes. Catching mismatches early (before merge)
+    is far cheaper than discovering them post-merge.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -224,18 +222,18 @@ patterns:
   sample_count: 1
 - pattern: debugging/*
   insights:
-  - The dev agent session was first used for a debug meeting analyzing a prior failed
-    mission (b630c874), where it performed root cause analysis and created action
-    items. The same session context (with accumulated project knowledge) was then
-    available for the actual implementation workflow. This accidental session reuse
-    provided beneficial context about failure modes to avoid.
+  - 'When using Typer with pyproject.toml console_scripts, pointing the entrypoint
+    directly at the Typer app object or a callback function produces no output. The
+    fix is to create a run() function that calls app() and point the entrypoint at
+    that wrapper. This is a common Typer pitfall: `session_insights.cli:run` where
+    run() calls app().'
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - debugging
-  - process
+  - technical
   sample_count: 1
 - pattern: integration/*
   insights:
@@ -338,11 +336,11 @@ patterns:
   sample_count: 1
 - pattern: workflow-coordination/*
   insights:
-  - QA approved first (17:28), dev signaled done second (17:29), watcher confirmed
-    third (17:30). This 3-minute signal chain worked because QA could verify independently
-    while dev was still working. Having QA run targeted tests (11 CLI tests) rather
-    than full suite enabled fast turnaround. The Codex-based QA agent was effective
-    for focused test verification.
+  - The dev agent sent 3 consecutive 'done' signals (signals 4-6) repeating 'already
+    fixed' and 'already committed' for the same entrypoint fix. This pattern of redundant
+    signaling wastes time and suggests the agent is uncertain whether its prior fix
+    was received. A single done signal with clear evidence (commit hash, test output)
+    is sufficient and more efficient.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null

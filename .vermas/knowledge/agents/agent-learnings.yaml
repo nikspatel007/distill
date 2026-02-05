@@ -1,15 +1,15 @@
 agents:
   general:
     learnings:
-    - The dev agent produced a commit that claimed implementation but contained no
-      source code changes, indicating it may have confused workflow artifact generation
-      with actual code delivery.
-    - The QA agent or watcher did not catch the artifact-only commit before the done
-      signal was sent, suggesting the verification pipeline has gaps that allow false
-      positives.
-    - The three-agent coordination (dev, watcher, qa) completed quickly (362s) but
-      speed without substance indicates the agents may have short-circuited actual
-      implementation work.
+    - Dev agent was responsive to QA feedback, shipping revised code within 2-3 minutes
+      of each revision request, but over-signaled completion (3 redundant 'done' signals
+      for the same fix).
+    - QA agent provided high-quality, specific revision requests that identified both
+      functional (stub vs full pipeline) and operational (entrypoint wiring) issues,
+      demonstrating multi-layer verification.
+    - "The two-agent dev+QA loop completed in 15 minutes with 2 revision cycles \u2014\
+      \ the revision overhead (~10 min) was justified by catching real issues that\
+      \ would have caused post-merge failures."
     strengths: []
     weaknesses: []
     best_practices: []
