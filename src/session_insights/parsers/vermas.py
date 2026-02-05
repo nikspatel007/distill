@@ -119,6 +119,9 @@ class VermasSession(BaseSession):
     """
 
     source: str = "vermas"
+    # Override BaseSession properties with actual fields for duration tracking
+    start_time: datetime | None = None
+    end_time: datetime | None = None
     mission_id: str | None = None
     task_name: str | None = None
     cycle: int | None = None
