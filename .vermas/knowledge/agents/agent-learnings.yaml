@@ -1,13 +1,12 @@
 agents:
   general:
     learnings:
-    - Dev agent produced substantial, well-structured code (2000 lines) but failed
-      at the final merge step, indicating strong coding ability but gaps in workflow
-      completion
-    - The workflow marked success despite code never reaching main, suggesting the
-      QA/verification step either didn't run or didn't check the right thing
-    - Test infrastructure was properly set up with fixtures and comprehensive test
-      classes, showing good testing discipline
+    - Dev agent demonstrated strong implementation ability (800+ line parser with
+      1170 lines of tests) but failed to survive the full QA revision cycle
+    - QA agent caught real issues (missing workflow YAML parsing, recaps, memory files,
+      unbound variable) showing effective review process
+    - Both agents engaged in productive feedback loop until dev death - the collaboration
+      pattern was working
     strengths: []
     weaknesses: []
     best_practices: []
