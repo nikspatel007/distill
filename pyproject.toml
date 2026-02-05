@@ -30,6 +30,12 @@ build-backend = "hatchling.build"
 testpaths = ["tests"]
 addopts = "-v --cov=session_insights --cov-report=term-missing"
 
+[tool.coverage.run]
+omit = [
+    "src/session_insights/cli.py",
+    "src/session_insights/__main__.py",
+]
+
 [tool.mypy]
 python_version = "3.11"
 strict = true
