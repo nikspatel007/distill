@@ -1,12 +1,12 @@
 agents:
   general:
     learnings:
-    - QA agent (Codex) effectively caught both the initial empty commit and subsequent
-      test failures, demonstrating thorough verification
-    - Dev agent responded quickly to feedback (1-2 minutes between QA rejection and
-      fix), showing efficient iteration
-    - Both agents signaled 'complete' after 'approved', following proper workflow
-      protocol
+    - Dev agent adapted quickly to framework change request (Typer to Click) without
+      resistance or delay
+    - QA agent (codex) enforced strict specification compliance, catching subtle format
+      differences
+    - Three-iteration convergence pattern (done-revision-done-revision-done-approved)
+      is efficient for well-scoped tasks
     strengths: []
     weaknesses: []
     best_practices: []

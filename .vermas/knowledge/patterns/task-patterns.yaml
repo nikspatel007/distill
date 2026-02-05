@@ -45,11 +45,10 @@ patterns:
   sample_count: 1
 - pattern: testing/*
   insights:
-  - When reviewing CLI changes, run targeted test subsets first (tests/test_cli.py,
-    tests/integration/test_integration.py) rather than the full suite. This provides
-    faster feedback on the specific feature. QA ran 'PYTHONPATH=src python -m pytest
-    tests/test_cli.py tests/integration/test_integration.py::TestCLIExitCodes' to
-    verify the 8 relevant tests.
+  - QA correctly flagged that the test should assert exact output ('session-insights
+    v0.1.0') rather than loose matching. This prevents drift where implementation
+    technically passes tests but doesn't meet specification. Tighter assertions catch
+    specification mismatches early.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -134,10 +133,11 @@ patterns:
   sample_count: 1
 - pattern: code-review/*
   insights:
-  - Before conducting a detailed review, QA should first verify that the branch contains
-    actual code changes (git diff main...HEAD). Empty branches indicate dev hasn't
-    pushed yet or work was done in wrong worktree. This prevents wasted review cycles
-    on non-existent code.
+  - "QA agent caught two specification mismatches: wrong CLI framework (Typer vs Click)\
+    \ and inexact version output format. Dev agent responded quickly to each round\
+    \ of feedback, converging on the exact specification in 3 iterations. This rapid\
+    \ iteration pattern (done\u2192revision\u2192done\u2192revision\u2192done\u2192\
+    approved) took under 5 minutes total."
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -347,11 +347,10 @@ patterns:
   sample_count: 1
 - pattern: cli-development/*
   insights:
-  - When adding file/directory output arguments to CLI commands, use optional parameters
-    with sensible defaults (e.g., '--output' defaulting to './insights/') rather than
-    requiring explicit values. This improves user experience for common cases while
-    preserving flexibility. The pattern also includes creating the directory automatically
-    and printing a confirmation message to provide feedback.
+  - 'To customize Click''s --version output from the default ''program, version X.Y.Z''
+    to a custom format like ''program vX.Y.Z'', use the message parameter: @click.version_option(message=''session-insights
+    v%(version)s''). This allows exact control over version string format without
+    custom code.'
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -372,5 +371,19 @@ patterns:
   recommended_workflow: null
   tags:
   - workflow
+  - process
+  sample_count: 1
+- pattern: workflow-signals/*
+  insights:
+  - Both dev and QA used descriptive signal messages explaining exactly what was done
+    or what needed revision. QA's 'needs_revision' messages specified the exact discrepancy
+    ('Click default vs spec'), allowing dev to fix precisely without back-and-forth
+    clarification.
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - workflow-signals
   - process
   sample_count: 1
