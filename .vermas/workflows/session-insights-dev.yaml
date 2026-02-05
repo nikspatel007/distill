@@ -27,60 +27,46 @@ states:
          - Layer 1: Argument/option parsing with Click decorators
          - Layer 2: Command dispatch and routing
          - Layer 3: Business logic (call existing parser/analysis functions)
-      3. Implement and test ONE layer at a time
-      4. If the task scope covers multiple layers, signal 'blocked' and request decomposition
+      3. Implement and test ONE layer at a time before proceeding
+      4. If a CLI task is too large, signal "blocked" with a decomposition proposal
       
-      For the 'analyze-command' specifically:
-      - The parser is already complete and stable - use it, don't rewrite it
-      - Focus on wiring Click options to parser function calls
-      - Start with the minimal viable command (single file input, basic output)
-      
-      For parsing tasks:
-      - Start with the simplest case first and add complexity incrementally
-      - Write a failing test before implementing each parsing feature
-      - If the parsing logic is complex, break it into smaller helper functions
-      - Handle edge cases explicitly (empty input, malformed input, etc.)
-      
-      Pre-implementation checklist:
-      [ ] Is this task small enough to complete in one cycle?
-      [ ] Are all dependencies (parser, models, utils) already available?
-      [ ] Can I write a single, focused test that validates completion?
+      CRITICAL - Failed Task Recovery:
+      If this task failed in a previous cycle:
+      1. Run diagnostics FIRST: check for missing dependencies, import errors, syntax issues
+      2. Review the failure logs before writing any code
+      3. Identify the specific blocker - do NOT simply retry the same approach
+      4. If the same approach failed twice, you MUST try a different strategy
       
       Run tests before signaling done:
       `uv run pytest tests/ -x -q`
       
-      If tests fail, fix them before signaling.
-      
       Signal "done" when implementation is complete and tests pass.
-      Signal "blocked" if:
-      - Task scope is too large (needs decomposition)
-      - Missing dependencies identified
-      - Infrastructure issues encountered
+      Signal "blocked" if you identify a systemic issue requiring task decomposition.
     on_signal:
-      blocked:
-        from: engineer
-        next: blocked
       done:
         from: engineer
         next: reviewing
+      blocked:
+        from: engineer
+        next: blocked
     timeout:
-      action: nudge
       duration: 30m
+      action: nudge
 
   reviewing:
     instructions: |
-      Review the engineer's implementation.
+      Review the implementation for correctness and quality.
       
-      Check for:
-      - Tests pass: `uv run pytest tests/ -x -q`
-      - Type hints present and correct
-      - Code follows project conventions
-      - No unnecessary complexity
+      Verification steps:
+      1. Read all changed files
+      2. Run full test suite with coverage
+      3. Test CLI manually if applicable
+      4. Check for edge cases and error handling
       
-      For CLI implementations specifically:
-      - Verify the task stayed within its designated layer (parsing/dispatch/logic)
-      - Confirm no scope creep into adjacent layers
-      - Check that existing parser functions are reused, not reimplemented
+      CLI-specific review:
+      - Verify CLI layers are properly separated (parsing, dispatch, logic)
+      - Ensure no monolithic command implementations
+      - Check that Click decorators are minimal and focused
       
       Signal "approved" if quality is acceptable.
       Signal "needs_revision" with specific feedback if changes needed.
@@ -92,14 +78,14 @@ states:
         from: reviewer
         next: engineering
     timeout:
-      action: nudge
       duration: 15m
+      action: nudge
 
   blocked:
     type: terminal
     on_entry:
       - action: log
-        message: "Workflow blocked - task requires decomposition or has missing dependencies"
+        message: Task requires decomposition or manual intervention - escalating
 
   finalize:
     type: terminal

@@ -1,0 +1,24 @@
+id: adapt-mission-6e8e249c-c2-session-insights-dev
+date: '2026-02-05T08:33:03.423757'
+type: workflow_change
+target: workflow/session-insights-dev
+change: The CLI skeleton task has failed in consecutive cycles (100% failure rate
+  for monolithic CLI tasks). Evidence from cycle-4-6, cycle-5-4, and multiple learnings
+  indicates CLI tasks must be decomposed into argument parsing, dispatch, and logic
+  layers. The current workflow instructions don't enforce this decomposition or provide
+  diagnostic requirements before retrying failed tasks. Adding explicit CLI decomposition
+  requirements and mandatory diagnostic steps addresses the root cause identified
+  across 5+ cycles.
+before_metrics:
+  revision_rate: null
+  avg_duration: null
+  success_rate: 0.15
+  token_usage: null
+after_metrics:
+  revision_rate: null
+  avg_duration: null
+  success_rate: null
+  token_usage: null
+validated: false
+impact: null
+notes: null
