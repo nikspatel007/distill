@@ -1,0 +1,7 @@
+# VerMAS workflow marker files - DO NOT COMMIT
+TASK.md
+AGENTS.md
+CLAUDE.md
+.agent-*.json
+.claude/
+.vermas-merge-lock
