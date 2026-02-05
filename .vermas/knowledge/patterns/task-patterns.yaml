@@ -1,12 +1,11 @@
 patterns:
 - pattern: testing/*
   insights:
-  - When adding caches to prevent duplicate processing (like _vermas_parsed_dirs),
-    always expose a reset_vermas_cache() function for test isolation. This allows
-    integration tests to run independently without cross-contamination from cached
-    state.
+  - QA identified that integration tests expected --since option and required --output
+    flag. Dev added these after QA review, demonstrating that integration tests serve
+    as executable specification for CLI interface design.
   revision_rate: null
-  success_rate: 1.0
+  success_rate: 0.0
   avg_duration: null
   recommended_workflow: null
   tags:
@@ -29,13 +28,12 @@ patterns:
   sample_count: 1
 - pattern: code-review/*
   insights:
-  - 'QA review in multiple iterations caught critical issues that unit tests missed:
-    message-to-turn mapping for conversation display and duplicate session prevention
-    when parsing VerMAS directories. The first review caught missing requirements,
-    the second caught integration edge cases. This pattern of incremental refinement
-    ensures production-quality code.'
+  - QA caught that initial implementation used Typer instead of specified Click framework,
+    then caught missing --since option and integration test failures. Two revision
+    cycles were needed. Multi-round review is effective for catching spec compliance
+    issues.
   revision_rate: null
-  success_rate: 1.0
+  success_rate: 0.0
   avg_duration: null
   recommended_workflow: null
   tags:
@@ -279,4 +277,90 @@ patterns:
   tags:
   - caching
   - technical
+  sample_count: 1
+- pattern: workflow-configuration/*
+  insights:
+  - Workflow failed because it attempted to execute implement-cli-skeleton task under
+    mission-f68b8b88, but this task only exists under mission-62ea732b. Before launching
+    a workflow, the system should verify that the specified task file exists in the
+    expected mission directory. This prevents early agent deaths from trying to execute
+    non-existent tasks.
+  revision_rate: null
+  success_rate: 0.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - workflow-configuration
+  - process
+  sample_count: 1
+- pattern: infrastructure/*
+  insights:
+  - 'Agent death (''agents died. Dead roles: dev'') early in workflow (no trace created)
+    indicates infrastructure failure rather than task failure. When agents crash without
+    producing any artifacts, the root cause is typically a missing prerequisite -
+    in this case, the task file itself didn''t exist for the mission. Robust error
+    handling should catch missing tasks before spawning agents.'
+  revision_rate: null
+  success_rate: 0.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - infrastructure
+  - technical
+  sample_count: 1
+- pattern: workflow-orchestration/*
+  insights:
+  - Mission-f68b8b88 was focused on 'complete-session-insights-parsers' (codex parser,
+    vermas parser, pattern analyzer), but cycle-4 attempted implement-cli-skeleton
+    which is a foundation task from a different mission. This suggests the cycle planning
+    system may be selecting tasks outside the mission's scope. Task selection should
+    be constrained to tasks defined within the mission.
+  revision_rate: null
+  success_rate: 0.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - workflow-orchestration
+  - process
+  sample_count: 1
+- pattern: resilience/*
+  insights:
+  - The 995-second workflow duration suggests the system waited for agents that had
+    already died. Implementing a pre-flight check that verifies task file existence,
+    agent availability, and tmux session health before starting the state machine
+    would fail fast with clear error messages rather than timing out.
+  revision_rate: null
+  success_rate: 0.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - resilience
+  - technical
+  sample_count: 1
+- pattern: workflow-reliability/*
+  insights:
+  - Workflows running 77+ minutes (4666 seconds) are vulnerable to session timeouts.
+    The watcher confirmed completion at 09:43:59, but agents died before clean workflow
+    exit. Consider implementing session keepalive or checkpoint-based recovery.
+  revision_rate: null
+  success_rate: 0.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - workflow-reliability
+  - process
+  sample_count: 1
+- pattern: git-workflow/*
+  insights:
+  - The worktree branch shows same commit as main (6d801ce), indicating either changes
+    were never committed OR were not merged to main before session ended. This matches
+    the known 'deliverable verification gap' pattern where tasks are signaled complete
+    without git tracking.
+  revision_rate: null
+  success_rate: 0.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - git-workflow
+  - process
   sample_count: 1
