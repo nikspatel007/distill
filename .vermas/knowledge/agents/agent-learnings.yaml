@@ -1,12 +1,15 @@
 agents:
   general:
     learnings:
-    - QA agent (codex) provided actionable feedback with specific file paths and test
-      names, enabling rapid bug fixes
-    - Dev agent completed implementation with comprehensive tests before signaling
-      done, demonstrating mature development discipline
-    - The approval signal from QA included verification evidence ('146 passed, coverage
-      94%'), providing clear audit trail
+    - QA agent (Codex) provided highly specific, actionable feedback with exact technical
+      details (e.g., '_convert_parser_session_to_base does not map parser messages
+      to BaseSession.turns') rather than vague descriptions.
+    - "Dev agent (Claude) responded to each QA issue with targeted fixes and incremental\
+      \ test additions (103\u2192106 tests), demonstrating good iterative development\
+      \ practice."
+    - Watcher agent provided useful final summary but was passive during the dev-QA
+      review cycles - consider having watcher monitor for review loops that exceed
+      thresholds.
     strengths: []
     weaknesses: []
     best_practices: []

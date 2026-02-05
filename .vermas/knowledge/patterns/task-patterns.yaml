@@ -1,10 +1,10 @@
 patterns:
 - pattern: testing/*
   insights:
-  - 'The workflow achieved 94% coverage against a 90% target by adding tests incrementally
-    during implementation: 31 new CLI tests and 13 new formatter tests. Adding tests
-    alongside feature code rather than as a separate phase ensures coverage targets
-    are met naturally.'
+  - When adding caches to prevent duplicate processing (like _vermas_parsed_dirs to
+    prevent re-parsing the same .vermas directory), always expose a reset_vermas_cache()
+    function to clear the cache between tests. This prevents test pollution while
+    maintaining production performance.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -15,11 +15,10 @@ patterns:
   sample_count: 1
 - pattern: architecture/*
   insights:
-  - 'When discovering sessions from multiple sources (claude, codex, vermas), scanning
-    all directories for all sources causes duplicate entries and overwrites. The fix
-    was to make discover_sessions() scan only source-specific directories: .claude
-    for claude sessions, .codex for codex sessions, etc. This separation of concerns
-    prevents data pollution.'
+  - 'Map source types to their specific directories (source_dirs = {''claude'': dir/''.claude'',
+    ''codex'': dir/''.codex''}) and define per-source glob patterns in SESSION_PATTERNS
+    dict. This separates concerns: discovery logic iterates sources while patterns
+    define what files constitute sessions for each source type.'
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -30,12 +29,10 @@ patterns:
   sample_count: 1
 - pattern: code-review/*
   insights:
-  - When creating test fixtures with directory names that match project-wide gitignore
-    rules (like .claude/), QA review will catch that the fixtures won't be tracked
-    in version control. The dev-QA cycle identified that tests/fixtures/.claude/ was
-    ignored by the blanket .claude/ rule, requiring either an exception (!tests/fixtures/.claude/)
-    or renaming the fixture directory. Always check if fixture paths conflict with
-    gitignore patterns.
+  - Complex integration tasks benefit from iterative QA reviews. First review catches
+    architectural gaps (missing dispatch, incomplete scanning). Second review catches
+    functional gaps (message-to-turns mapping, deduplication). Dev signals 'done'
+    after each fix; QA signals 'needs_revision' or 'approved' with specific issues.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -46,10 +43,10 @@ patterns:
   sample_count: 1
 - pattern: workflow/*
   insights:
-  - The QA agent used 'needs_revision' signal with detailed root cause analysis pointing
-    to specific files and test names. This enabled the dev to fix the issue in under
-    2 minutes. Including file paths (src/session_insights/core.py) and test names
-    in revision feedback dramatically speeds up resolution.
+  - "The dev-QA workflow completed in exactly 3 signals: needs_revision \u2192 done\
+    \ \u2192 needs_revision \u2192 done \u2192 approved \u2192 complete. Each needs_revision\
+    \ contained specific issues, each done contained specific fixes. The approved\
+    \ signal confirmed all issues were resolved before marking complete."
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -103,12 +100,11 @@ patterns:
   sample_count: 1
 - pattern: debugging/*
   insights:
-  - Dev signaled done, QA found issues and signaled needs_revision, dev fixed and
-    re-signaled done, QA approved - all within one workflow cycle. This tight feedback
-    loop (dev fix in ~1 minute after QA review) is more efficient than multi-cycle
-    iterations.
+  - 'When tests fail due to environment issues (missing pytest-cov), QA should include
+    the working test command in signals: ''PYTHONPATH=src python -m pytest -q -o addopts=""''.
+    This prevents repeated debugging of the same environment issue across dev-QA cycles.'
   revision_rate: null
-  success_rate: 0.0
+  success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
@@ -268,4 +264,18 @@ patterns:
   tags:
   - integration
   - process
+  sample_count: 1
+- pattern: caching/*
+  insights:
+  - VerMAS parser was creating duplicates when parsing multiple files from the same
+    directory. The solution was _vermas_parsed_dirs cache that tracks already-parsed
+    directories. Added reset_vermas_cache() for test isolation to prevent cache pollution
+    between tests.
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - caching
+  - technical
   sample_count: 1
