@@ -1,0 +1,21 @@
+agent_id: 3a24e3c1
+created_at: '2026-02-05T14:50:03.675531'
+message: 'Wired CLI to parser discovery. Changes:
+
+  1. Added explicit parser imports in cli.py: `from session_insights.parsers import
+  ClaudeParser, CodexParser, VermasParser`
+
+  2. Created new `sources` command that discovers and prints available sources in
+  format: "Found sources: .claude, .vermas"
+
+  3. Updated `analyze` command to also print discovered sources before processing
+
+  4. Added 5 new tests for the sources command - all pass
+
+  5. All 9 CLI tests pass (187 total tests pass, 2 pre-existing failures in vermas
+  parser tests unrelated to these changes)'
+metadata: null
+role: dev
+signal: done
+signal_id: 95614b3b
+workflow_id: mission-62ea732b-cycle-6-execute-cli-wire-parser-stub
