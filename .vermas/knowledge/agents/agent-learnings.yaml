@@ -1,12 +1,12 @@
 agents:
   general:
     learnings:
-    - Dev agent effectively used diagnostic tools (Glob, Read, Bash) to investigate
-      task state before drawing conclusions
-    - Watcher agent contributed domain knowledge about testing strategies and KPI
-      measurement during planning discussions
-    - Multi-agent collaboration through meetings produced actionable items with clear
-      ownership and descriptions
+    - Dev was responsive to QA feedback, iterating twice to address dependency and
+      test issues within 3 minutes per cycle
+    - QA (Codex) provided precise, actionable rejection reasons including exact test
+      names and expected fixes
+    - Watcher provided useful summaries but could have caught the dependency issue
+      earlier through pre-checks
     strengths: []
     weaknesses: []
     best_practices: []

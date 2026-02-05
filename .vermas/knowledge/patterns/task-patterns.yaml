@@ -31,10 +31,9 @@ patterns:
   sample_count: 1
 - pattern: verification/*
   insights:
-  - QA's first review identified test assertions misaligned with new requirements
-    before attempting full test runs. Finding that tests expected 'missing --output'
-    errors when the spec now had defaults saved debugging time. Review code changes
-    against spec requirements before running test suites.
+  - This workflow used Claude for dev/watcher and Codex for QA. The mixed-agent-type
+    team successfully completed the task through clear signal-based communication.
+    Agent type matters less than clear acceptance criteria and structured feedback.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -45,10 +44,10 @@ patterns:
   sample_count: 1
 - pattern: testing/*
   insights:
-  - QA correctly flagged that the test should assert exact output ('session-insights
-    v0.1.0') rather than loose matching. This prevents drift where implementation
-    technically passes tests but doesn't meet specification. Tighter assertions catch
-    specification mismatches early.
+  - When QA rejects for test failures (even pre-existing ones), dev should fix them
+    before signaling done. In this workflow, dev added the end_time field to VermasSession
+    to fix 2 failing tests in test_vermas.py that were blocking approval. Addressing
+    test failures immediately maintains quality gates.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -133,10 +132,10 @@ patterns:
   sample_count: 1
 - pattern: code-review/*
   insights:
-  - QA correctly adjusted testing scope when dev reported structure already existed.
-    Instead of running full test suites, QA performed targeted verification (ls checks)
-    appropriate to the actual work performed. This demonstrates adaptive QA that matches
-    verification effort to actual changes.
+  - QA should verify that deliverable files are tracked in git (not just created)
+    before approving. In this workflow, QA caught that test files existed but were
+    untracked, preventing a 'done' signal on incomplete work. Use `git ls-files --error-unmatch
+    <file>` to verify tracking.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -147,11 +146,12 @@ patterns:
   sample_count: 1
 - pattern: dependencies/*
   insights:
-  - Plain 'uv run pytest' failed without pytest-cov plugin; 'uv run --extra dev pytest'
-    was required for full test execution. Projects should document required test dependencies
-    and consider making pytest-cov optional to reduce friction.
+  - 'Task required Click dependency but dev initially signaled done without it. QA
+    caught this in first review cycle. Pattern: run ''uv sync'' or equivalent and
+    verify imports work before claiming task completion. Dependencies are a common
+    oversight in verification tasks.'
   revision_rate: null
-  success_rate: 0.0
+  success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
@@ -359,10 +359,10 @@ patterns:
   sample_count: 1
 - pattern: workflow/*
   insights:
-  - 'CLI argument changes commonly require two dev-QA iterations: first to implement
-    the feature, second to update test expectations. The initial implementation may
-    pass unit tests but fail integration tests that have implicit assumptions about
-    argument behavior. Plan for this in time estimates.'
+  - The watcher agent provided useful state summaries at key transitions, confirming
+    QA approval and dev commit. Having a dedicated observer role helps maintain shared
+    understanding of workflow progress and provides audit trail for debugging coordination
+    issues.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -439,5 +439,33 @@ patterns:
   recommended_workflow: null
   tags:
   - resilience
+  - process
+  sample_count: 1
+- pattern: git/*
+  insights:
+  - Always run explicit `git add` for deliverable files and verify with `git ls-files
+    --error-unmatch` before signaling done. The common failure mode is creating files
+    in the working directory without committing them, which breaks the 'done means
+    committed to main' principle.
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - git
+  - technical
+  sample_count: 1
+- pattern: process/*
+  insights:
+  - 'Effective QA feedback includes specific failure details (test names, error messages,
+    exact requirements missing). QA provided ''needs_revision'' signals with actionable
+    items: ''missing Click dependency'', then ''pytest failed with 2 failures in tests/parsers/test_vermas.py''.
+    This specificity enabled dev to fix issues quickly across 2 iteration cycles.'
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - process
   - process
   sample_count: 1

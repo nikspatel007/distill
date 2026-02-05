@@ -1,0 +1,11 @@
+agent_id: fac454d8
+created_at: '2026-02-05T15:02:54.295009'
+message: 'Re-review: cli.py no longer imports parsers directly; requirement #1 says
+  cli.py must import from parsers/. Please re-add and use (e.g., PARSERS mapping)
+  to avoid ruff F401. Also remove unused `import os` in tests/test_cli.py (unused,
+  violates lint/conventions).'
+metadata: null
+role: qa
+signal: needs_revision
+signal_id: 13119e51
+workflow_id: mission-6e8e249c-cycle-4-execute-cli-wire-parser-stub
