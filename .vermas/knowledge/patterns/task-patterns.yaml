@@ -15,10 +15,11 @@ patterns:
   sample_count: 1
 - pattern: architecture/*
   insights:
-  - 'Map source types to their specific directories (source_dirs = {''claude'': dir/''.claude'',
-    ''codex'': dir/''.codex''}) and define per-source glob patterns in SESSION_PATTERNS
-    dict. This separates concerns: discovery logic iterates sources while patterns
-    define what files constitute sessions for each source type.'
+  - When integrating multiple parsers that return different session models, create
+    a conversion function (_convert_parser_session_to_base) that maps parser-specific
+    messages to a common interface (ConversationTurn). This enables features like
+    --include-conversation to work uniformly across all parser types without modifying
+    the parsers themselves.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -29,10 +30,11 @@ patterns:
   sample_count: 1
 - pattern: code-review/*
   insights:
-  - Complex integration tasks benefit from iterative QA reviews. First review catches
-    architectural gaps (missing dispatch, incomplete scanning). Second review catches
-    functional gaps (message-to-turns mapping, deduplication). Dev signals 'done'
-    after each fix; QA signals 'needs_revision' or 'approved' with specific issues.
+  - Complex integration tasks require multiple QA review cycles. First review catches
+    architectural gaps (missing parser dispatch, incomplete directory scanning). Second
+    review catches functional gaps (message-to-turn mapping for conversation display,
+    deduplication logic). Each QA signal should include specific issues and working
+    test commands.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -43,10 +45,10 @@ patterns:
   sample_count: 1
 - pattern: workflow/*
   insights:
-  - "The dev-QA workflow completed in exactly 3 signals: needs_revision \u2192 done\
-    \ \u2192 needs_revision \u2192 done \u2192 approved \u2192 complete. Each needs_revision\
-    \ contained specific issues, each done contained specific fixes. The approved\
-    \ signal confirmed all issues were resolved before marking complete."
+  - "The optimal dev-QA signal pattern is: needs_revision (with numbered issue list)\
+    \ \u2192 done (with specific fixes per issue) \u2192 needs_revision or approved.\
+    \ Dev's done signal should explicitly address each issue from the needs_revision\
+    \ signal. QA's approved signal confirms resolution before dev signals complete."
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -100,9 +102,10 @@ patterns:
   sample_count: 1
 - pattern: debugging/*
   insights:
-  - 'When tests fail due to environment issues (missing pytest-cov), QA should include
-    the working test command in signals: ''PYTHONPATH=src python -m pytest -q -o addopts=""''.
-    This prevents repeated debugging of the same environment issue across dev-QA cycles.'
+  - 'When tests fail due to environment configuration issues (e.g., missing pytest-cov
+    plugin), QA should include the exact working command in their signals: ''PYTHONPATH=src
+    python -m pytest -q -o addopts=""''. This prevents repeated debugging of the same
+    environment issue across dev-QA cycles and establishes a shared verification baseline.'
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -267,10 +270,10 @@ patterns:
   sample_count: 1
 - pattern: caching/*
   insights:
-  - VerMAS parser was creating duplicates when parsing multiple files from the same
-    directory. The solution was _vermas_parsed_dirs cache that tracks already-parsed
-    directories. Added reset_vermas_cache() for test isolation to prevent cache pollution
-    between tests.
+  - When a parser processes multiple files from the same source directory (e.g., multiple
+    signal files in .vermas/), use a module-level cache (_vermas_parsed_dirs) to track
+    already-parsed directories. Always expose a reset function (reset_vermas_cache())
+    for test isolation to prevent cache pollution between test runs.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null

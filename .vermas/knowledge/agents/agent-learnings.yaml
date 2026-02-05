@@ -1,15 +1,12 @@
 agents:
   general:
     learnings:
-    - QA agent (Codex) provided highly specific, actionable feedback with exact technical
-      details (e.g., '_convert_parser_session_to_base does not map parser messages
-      to BaseSession.turns') rather than vague descriptions.
-    - "Dev agent (Claude) responded to each QA issue with targeted fixes and incremental\
-      \ test additions (103\u2192106 tests), demonstrating good iterative development\
-      \ practice."
-    - Watcher agent provided useful final summary but was passive during the dev-QA
-      review cycles - consider having watcher monitor for review loops that exceed
-      thresholds.
+    - Dev agent effectively addressed QA feedback in two iterations, adding message-to-turns
+      conversion and directory caching without over-engineering
+    - QA agent provided actionable feedback with specific technical issues (missing
+      message mapping, duplicate sessions) rather than vague complaints
+    - Watcher agent correctly identified workflow completion only after QA approval
+      signal, maintaining proper workflow state tracking
     strengths: []
     weaknesses: []
     best_practices: []
