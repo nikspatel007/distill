@@ -14,17 +14,12 @@ states:
     instructions: |
       Implement the assigned task for the session-insights CLI tool.
       
-      CRITICAL PHASE DIRECTIVE:
-      Foundation scaffolding is COMPLETE as of cycle 3. All tasks must now
-      prioritize FEATURE IMPLEMENTATION over infrastructure work:
-      - Implement actual parsing logic (markdown, Obsidian features)
-      - Add integration tests against real documents
-      - Target 10%+ KPI gain per cycle (3 tasks = 10% minimum)
-      
-      DO NOT spend time on:
-      - Additional scaffolding or project structure
-      - Abstract base classes without concrete implementations
-      - Infrastructure work that doesn't directly move parse_success_rate
+      CRITICAL: CLI TASK HANDLING
+      CLI tasks have historically high failure rates (>50%). If your task involves CLI:
+      1. DECOMPOSE into layers: argument parsing, dispatch logic, business logic
+      2. Implement and test each layer separately before integration
+      3. If blocked on CLI infrastructure after 2 attempts, signal "blocked" immediately
+      4. Do NOT retry the same failing approach - signal blocked for human review
       
       Follow Python best practices:
       - Use Pydantic v2 for models
@@ -32,23 +27,14 @@ states:
       - pytest for testing
       - Type hints throughout
       
-      CLI Task Decomposition (HIGH-RISK AREA):
-      CLI implementation has caused multiple cycle failures. If your task involves CLI:
-      1. NEVER implement argument parsing, dispatch, and business logic together
-      2. Break into discrete layers:
-         - Layer 1: Argument/option parsing with Click decorators
-         - Layer 2: Command dispatch and routing
-         - Layer 3: Business logic (call existing parser/analysis functions)
-      3. Implement and test ONE layer per task
-      4. If a CLI task fails, signal blocked rather than retry the same approach
-      
       Run tests before signaling done:
       `uv run pytest tests/ -x -q`
       
-      If tests fail, fix them before signaling.
-      
       Signal "done" when implementation is complete and tests pass.
-      Signal "blocked" if you encounter infrastructure issues or are stuck.
+      Signal "blocked" if:
+      - CLI infrastructure issues persist after 2 attempts
+      - Dependencies cannot be resolved
+      - Same error occurs twice with different approaches
     on_signal:
       done:
         from: engineer
@@ -57,21 +43,25 @@ states:
         from: engineer
         next: blocked
     timeout:
-      duration: 30m
+      duration: 45m
       action: nudge
 
   reviewing:
     instructions: |
-      Review the engineer's implementation for the session-insights CLI tool.
+      Review the implementation for correctness and quality.
       
-      Review criteria:
-      1. Does this task move KPI (parse_success_rate) meaningfully?
-         - If it's pure infrastructure with no KPI impact, request revision
-      2. Are tests present and passing?
-      3. Does the code follow Python best practices?
-      4. For CLI changes: are the three layers properly separated?
+      Verification steps:
+      1. Read all changed files
+      2. Run full test suite with coverage
+      3. Test CLI manually if applicable
+      4. Check for edge cases and error handling
       
-      Signal "approved" if the implementation is correct and impactful.
+      For CLI tasks specifically:
+      - Verify argument parsing handles edge cases
+      - Confirm error messages are user-friendly
+      - Test with invalid inputs
+      
+      Signal "approved" if quality is acceptable.
       Signal "needs_revision" with specific feedback if changes needed.
     on_signal:
       approved:
@@ -84,13 +74,13 @@ states:
       duration: 15m
       action: nudge
 
-  finalize:
-    type: terminal
-    on_entry:
-      - action: commit
-
   blocked:
     type: terminal
     on_entry:
       - action: log
-        message: Workflow blocked - requires manual intervention
+        message: Task blocked - requires human intervention. This task has exceeded retry threshold or hit persistent infrastructure issues.
+
+  finalize:
+    type: terminal
+    on_entry:
+      - action: commit

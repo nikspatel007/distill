@@ -1,12 +1,12 @@
 agents:
   general:
     learnings:
-    - Dev was responsive to QA feedback, iterating twice to address dependency and
-      test issues within 3 minutes per cycle
-    - QA (Codex) provided precise, actionable rejection reasons including exact test
-      names and expected fixes
-    - Watcher provided useful summaries but could have caught the dependency issue
-      earlier through pre-checks
+    - Dev agent responded quickly to QA feedback (under 2 minutes per revision cycle),
+      demonstrating effective understanding of specific feedback
+    - 'QA agent correctly caught a subtle issue: removing imports fixed lint but violated
+      task requirements - showing requirement-aware review'
+    - Watcher agent tracked workflow state transitions, providing audit trail but
+      not actively intervening in dev-QA loop
     strengths: []
     weaknesses: []
     best_practices: []

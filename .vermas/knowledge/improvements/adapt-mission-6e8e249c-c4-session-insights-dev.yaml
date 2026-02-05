@@ -1,0 +1,24 @@
+id: adapt-mission-6e8e249c-c4-session-insights-dev
+date: '2026-02-05T09:16:15.082655'
+type: workflow_change
+target: workflow/session-insights-dev
+change: Evidence shows CLI tasks have >50% failure rate across cycles. The workflow
+  lacks explicit guidance for handling CLI tasks which are identified as high-risk.
+  Adding CLI-specific decomposition instructions and a blocked state with escalation
+  criteria will help agents recognize when to signal blocked rather than repeatedly
+  failing. The extended timeout for engineering (45m vs 30m) accounts for CLI complexity.
+  The blocked state ensures failed patterns trigger proper escalation rather than
+  infinite retries.
+before_metrics:
+  revision_rate: null
+  avg_duration: null
+  success_rate: 0.45
+  token_usage: null
+after_metrics:
+  revision_rate: null
+  avg_duration: null
+  success_rate: null
+  token_usage: null
+validated: false
+impact: null
+notes: null
