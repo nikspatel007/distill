@@ -217,10 +217,10 @@ patterns:
   sample_count: 1
 - pattern: debugging/*
   insights:
-  - When tests fail due to missing optional plugins like pytest-cov specified in pyproject.toml
-    addopts, use 'PYTHONPATH=src python -m pytest -q -o addopts=""' to override and
-    skip coverage requirements. This enables running tests in environments without
-    the full dev dependency stack.
+  - When a workflow is marked as failed, investigate the actual state of artifacts
+    before assuming implementation failed. In this case, the code was completed successfully
+    but the workflow failed due to orchestration issues. Reading task files, checking
+    worktrees, and running tests revealed the true state.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -331,10 +331,10 @@ patterns:
   sample_count: 1
 - pattern: workflow-coordination/*
   insights:
-  - When a task's requirements are already satisfied, reporting verification results
-    is a valid way to complete the task. QA appropriately approved based on verification
-    evidence (ls output) rather than requiring code changes. This prevents unnecessary
-    commits of workflow artifacts for already-complete work.
+  - Using structured meetings with the create_meeting, say, and create_action_item
+    tools allows agents to collaboratively investigate failures and document findings.
+    The dev agent created 3 specific action items with clear descriptions and assigned
+    roles, preserving institutional knowledge.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -397,5 +397,47 @@ patterns:
   recommended_workflow: null
   tags:
   - discovery
+  - process
+  sample_count: 1
+- pattern: recovery/*
+  insights:
+  - Even when workflow orchestration fails, code written in git worktrees is preserved
+    and can be recovered. The investigation found a complete implementation with passing
+    tests in .worktrees/implement-claude-parser/ that just needed to be committed.
+    Always check worktrees before re-implementing failed tasks.
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - recovery
+  - technical
+  sample_count: 1
+- pattern: observability/*
+  insights:
+  - 'Workflow failures can occur at multiple levels: code implementation, test execution,
+    commit/merge operations, or orchestration (agent registration, signal delivery).
+    The root cause analysis identified MCP connection refused errors and missing agent
+    registrations as orchestration issues, not code issues.'
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - observability
+  - process
+  sample_count: 1
+- pattern: resilience/*
+  insights:
+  - When agents complete work but fail to signal completion, the work is lost if not
+    committed. Consider implementing WIP (work-in-progress) commits before signaling
+    done, so that even if signaling fails, the implementation is preserved in git
+    history for recovery.
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - resilience
   - process
   sample_count: 1
