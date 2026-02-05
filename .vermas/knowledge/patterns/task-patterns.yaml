@@ -1,12 +1,10 @@
 patterns:
 - pattern: architecture/*
   insights:
-  - The workflow unified two incompatible BaseSession classes and moved scattered
-    type definitions (AgentSignal, AgentLearning, KnowledgeImprovement) into a single
-    canonical location (parsers/models.py) before downstream feature work could proceed.
-    This architectural prerequisite unblocked 3 dependent tasks (formatter, analyze
-    subcommand, integration tests). Centralizing shared models eliminates getattr
-    fallbacks and enables direct attribute access, improving type safety and maintainability.
+  - Using an ABC (Measurer) with a Pydantic model (KPIResult) as the return type ensures
+    all KPI scripts produce consistent JSON output with kpi name, value (0-100), target,
+    and details dict. This pattern makes it trivial to add new measurers and aggregate
+    results. The base class is only 30 lines but provides strong interface guarantees.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -48,11 +46,11 @@ patterns:
   sample_count: 1
 - pattern: testing/*
   insights:
-  - "When moving model classes between modules, the primary regression risk is stale\
-    \ imports. This workflow updated imports in 4 source files and 2 test files. The\
-    \ test suite (218 tests) served as an effective safety net \u2014 any missed import\
-    \ would cause immediate ImportError failures. Running the full test suite after\
-    \ each move ensures no import paths are missed."
+  - 'QA caught that note_content_richness was checking BaseSession model fields (start_time)
+    instead of what appears in the generated Obsidian notes (**Started:**). The lesson
+    is: when measuring output quality, always measure the actual output artifact (generated
+    files on disk), not the intermediate data model. This applies broadly to any end-to-end
+    quality measurement.'
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -137,13 +135,13 @@ patterns:
   sample_count: 1
 - pattern: code-review/*
   insights:
-  - "QA's initial 'needs_revision' signal identified that the dev's first implementation\
-    \ was missing 6 required fields (task_description, signals, learnings, improvements,\
-    \ quality_assessment, cycle_info). The dev then completed the full implementation\
-    \ in under 6 minutes, and QA approved on second review. This tight feedback loop\
-    \ (needs_revision \u2192 fix \u2192 approved in ~8 minutes) prevented shipping\
-    \ incomplete work and demonstrates that structured QA review catches specification\
-    \ gaps that dev agents miss."
+  - 'The QA agent identified that dev''s initial implementation measured the wrong
+    thing (in-memory model fields instead of generated output files). Two revision
+    rounds progressively aligned implementation with requirements: round 1 switched
+    to CLI-subprocess-based testing, round 2 fixed semantic correctness (non-empty
+    vs present) and environment portability. This iterative dev-QA signal loop (done
+    -> needs_revision -> done -> needs_revision -> done -> approved) produced significantly
+    better code than the initial attempt.'
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -371,12 +369,12 @@ patterns:
   sample_count: 1
 - pattern: workflow/*
   insights:
-  - "The workflow produces increasingly sophisticated code (849 LOC with 26 tests,\
-    \ 92% coverage, QA-approved) yet consistently fails at the final merge step. The\
-    \ development and QA phases work well \u2014 needs_revision drives improvement,\
-    \ done signal accurately reflects work, approval validates quality \u2014 but\
-    \ the merge automation negates all value by producing artifact-only commits. The\
-    \ workflow's weakest link is not code quality but deployment to main."
+  - "This workflow followed a consistent pattern: commit 1 delivers the bulk implementation\
+    \ (1403 LOC, 38 tests), commit 2 addresses structural QA feedback (513 insertions/406\
+    \ deletions \u2014 major refactor), commit 3 addresses semantic precision issues\
+    \ (94 insertions/110 deletions \u2014 targeted fixes). Each round gets smaller\
+    \ and more focused, converging on correctness. The 1659s total duration (27 min)\
+    \ for 3 commits with 2 QA rounds is efficient."
   revision_rate: null
   success_rate: 1.0
   avg_duration: null

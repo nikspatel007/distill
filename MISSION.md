@@ -1,91 +1,148 @@
-# Mission: Session Insights - Rich Output Quality
+# Mission: Project-Based Narrative Insights
 
-The session-insights CLI exists and runs, but the generated Obsidian notes are empty/useless. The tool parses data correctly but loses it before formatting. Fix the data pipeline so notes contain rich, actionable content.
+The session-insights tool generates raw session notes (13k+ files). These are data dumps - useful for search but not human-readable narratives. Transform them into meaningful project-based insights that tell the story of what was built.
 
-## What Needs Fixing
+## Current State
 
-### Problem 1: Data Model Mismatch (Critical)
+Raw session notes contain:
+- Session ID, timestamp, duration
+- Tools used (Bash: 54, Read: 27, Edit: 13...)
+- Outcomes (Modified 15 files, Ran 54 commands)
+- Auto-tags (#debugging, #feature, #testing)
+- Summary (first user prompt, often cryptic)
 
-Two incompatible `BaseSession` classes exist:
-- `parsers/models.py` — used by parsers, has `messages`, `tool_calls` fields
-- `models/__init__.py` — expected by formatter, has `tools_used`, `outcomes`, `turns` fields
+Missing:
+- **Project context** - which repo/project was this session working on?
+- **Narrative summary** - what was actually accomplished in human terms?
+- **Cross-session story** - how do multiple sessions connect into a coherent project history?
+- **Key decisions** - what architectural choices were made and why?
 
-Compatibility properties in `parsers/models.py` return empty data:
-- `outcomes` always returns `[]`
-- `tools_used` returns empty when `tool_calls` is empty
-- VerMAS-specific data (signals, learnings, task_description) is never exposed to formatter
+## Target Output
 
-**Fix**: Unify to ONE BaseSession model. Remove the duplicate. Make all parsers populate the fields the formatter needs.
+### 1. Project Notes (new)
 
-### Problem 2: VerMAS Sessions Show "Task: unknown"
+One note per project (detected from `cwd` in session metadata):
 
-The VerMAS parser extracts task_name, task_description, signals, learnings, improvements — but the formatter never renders them. The formatter's `format_session()` only uses generic BaseSession fields.
+```markdown
+# Project: vermas
 
-**Fix**: The formatter should render VerMAS-specific fields when available: task description, agent signals, learnings, quality assessment, cycle info.
+## Overview
+Multi-agent task orchestration system with Temporal workflows.
 
-### Problem 3: Claude Sessions Missing Conversation Content
+## Timeline
+- **Started:** 2026-01-06
+- **Sessions:** 847
+- **Total Time:** 142 hours
 
-Claude sessions have rich conversation data (messages with tool calls), but notes show "_Conversation not included._" by default and even with `--include-conversation` the turns are minimal.
+## Major Milestones
+- Jan 6-10: Initial Temporal workflow setup
+- Jan 15-18: Agent router HTTP API
+- Jan 20-25: Meeting system for collaborative reviews
+- Jan 28-Feb 5: Mission workflow with KPI evaluation
 
-**Fix**: Extract and display: what the user asked, what tools were used and why, what was accomplished, key decisions made.
+## Key Decisions
+- Chose Temporal over Celery for workflow orchestration
+- PostgreSQL for event sourcing instead of Redis
+- tmux-based agent isolation
 
-### Problem 4: Home Directory Discovery
-
-The CLI only scans the `--dir` path for `.claude/` and `.codex/` subdirectories. Global session history lives at `~/.claude/` and `~/.codex/` (home directory). Users should be able to analyze ALL their sessions, not just project-local ones.
-
-**Fix**: Add `--global` flag or `--home` flag that also scans `~/.claude/` and `~/.codex/`. Alternatively, if `--dir ~` is passed, ensure it works correctly.
-
-## Technical Details
-
-### Data Flow (Current - Broken)
+## Related Sessions
+- [[session-2026-01-06-0101-521eaf47]]: PR merge and workflow setup
+- [[session-2026-01-15-1421-abc123]]: Agent router implementation
+...
 ```
-Parser extracts data → stores in parsers.BaseSession
-                      → formatter expects models.BaseSession interface
-                      → compatibility properties return empty
-                      → notes are empty
+
+### 2. Weekly Digest (new)
+
+Human-readable weekly summary:
+
+```markdown
+# Week of 2026-01-27
+
+## What Got Done
+- Implemented meeting trigger system for post-workflow reviews
+- Fixed timezone bugs in session-insights parser
+- Added cleanup trigger for tmux/worktree resources
+
+## Challenges Faced
+- Agent command execution timing issues (needed Enter key nudges)
+- Signal ordering bugs in state machine
+
+## Tools Most Used
+Bash (2,340), Read (890), Edit (456)
+
+## Projects Touched
+- vermas (78 sessions)
+- session-insights (23 sessions)
 ```
 
-### Data Flow (Target - Working)
+### 3. Enhanced Session Notes (improve existing)
+
+Add project detection and narrative summary:
+
+```markdown
+---
+project: vermas  # NEW - detected from cwd
+narrative: "Fixed the cleanup trigger to remove orphaned tmux sessions after workflow completion"  # NEW
+---
 ```
-Parser extracts data → stores in unified BaseSession
-                      → formatter renders all available fields
-                      → notes contain rich content
-```
 
-### Key Files
-- `src/session_insights/parsers/models.py` — parser base model (has real data)
-- `src/session_insights/models/__init__.py` — formatter model (expected interface)
-- `src/session_insights/formatters/obsidian.py` — renders sessions to markdown
-- `src/session_insights/parsers/claude.py` — Claude session parser
-- `src/session_insights/parsers/codex.py` — Codex session parser
-- `src/session_insights/parsers/vermas.py` — VerMAS session parser
-- `src/session_insights/cli.py` — CLI entry point
-- `src/session_insights/core.py` — discovery and analysis orchestration
+## Implementation Approach
 
-## Success KPIs
+### Phase 1: Project Detection
+- Parse `cwd` from session metadata to identify project
+- Group sessions by project
+- Extract project name from path (last directory component)
 
-| KPI | Target | How Measured |
-|-----|--------|--------------|
-| Note Content Richness | 90% | Sessions with non-empty tools_used, outcomes, or conversation data |
-| VerMAS Task Visibility | 100% | VerMAS sessions show task_description, signals, learnings |
-| Test Coverage | 90% | `uv run pytest tests/ --cov=session_insights --cov-fail-under=90` |
-| CLI Runs Clean | 100% | `uv run python -m session_insights analyze --dir ~ --output /tmp/test-vault` exits 0 with notes |
+### Phase 2: Narrative Generation
+- Use session summary + outcomes + tools to generate human-readable narrative
+- For VerMAS sessions: use task_name + signals + outcome
+- Keep it concise (1-2 sentences)
+
+### Phase 3: Project Aggregation
+- Create `projects/` folder with one note per project
+- Aggregate sessions, calculate totals
+- Extract milestones from session dates + summaries
+- Link back to individual sessions
+
+### Phase 4: Weekly Digests
+- Create `weekly/` folder
+- Group sessions by ISO week
+- Summarize accomplishments, challenges, tools
+
+## Key Files to Modify
+
+| File | Change |
+|------|--------|
+| `parsers/claude.py` | Extract `cwd` from session metadata |
+| `parsers/models.py` | Add `project` and `narrative` fields to BaseSession |
+| `formatters/obsidian.py` | Add project field to frontmatter |
+| `formatters/project.py` | **Create** - Project note formatter |
+| `formatters/weekly.py` | **Create** - Weekly digest formatter |
+| `cli.py` | Add project and weekly generation to analyze command |
+| `core.py` | Add project grouping and aggregation logic |
+
+## Success Criteria
+
+| KPI | Target | Measurement |
+|-----|--------|-------------|
+| Project Detection | 95% | Sessions with non-empty `project` field |
+| Narrative Quality | 80% | Sessions with narrative != summary (improved) |
+| Project Notes | 100% | Every detected project has a note |
+| Weekly Digests | 100% | Every week with sessions has a digest |
+| Tests Pass | 90%+ | `uv run pytest tests/ --cov-fail-under=90` |
 
 ## Constraints
 
-- Python 3.11+
-- Minimal dependencies (prefer stdlib)
-- Must work offline (no API calls for analysis)
-- Obsidian notes must be standalone (no plugins required)
-- Do NOT break existing tests — refactor incrementally
-- Run tests after every change: `uv run pytest tests/ -x -q`
+- Don't break existing session note format (additive changes only)
+- No external API calls (offline-only analysis)
+- Python 3.11+, minimal dependencies
+- Obsidian-compatible markdown
 
 ## Definition of Done
 
-- [ ] ONE unified BaseSession model (no duplicate)
-- [ ] VerMAS notes show: task description, signals, learnings, quality
-- [ ] Claude notes show: conversation summary, tools used, outcomes
-- [ ] Daily summaries aggregate real data (not "unknown")
-- [ ] `--dir ~` or `--global` scans home directory sessions
+- [ ] Sessions have `project` field in frontmatter
+- [ ] Sessions have `narrative` field (improved summary)
+- [ ] `projects/` folder with aggregated project notes
+- [ ] `weekly/` folder with digest notes
 - [ ] All tests pass with 90%+ coverage
-- [ ] Dogfood: run on real data, notes are genuinely useful
+- [ ] Run on real data, output is genuinely useful for humans

@@ -1,16 +1,17 @@
 agents:
   general:
     learnings:
-    - "The dev agent initially submitted incomplete work missing 6 required fields,\
-      \ but responded to QA feedback quickly (under 6 minutes) and delivered a complete\
-      \ solution on the second attempt \u2014 suggesting dev agents benefit from explicit\
-      \ field checklists in task descriptions."
-    - The QA agent performed thorough structural review, verifying not just that tests
-      passed but that specific required fields were present in the model definition
-      and that downstream modules (formatter, imports) were updated correctly.
-    - This was the first workflow in 8 attempts to successfully land code on main
-      without merge-drops-source failure, suggesting the direct-commit-to-main approach
-      (vs branch-then-merge) is more reliable for the current agent toolchain.
+    - 'The dev agent delivered a substantial initial implementation quickly (1403
+      LOC across 9 files) but made a conceptual error: measuring model fields instead
+      of generated output. This suggests dev agents may optimize for code volume over
+      requirement fidelity on first pass.'
+    - "The QA agent provided highly specific, actionable feedback in both revision\
+      \ rounds \u2014 citing exact field names, section markers, and even documenting\
+      \ the test commands it tried (including PYTHONPATH workarounds). This specificity\
+      \ enabled fast dev turnaround."
+    - The QA agent caught a subtle semantic distinction (task_description 'present'
+      vs 'present and non-empty') that the dev agent missed twice, demonstrating QA's
+      value for specification compliance beyond basic functionality testing.
     strengths: []
     weaknesses: []
     best_practices: []
