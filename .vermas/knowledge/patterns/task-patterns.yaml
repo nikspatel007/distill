@@ -1,27 +1,25 @@
 patterns:
 - pattern: testing/*
   insights:
-  - The task explicitly required tests/parsers/test_claude.py but this directory was
-    never created. When task specifications list specific test files, create them
-    simultaneously with implementation to avoid incomplete deliverables. Test files
-    should be committed in the same commit as the implementation they test.
+  - 'Use Click''s CliRunner fixture for CLI testing: test --help, --version, subcommand
+    help, and required argument validation. These smoke tests catch integration issues
+    early without requiring complex fixtures. Assert on exit_code and key output strings.'
   revision_rate: null
-  success_rate: 0.0
+  success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - testing
-  - process
+  - technical
   sample_count: 1
 - pattern: architecture/*
   insights:
-  - BaseSession/ClaudeSession use Pydantic with sensible defaults (empty lists via
-    Field(default_factory=list), optional timestamps, computed properties for duration).
-    This enables parsing incomplete session data gracefully while maintaining type
-    safety. The pattern allows future parser extensions (Cursor, Copilot) to share
-    common interface.
+  - Use Click's @click.group() decorator to create a main command that serves as a
+    container for subcommands. This provides clean --help output, --version support,
+    and extensible command structure. Each subcommand gets its own function with @main.command()
+    decorator.
   revision_rate: null
-  success_rate: 0.0
+  success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
@@ -43,12 +41,11 @@ patterns:
   sample_count: 1
 - pattern: workflow/*
   insights:
-  - Dev agents repeatedly complete implementation but fail to git add/commit before
-    signaling done. Workflows should require commit verification (non-empty git diff
-    HEAD) as a precondition for the 'done' signal, preventing QA from reviewing uncommitted
-    work.
+  - 'When signaling task completion, include: list of files created/modified, specific
+    commands run to verify (e.g., ''uv run session-insights --help''), and test pass
+    counts. This gives QA concrete verification steps and creates documentation.'
   revision_rate: null
-  success_rate: 0.0
+  success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
@@ -112,4 +109,18 @@ patterns:
   tags:
   - debugging
   - process
+  sample_count: 1
+- pattern: python/*
+  insights:
+  - Structure pyproject.toml with core dependencies in [project.dependencies] and
+    testing/linting tools in [project.optional-dependencies.dev]. Use 'uv run --extra
+    dev pytest' for CI/QA verification. Configure tool settings (pytest, mypy, ruff)
+    in the same file.
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - python
+  - technical
   sample_count: 1
