@@ -1,12 +1,13 @@
 agents:
   general:
     learnings:
-    - Dev agent successfully implemented all required functionality (cli.py, core.py,
-      test_integration.py) but failed at the critical commit step, losing all progress
-    - QA agent correctly identified missing implementation by running tests and checking
-      file paths, providing specific technical feedback about what was missing
-    - The dev agent may have run out of context/turns before completing the commit
-      step, suggesting complex tasks need better checkpointing
+    - Dev agent completed substantial implementation work (2 production files with
+      clean architecture) but consistently fails at the git commit step, indicating
+      a priority issue in agent task execution order
+    - The pattern of incomplete test coverage suggests the agent optimizes for 'working
+      code' over 'task checklist completion' - test files are frequently deprioritized
+    - Agent did not create tests/parsers/ directory at all, suggesting the task decomposition
+      may not be explicit enough about directory structure requirements
     strengths: []
     weaknesses: []
     best_practices: []

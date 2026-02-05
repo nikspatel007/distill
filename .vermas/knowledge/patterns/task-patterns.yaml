@@ -1,24 +1,26 @@
 patterns:
 - pattern: testing/*
   insights:
-  - The pyproject.toml includes '--cov' flags in pytest addopts, requiring pytest-cov
-    to be installed. Running 'pytest -q' without dev dependencies causes the entire
-    test suite to fail. Consider making coverage flags conditional or ensuring dev
-    dependencies are always installed in CI.
+  - Task specified creating tests/parsers/test_claude.py with specific test cases,
+    but the tests directory for parsers was never created. The dev agent focused solely
+    on implementation code and skipped the test creation requirement entirely. Tasks
+    should enumerate deliverables as a checklist that agents verify before signaling
+    completion.
   revision_rate: null
   success_rate: 0.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - testing
-  - technical
+  - process
   sample_count: 1
 - pattern: architecture/*
   insights:
-  - 'The implemented core.py uses a clean pipeline: discover_sessions() finds files
-    by source patterns, parse_session_file() converts to BaseSession objects, and
-    analyze() computes statistics and detects patterns. This separation of concerns
-    enables unit testing each stage independently.'
+  - BaseSession/ClaudeSession use Pydantic with sensible defaults (empty lists via
+    Field(default_factory=list), optional timestamps, computed properties for duration).
+    This enables parsing incomplete session data gracefully while maintaining type
+    safety. The pattern allows future parser extensions (Cursor, Copilot) to share
+    common interface.
   revision_rate: null
   success_rate: 0.0
   avg_duration: null
@@ -42,10 +44,11 @@ patterns:
   sample_count: 1
 - pattern: workflow/*
   insights:
-  - Dev agents that create files but fail to 'git add' and 'git commit' before signaling
-    'done' cause false failures. QA agents verify committed code state, not working
-    directory. The dev agent must always commit work before signaling completion to
-    ensure QA can verify the implementation.
+  - Dev agent implemented ClaudeParser with 340+ lines of production code (claude.py,
+    models.py) but failed to git add/commit before signaling done. QA validates committed
+    code state, not working directory, causing the workflow to fail despite complete
+    implementation. This is a repeated failure mode that needs explicit commit verification
+    in the workflow.
   revision_rate: null
   success_rate: 0.0
   avg_duration: null
@@ -56,11 +59,11 @@ patterns:
   sample_count: 1
 - pattern: reliability/*
   insights:
-  - The dev agent completed substantial work (cli.py with 200+ lines, core.py with
-    250+ lines) but was terminated after 248 seconds. Long-running implementations
-    without regular heartbeat calls cause workflow infrastructure to assume the agent
-    is unresponsive and terminate it. Agents should call heartbeat after completing
-    each major action (file creation, test execution).
+  - The error 'Child Workflow execution failed' in a 183-second workflow suggests
+    the child workflow (likely the dev agent execution) timed out or crashed before
+    completing all steps. Combined with untracked files, this indicates the agent
+    ran out of turns/time before the commit step. Complex tasks need checkpointing
+    or longer execution budgets.
   revision_rate: null
   success_rate: 0.0
   avg_duration: null
@@ -85,11 +88,11 @@ patterns:
   sample_count: 1
 - pattern: implementation/*
   insights:
-  - 'The implemented ClaudeParser uses a solid architecture: abstract BaseParser/BaseSession
-    classes for future parser extensions, Pydantic models with field aliases for JSON
-    mapping, and graceful handling of multiple entry points (.claude dir, projects
-    dir, or direct session files). This design enables adding new parsers (Cursor,
-    Copilot) by extending the base classes.'
+  - 'The implemented ClaudeParser demonstrates a solid pattern: track pending tool
+    uses by ID, match tool_result entries to resolve them, handle multiple directory
+    structure entry points (.claude, projects, direct), and use graceful error accumulation
+    via parse_errors property rather than failing fast. This pattern enables reliable
+    parsing of real-world session data.'
   revision_rate: null
   success_rate: 0.0
   avg_duration: null
