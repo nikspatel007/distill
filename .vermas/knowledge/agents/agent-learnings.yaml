@@ -1,12 +1,15 @@
 agents:
   general:
     learnings:
-    - Dev successfully iterated through 2 revision cycles in response to QA feedback,
-      fixing framework choice and adding missing CLI options
-    - QA effectively caught both framework compliance issues (Click vs Typer) and
-      functional gaps (missing --since option)
-    - Watcher correctly tracked workflow progress and final completion, but couldn't
-      prevent session termination
+    - QA agent provided high-value feedback by testing actual user-facing features
+      (--include-conversation) rather than just checking code structure, catching
+      two critical bugs the dev agent missed.
+    - "Dev agent showed strong iteration skills: received specific QA feedback and\
+      \ delivered targeted fixes in under 3 minutes per cycle, maintaining test count\
+      \ growth (103\u2192106) throughout."
+    - Both agents recognized and documented the pytest-cov environment issue, sharing
+      the workaround (PYTHONPATH=src python -m pytest -q -o addopts='') rather than
+      getting stuck.
     strengths: []
     weaknesses: []
     best_practices: []

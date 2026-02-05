@@ -1,11 +1,12 @@
 patterns:
 - pattern: testing/*
   insights:
-  - QA identified that integration tests expected --since option and required --output
-    flag. Dev added these after QA review, demonstrating that integration tests serve
-    as executable specification for CLI interface design.
+  - 'When fixing bugs, add specific test cases that would have caught them: test_claude_messages_converted_to_turns,
+    test_codex_messages_converted_to_turns, test_vermas_no_duplicates_with_multiple_files.
+    These regression tests document the bug and prevent recurrence. Test count increased
+    from 103 to 106 specifically for the edge cases.'
   revision_rate: null
-  success_rate: 0.0
+  success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
@@ -14,10 +15,11 @@ patterns:
   sample_count: 1
 - pattern: architecture/*
   insights:
-  - Use a SESSION_PATTERNS dictionary to register multiple source directories (.claude/,
-    .codex/, .vermas/) with their corresponding parsers. The discover_sessions() function
-    iterates over patterns, and parse_session_file() dispatches to the correct parser
-    based on detected source type.
+  - 'When integrating multiple parser types, create a _convert_parser_session_to_base()
+    function that maps parser-specific models to a unified BaseSession. Critical:
+    actually populate the turns list from messages with role, content, timestamp,
+    and tools_called fields. Empty mapping causes features like --include-conversation
+    to silently fail.'
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -28,10 +30,10 @@ patterns:
   sample_count: 1
 - pattern: code-review/*
   insights:
-  - QA caught that initial implementation used Typer instead of specified Click framework,
-    then caught missing --since option and integration test failures. Two revision
-    cycles were needed. Multi-round review is effective for catching spec compliance
-    issues.
+  - QA effectively caught spec mismatches (Typer vs Click requirement) that dev overlooked.
+    Explicit requirements (e.g., 'use click>=8.0') should be verified early in QA
+    reviews before functionality testing. This caught a fundamental dependency mismatch
+    that would have caused integration issues.
   revision_rate: null
   success_rate: 0.0
   avg_duration: null
@@ -99,16 +101,17 @@ patterns:
   sample_count: 1
 - pattern: debugging/*
   insights:
-  - When pytest fails due to missing pytest-cov plugin from addopts configuration,
-    use -o addopts="" to override. Combined with PYTHONPATH=src, this enables running
-    tests in environments without full dev dependencies installed.
+  - When QA identifies specific issues, make surgical fixes addressing exactly those
+    points rather than refactoring the entire solution. Dev agent added message mapping
+    and directory cache as targeted additions, preserving working code. This approach
+    minimizes regression risk and speeds iteration cycles.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - debugging
-  - technical
+  - process
   sample_count: 1
 - pattern: python/*
   insights:
@@ -280,11 +283,10 @@ patterns:
   sample_count: 1
 - pattern: workflow-configuration/*
   insights:
-  - Workflow failed because it attempted to execute implement-cli-skeleton task under
-    mission-f68b8b88, but this task only exists under mission-62ea732b. Before launching
-    a workflow, the system should verify that the specified task file exists in the
-    expected mission directory. This prevents early agent deaths from trying to execute
-    non-existent tasks.
+  - Workflow attempted to execute implement-cli-skeleton under mission-f68b8b88, but
+    this task only exists under mission-62ea732b. Before launching a workflow, verify
+    the task file exists in the expected mission directory (e.g., .vermas/tasks/mission-{id}/{task}.md).
+    This prevents wasted compute and confusing 'agents died' errors from missing prerequisites.
   revision_rate: null
   success_rate: 0.0
   avg_duration: null
@@ -295,11 +297,11 @@ patterns:
   sample_count: 1
 - pattern: infrastructure/*
   insights:
-  - 'Agent death (''agents died. Dead roles: dev'') early in workflow (no trace created)
-    indicates infrastructure failure rather than task failure. When agents crash without
-    producing any artifacts, the root cause is typically a missing prerequisite -
-    in this case, the task file itself didn''t exist for the mission. Robust error
-    handling should catch missing tasks before spawning agents.'
+  - Agent death without producing any artifacts (no trace files, no state) indicates
+    infrastructure failure rather than task failure. The 995-second duration suggests
+    the system waited for already-dead agents. Implement pre-flight validation of
+    task file existence, tmux session health, and agent availability before starting
+    the state machine.
   revision_rate: null
   success_rate: 0.0
   avg_duration: null
@@ -310,11 +312,10 @@ patterns:
   sample_count: 1
 - pattern: workflow-orchestration/*
   insights:
-  - Mission-f68b8b88 was focused on 'complete-session-insights-parsers' (codex parser,
-    vermas parser, pattern analyzer), but cycle-4 attempted implement-cli-skeleton
-    which is a foundation task from a different mission. This suggests the cycle planning
-    system may be selecting tasks outside the mission's scope. Task selection should
-    be constrained to tasks defined within the mission.
+  - Mission-f68b8b88 focused on completing session-insights parsers (codex, vermas,
+    pattern analyzer), but cycle-4 attempted implement-cli-skeleton which is a foundation
+    task from mission-62ea732b. Task selection during cycle planning should be constrained
+    to tasks defined within the active mission's task directory.
   revision_rate: null
   success_rate: 0.0
   avg_duration: null
@@ -362,5 +363,33 @@ patterns:
   recommended_workflow: null
   tags:
   - git-workflow
+  - process
+  sample_count: 1
+- pattern: error-handling/*
+  insights:
+  - 'When agents crash immediately without producing artifacts, the error message
+    ''agents died. Dead roles: dev. Tmux session may have ended'' doesn''t reveal
+    the root cause (missing task file). Error handling should catch and report missing
+    prerequisites explicitly before spawning agents, enabling faster debugging.'
+  revision_rate: null
+  success_rate: 0.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - error-handling
+  - technical
+  sample_count: 1
+- pattern: workflow-lifecycle/*
+  insights:
+  - The DSL workflow runner tracks agent liveness independently from task completion
+    signals. A workflow can complete all tasks successfully but be marked 'failed'
+    if agent processes die afterward. This indicates a need for explicit 'workflow_complete'
+    handling that terminates the monitoring loop.
+  revision_rate: null
+  success_rate: 0.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - workflow-lifecycle
   - process
   sample_count: 1
