@@ -1,0 +1,20 @@
+id: adapt-mission-64ee338c-c1-engineer
+date: '2026-02-05T01:58:57.028088'
+type: other
+target: agent/engineer
+change: The engineer agent has no guidance on what to do when infrastructure fails.
+  Adding explicit instructions for handling environment issues and signaling 'blocked'
+  will help surface problems early rather than failing silently.
+before_metrics:
+  revision_rate: null
+  avg_duration: null
+  success_rate: 0.0
+  token_usage: null
+after_metrics:
+  revision_rate: null
+  avg_duration: null
+  success_rate: null
+  token_usage: null
+validated: false
+impact: null
+notes: null

@@ -1,0 +1,22 @@
+id: adapt-mission-f68b8b88-c1-engineer
+date: '2026-02-05T01:58:22.184720'
+type: other
+target: agent/engineer
+change: The engineer agent prompt lacks guidance on what to do when encountering execution
+  blockers. Adding explicit instructions to report failures immediately rather than
+  continuing will help surface issues faster. Also adding guidance to validate prerequisites
+  before starting work, which aligns with the 'setup-project-structure is a prerequisite'
+  learning.
+before_metrics:
+  revision_rate: null
+  avg_duration: null
+  success_rate: 0.0
+  token_usage: null
+after_metrics:
+  revision_rate: null
+  avg_duration: null
+  success_rate: null
+  token_usage: null
+validated: false
+impact: null
+notes: null

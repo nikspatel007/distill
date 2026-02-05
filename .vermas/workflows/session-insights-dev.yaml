@@ -1,57 +1,92 @@
+workflow: session-insights-dev
+description: Development workflow for session-insights CLI tool
+
 agents:
-- role: engineer
-- role: reviewer
+  - role: engineer
+  - role: reviewer
+
 states:
+  start:
+    type: initial
+    auto_transition: validate
+
+  validate:
+    instructions: |
+      Before implementing anything, validate the execution environment.
+      
+      Run these checks IN ORDER and report any failures:
+      
+      1. Verify Python environment:
+         `uv run python --version`
+         Expected: Python 3.11 or higher
+      
+      2. Verify project structure exists:
+         - Check if pyproject.toml exists
+         - Check if src/ directory exists
+         - If pyproject.toml is missing, this project needs setup first
+      
+      3. Verify dependencies can be installed:
+         `uv sync`
+      
+      4. Verify pytest works:
+         `uv run pytest --version`
+      
+      If ALL checks pass, signal "done".
+      
+      If ANY check fails:
+      - Report the specific failure in your signal message
+      - Signal "blocked" with details about what failed
+    on_signal:
+      done:
+        from: engineer
+        next: engineering
+      blocked:
+        from: engineer
+        next: blocked
+    timeout:
+      duration: 5m
+      action: fail
+
   engineering:
-    instructions: 'Implement the assigned task for the session-insights CLI tool.
-
-
+    instructions: |
+      Implement the assigned task for the session-insights CLI tool.
+      
       Follow Python best practices:
-
       - Use Pydantic v2 for models
-
       - Click for CLI commands
-
       - pytest for testing
-
       - Type hints throughout
-
-
+      
       Run tests before signaling done:
-
       `uv run pytest tests/ -x -q`
-
-
-      Signal "done" when implementation is complete and tests pass.'
+      
+      If tests fail, fix them before signaling.
+      
+      Signal "done" when implementation is complete and tests pass.
+      Signal "blocked" if you encounter infrastructure issues.
     on_signal:
       done:
         from: engineer
         next: reviewing
+      blocked:
+        from: engineer
+        next: blocked
     timeout:
-      action: nudge
       duration: 30m
-  finalize:
-    on_entry:
-    - action: commit
-    type: terminal
+      action: nudge
+
   reviewing:
-    instructions: 'Review the implementation for correctness and quality.
-
-
+    instructions: |
+      Review the implementation for correctness and quality.
+      
       Verification steps:
-
       1. Read all changed files
-
       2. Run full test suite with coverage
-
       3. Test CLI manually if applicable
-
       4. Check for edge cases and error handling
-
-
+      
       Signal "approved" if quality is acceptable.
-
-      Signal "needs_revision" with specific feedback if changes needed.'
+      Signal "needs_revision" with specific feedback if changes needed.
     on_signal:
       approved:
         from: reviewer
@@ -60,9 +95,16 @@ states:
         from: reviewer
         next: engineering
     timeout:
-      action: nudge
       duration: 15m
-  start:
-    auto_transition: engineering
-    type: initial
-workflow: session-insights-dev
+      action: nudge
+
+  blocked:
+    type: terminal
+    on_entry:
+      - action: log
+        message: "Workflow blocked - environment validation failed or infrastructure issue"
+
+  finalize:
+    type: terminal
+    on_entry:
+      - action: commit

@@ -54,25 +54,24 @@ patterns:
   sample_count: 1
 - pattern: reliability/*
   insights:
-  - The error 'Child Workflow execution failed' in a 183-second workflow suggests
-    the child workflow (likely the dev agent execution) timed out or crashed before
-    completing all steps. Combined with untracked files, this indicates the agent
-    ran out of turns/time before the commit step. Complex tasks need checkpointing
-    or longer execution budgets.
+  - MCP 'Connection refused' errors can cause agents to fail silently without sending
+    workflow signals. Monitor MCP server health and implement retry logic. Tmux session
+    crashes combined with MCP issues lead to complete coordination failure even when
+    code work is successful.
   revision_rate: null
   success_rate: 0.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - reliability
-  - process
+  - technical
   sample_count: 1
 - pattern: workflow-coordination/*
   insights:
-  - QA agent relied solely on git status being clean to determine no implementation
-    existed. However, the files were present but untracked. QA could check for file
-    existence in addition to git status to provide more accurate feedback and detect
-    uncommitted work.
+  - When agents fail to register with the workflow within a timeout period, the orchestrator
+    should detect this early and log clear error messages. The root cause of this
+    failure was agents never registering - checking tmux pane status after spawn could
+    provide visibility into spawn failures.
   revision_rate: null
   success_rate: 0.0
   avg_duration: null
@@ -98,10 +97,10 @@ patterns:
   sample_count: 1
 - pattern: debugging/*
   insights:
-  - When QA reports 'no implementation found', check if files exist but are untracked
-    vs truly missing. Git status shows clean but files may exist in worktree. QA should
-    run both 'git status' and file existence checks to provide accurate feedback about
-    the actual state.
+  - QA agents should verify file existence independently of git status. Clean git
+    status can mask uncommitted work that exists in the worktree. When reporting 'no
+    implementation found', check both 'git status' AND file existence with ls/stat
+    to provide accurate feedback.
   revision_rate: null
   success_rate: 0.0
   avg_duration: null
