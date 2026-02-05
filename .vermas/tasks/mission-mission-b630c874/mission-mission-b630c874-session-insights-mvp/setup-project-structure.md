@@ -1,9 +1,8 @@
 ---
-status: pending
+status: done
 priority: medium
-workflow: 
+workflow: null
 ---
-
 # Create project structure and CLI skeleton
 
 Create the foundational project structure for session-insights:
