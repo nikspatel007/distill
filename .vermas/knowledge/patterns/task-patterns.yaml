@@ -1,10 +1,12 @@
 patterns:
 - pattern: architecture/*
   insights:
-  - 'The TASK.md included explicit prior learnings: ''This workflow attempted implement-cli-skeleton
-    when cli.py already exists'' and ''small focused tasks outperform monolithic implementations''.
-    This context helped the dev agent avoid the Gate 0 trap of reimplementing existing
-    code and instead focus on the actual gap (entry point wiring).'
+  - "The task 'implement-analyze-command' targeted functionality that already existed\
+    \ from cycle 16 (commit 5a0f625 added the analyze/sessions command skeleton).\
+    \ A Gate 0 check (`git ls-files --error-unmatch src/session_insights/cli.py` or\
+    \ checking if the analyze command already existed) would have caught this before\
+    \ the cycle started. This is the same root cause as cycles 10, 11, 13, and the\
+    \ prior C2 iteration \u2014 tasks assigned for features that already exist."
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -31,24 +33,27 @@ patterns:
   sample_count: 1
 - pattern: verification/*
   insights:
-  - This 'verify-all-tests-pass' task had minimal code changes (only workflow artifacts).
-    Verification-type tasks confirm system state meets criteria without requiring
-    implementation work. Gate 0 check should distinguish verification from implementation.
+  - The pre-signal-check.sh script's artifact-only detection compares main..HEAD,
+    which passes if ANY prior commit on the branch has src/tests changes. This allows
+    artifact-only commits to slip through when prior successful commits exist. The
+    fix is to compare HEAD~1..HEAD to verify the most recent commit itself contains
+    source changes.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - verification
-  - process
+  - technical
   sample_count: 1
 - pattern: testing/*
   insights:
-  - 'The task had exactly 3 testable criteria: --output option with default, output
-    dir creation, and confirmation message. QA verified each criterion explicitly
-    and ran `pytest tests/test_cli.py -q` (11 passed). This atomic scope allowed QA
-    to verify without needing to understand the full codebase, enabling parallel dev/QA
-    execution.'
+  - "The test count (212 passing) was identical before and after the commit, which\
+    \ should have been a red flag since the task claimed to implement new functionality.\
+    \ A genuine implementation task should add new tests or at minimum modify existing\
+    \ ones. QA should flag unchanged test counts on implementation tasks as suspicious\
+    \ \u2014 if new code was truly added, the test count should increase or at least\
+    \ some tests should change."
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -133,10 +138,11 @@ patterns:
   sample_count: 1
 - pattern: code-review/*
   insights:
-  - QA initially signaled needs_revision because expected files were missing, prompting
-    dev to clarify the actual implementation path. The revision cycle ensured QA looked
-    at the real codebase (session_insights/cli.py) rather than expected paths (runner/interface/commands).
-    This catch-and-recheck pattern improved deliverable quality.
+  - The QA agent approved the workflow by running `pytest -q` (212 passed) without
+    checking whether the current commit actually added or changed any source files.
+    All 212 tests passed because they were from a prior cycle (C1-new, commit 56e97f6).
+    QA review must include `git diff HEAD~1..HEAD -- src/ tests/` to verify the commit
+    under review contains real code changes, not just workflow artifacts.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -361,9 +367,12 @@ patterns:
   sample_count: 1
 - pattern: workflow/*
   insights:
-  - 'Successful workflows follow a clear signal chain: dev signals ''done'' with results,
-    QA signals ''approved'' after independent verification, then both signal ''complete''.
-    This ensures QA validation is a gate before workflow completion.'
+  - The entire workflow completed in 362 seconds with only 2 minutes between dev's
+    done signal (17:55:28) and QA's approval (17:57:22). For a task claiming 'full
+    pipeline implementation,' this timeline is too fast for meaningful code review.
+    Fast signal-to-approval times on complex tasks correlate with artifact-only or
+    low-value outcomes in this project's history. A minimum review time threshold
+    or mandatory diff-inspection step would prevent rubber-stamp approvals.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -610,5 +619,65 @@ patterns:
   recommended_workflow: null
   tags:
   - task-design
+  - process
+  sample_count: 1
+- pattern: gate-checking/*
+  insights:
+  - Before starting an implementation task, Gate 0 must confirm the deliverable does
+    not already exist in the codebase. In this workflow, the 'implement-analyze-command'
+    task failed because the analyze command already existed from cycle 16 (commit
+    5a0f625). A simple `git ls-files --error-unmatch` check or code search would have
+    caught this before any work began.
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - gate-checking
+  - process
+  sample_count: 1
+- pattern: commits/*
+  insights:
+  - A commit that modifies only workflow artifacts (.yaml, .md, __pycache__) without
+    changing any source code or test files is an artifact-only commit. Commit d2194b7
+    claimed to 'Implement analyze CLI command with full pipeline' but contained 0
+    src/test changes. Post-execution verification must diff src/ and tests/ directories
+    against the parent commit, not against main, to catch this pattern.
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - commits
+  - process
+  sample_count: 1
+- pattern: action-items/*
+  insights:
+  - Action items act-2d5f5e36 (fix pre-signal-check.sh) and act-4b987d19 (create pre-task-check.sh)
+    would have prevented this failure but remained unexecuted for 3+ cycles. The systemic
+    issue is that task planners create new tasks instead of pulling from the action
+    item backlog, causing the same failure modes to recur. Future workflows should
+    check pending action items before planning new work.
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - action-items
+  - process
+  sample_count: 1
+- pattern: workflow-design/*
+  insights:
+  - "This workflow completed with 'success' status in 362 seconds, but the actual\
+    \ outcome was a failed delivery \u2014 an artifact-only commit with zero source\
+    \ code changes. Workflow orchestration should distinguish between process completion\
+    \ (all steps ran) and value delivery (deliverables contain real changes). A post-merge\
+    \ source diff check is essential."
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - workflow-design
   - process
   sample_count: 1

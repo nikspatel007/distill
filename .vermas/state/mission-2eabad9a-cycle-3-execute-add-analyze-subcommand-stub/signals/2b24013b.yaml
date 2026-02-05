@@ -1,0 +1,10 @@
+agent_id: 098758db
+created_at: '2026-02-05T18:23:41.243741'
+message: 'Fixed console script entrypoint: added run() that calls app(), updated pyproject.toml
+  to session_insights.cli:run. `uv run session-insights --help` and `uv run session-insights
+  analyze --dir .` both produce correct output. All 207 tests pass.'
+metadata: null
+role: dev
+signal: done
+signal_id: 2b24013b
+workflow_id: mission-2eabad9a-cycle-3-execute-add-analyze-subcommand-stub

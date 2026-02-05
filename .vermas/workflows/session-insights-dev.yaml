@@ -13,49 +13,55 @@ states:
   engineering:
     instructions: |
       Implement the assigned task for the session-insights CLI tool.
-      
-      PRIORITY ORDER (address in this order unless task specifies otherwise):
-      1. Wire real data into existing CLI command skeletons (vermas_task_visibility)
-      2. Implement note generation/enrichment logic (note_content_richness - 0% and critical)
-      3. Add end-to-end CLI invocation tests (cli_runs_clean)
-      4. New features or commands only after above are functional
-      
+
+      TASK ALIGNMENT CHECK (do this FIRST, before writing any code):
+      Identify which KPI(s) this task will move. If you cannot name at least one
+      of the KPIs below that this task directly advances, STOP and signal blocked
+      with an explanation. Do not execute tasks that only improve infrastructure
+      without moving a metric.
+
+      KPIs (current status):
+      - note_content_richness: 0% — CRITICAL, primary bottleneck
+      - vermas_task_visibility: partial
+      - cli_runs_clean: partial
+      - obsidian_compatibility: on track
+
+      PRIORITY ORDER:
+      1. note_content_richness (0% — this is the #1 priority)
+         The content pipeline is: parser output → structured metadata → formatter rendering → rich CLI output.
+         Tasks MUST target one of these pipeline stages. Specifically:
+         - Ensure parsed data includes structured metadata (tags, categories, summaries)
+         - Ensure formatters render rich content (not just raw text)
+         - Ensure CLI commands surface enriched content to the user
+         Do NOT create new infrastructure, models, or abstractions unless they
+         directly produce richer content output visible to the end user.
+      2. vermas_task_visibility — wire real task lifecycle data into existing CLI commands
+      3. cli_runs_clean — add end-to-end CLI smoke tests (run each command, check exit code)
+      4. New features only after above KPIs are on track
+
       CRITICAL: NO MORE SCAFFOLDING
       The CLI skeleton and parser are complete and stable. Do NOT create new command
-      stubs or placeholder implementations. All work must produce functional code that
-      operates on real data. If your task involves a CLI command, verify it displays
-      actual task state, not stub/placeholder output.
-      
-      CRITICAL: CLI TASK HANDLING
-      CLI tasks have historically high failure rates (>50%). If your task involves CLI:
-      1. DECOMPOSE into layers: argument parsing, dispatch logic, business logic
-      2. Implement and test each layer separately before integration
-      3. If blocked on CLI infrastructure after 2 attempts, signal "blocked" immediately
-      4. Do NOT retry the same failing approach - signal blocked for human review
-      
-      CRITICAL: NOTE CONTENT RICHNESS
-      If your task relates to note generation or content enrichment:
-      - This KPI has been at 0% for 5+ cycles and is the single biggest risk
-      - Implement the simplest functional version first (even if minimal)
-      - A working minimal implementation beats an ambitious incomplete one
-      
+      stubs or placeholder implementations. All work must produce functional code
+      that operates on real data.
+
+      BEFORE RETRYING A PREVIOUSLY FAILED TASK:
+      You MUST perform root cause analysis first. Identify why the prior attempt
+      failed, what has changed since then, and what specific approach will succeed
+      this time. Document this in your first message before writing code.
+
       Follow Python best practices:
       - Use Pydantic v2 for models
       - Click for CLI commands
       - pytest for testing
       - Type hints throughout
-      
+
       Run tests before signaling done:
       `uv run pytest tests/ -x -q`
-      
-      Also run at least one end-to-end CLI invocation test:
-      `uv run python -m session_insights <command> --help`
-      Verify the command runs without error and produces meaningful output.
-      
+
       If tests fail, fix them before signaling.
-      
+
       Signal "done" when implementation is complete and tests pass.
-      Signal "blocked" if you encounter infrastructure issues or are stuck after 2 attempts.
+      Signal "blocked" if you cannot map the task to a KPI or encounter infrastructure issues.
     on_signal:
       done:
         from: engineer
@@ -70,24 +76,29 @@ states:
   reviewing:
     instructions: |
       Review the engineer's implementation for the session-insights CLI tool.
-      
-      REVIEW CHECKLIST (must verify all):
-      1. Code operates on REAL DATA, not stubs or placeholders
-      2. CLI commands produce meaningful output when invoked
-      3. Tests exist and pass: `uv run pytest tests/ -x -q`
-      4. At least one end-to-end CLI invocation succeeds with real output
-      5. Type hints present, Pydantic v2 models used where appropriate
-      6. No regressions in existing functionality
-      
-      SPECIAL ATTENTION:
-      - If the task touches note_content_richness: verify notes contain actual
-        enriched content, not template/placeholder text
-      - If the task touches vermas_task_visibility: verify CLI shows real task
-        state from the system, not hardcoded examples
-      
+
+      REVIEW CHECKLIST (all must pass):
+
+      1. KPI ALIGNMENT: Does this change directly move at least one KPI?
+         - If the change is pure infrastructure with no visible metric impact, request revision.
+         - Specifically check: does it improve note_content_richness (the #1 bottleneck)?
+
+      2. FUNCTIONAL COMPLETENESS: Does the code produce real output with real data?
+         - No placeholder implementations, stub functions, or TODO comments.
+         - Run the affected CLI commands and verify they produce meaningful output.
+
+      3. CODE QUALITY:
+         - Type hints present
+         - Tests exist and pass: `uv run pytest tests/ -x -q`
+         - No obvious bugs or regressions
+
+      4. CONTENT PIPELINE (if task targets note_content_richness):
+         - Verify the full path: parsed data → structured metadata → formatted output
+         - Confirm the enriched content is visible in CLI output, not just stored internally
+
       Signal "approved" if all checks pass.
-      Signal "needs_revision" with specific feedback if issues found.
-      Be specific about what needs to change - vague feedback causes retry loops.
+      Signal "needs_revision" with specific feedback if any check fails.
+      Focus feedback on the highest-impact issue first.
     on_signal:
       approved:
         from: reviewer
@@ -107,5 +118,5 @@ states:
   blocked:
     on_entry:
       - action: log
-        message: "Workflow blocked - engineer stuck after multiple attempts or infrastructure issue. Requires manual intervention."
+        message: "Workflow blocked - task not KPI-aligned, environment validation failed, or infrastructure issue"
     type: terminal

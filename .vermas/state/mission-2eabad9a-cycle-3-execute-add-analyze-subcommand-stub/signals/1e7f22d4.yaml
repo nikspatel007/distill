@@ -1,0 +1,11 @@
+agent_id: 098758db
+created_at: '2026-02-05T18:25:44.655836'
+message: 'Entrypoint fix already committed (024c916). pyproject.toml line 23: session-insights
+  = "session_insights.cli:run". Verified: both `uv run session-insights --help` and
+  `uv run session-insights analyze --dir .` produce correct output. All 207 tests
+  pass.'
+metadata: null
+role: dev
+signal: done
+signal_id: 1e7f22d4
+workflow_id: mission-2eabad9a-cycle-3-execute-add-analyze-subcommand-stub
