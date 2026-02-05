@@ -1,10 +1,10 @@
 patterns:
 - pattern: testing/*
   insights:
-  - Tests failed with ModuleNotFoundError because the package wasn't pip-installed
-    in the worktree environment. When developing in worktrees, ensure 'pip install
-    -e .' is run in each worktree's environment before attempting to run tests. This
-    is a common gap when worktrees don't share the same virtualenv.
+  - Each analyzer class has a corresponding test class (TestSuccessFailureAnalyzer,
+    TestTimelineAnalyzer, TestCrossSessionCorrelator) with fixtures for analyzer instances
+    and tests covering empty input, minimal input below threshold, and pattern detection
+    scenarios. This 1:1 mapping makes test coverage gaps obvious and maintenance straightforward.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -15,10 +15,10 @@ patterns:
   sample_count: 1
 - pattern: architecture/*
   insights:
-  - 'The VerMAS parser follows a clean pattern: (1) find_vermas_directory() locates
-    the root, (2) parse_state_directory() iterates workflow dirs, (3) individual methods
-    handle each file type (parse_signal_file, parse_events_log, parse_task_file, parse_epic_file).
-    This separation makes the parser maintainable and testable.'
+  - Using SHA256 hash of insight components (truncated to 12 chars) produces deterministic
+    IDs that remain stable across runs for the same input data. This enables deduplication
+    and tracking of insights across multiple analysis runs without requiring external
+    ID generation.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -29,17 +29,16 @@ patterns:
   sample_count: 1
 - pattern: code-review/*
   insights:
-  - QA agent identified that discover_sessions missed real Claude session paths and
-    parse_session_file wasn't using ClaudeParser, making --include-conversation a
-    no-op. These functional integration issues passed unit tests but would have failed
-    real-world usage. QA review adds value beyond test coverage.
+  - QA caught pyproject.toml dependencies not matching TASK.md requirements. Comparing
+    actual dependencies against spec is a high-value QA check that catches scope creep
+    early. Always verify that installed dependencies match exactly what the spec requires.
   revision_rate: null
-  success_rate: 0.0
+  success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - code-review
-  - technical
+  - process
   sample_count: 1
 - pattern: workflow/*
   insights:
@@ -70,10 +69,10 @@ patterns:
   sample_count: 1
 - pattern: workflow-coordination/*
   insights:
-  - The workflow completed in ~9 minutes with two dev-QA cycles. Each QA rejection
-    included specific actionable feedback (exact error message, missing files, failing
-    test command), and each dev signal included quantifiable proof (test counts, coverage
-    percentage). This tight feedback loop enabled fast convergence.
+  - The workflow completed in ~6.5 minutes with dev producing 800 lines of analyzer
+    code and 581 lines of tests, both properly committed to the repository. Unlike
+    previous cycles where code existed but wasn't committed, this workflow verified
+    deliverables were tracked in git before signaling done.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -84,11 +83,11 @@ patterns:
   sample_count: 1
 - pattern: implementation/*
   insights:
-  - 'The VerMAS parser implementation demonstrates good patterns: 830 lines of well-structured
-    code with Pydantic models (AgentSignal, WorkflowExecution, MissionInfo, KnowledgeImprovement,
-    AgentLearning, RecapFile, VermasSession), clear separation of concerns, and robust
-    error handling. Test file has 1170 lines covering model creation, directory parsing,
-    signal handling, edge cases, and integration scenarios.'
+  - The pattern analyzer implementation uses an abstract BaseAnalyzer class with a
+    required analyze() method, then implements three specialized analyzers (SuccessFailureAnalyzer,
+    TimelineAnalyzer, CrossSessionCorrelator). This separation allows each analyzer
+    to focus on one concern while sharing ID generation and common interfaces. A run_all_analyzers()
+    convenience function orchestrates all analyzers and returns a unified InsightCollection.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -169,10 +168,10 @@ patterns:
   sample_count: 1
 - pattern: code-design/*
   insights:
-  - When a parser needs to handle multiple file formats (JSONL and JSON array/object),
-    extracting format detection into a private _load_entries() method keeps the main
-    parsing logic clean. The method auto-detects format and normalizes to a consistent
-    data structure for downstream processing.
+  - Using Pydantic models with InsightType and InsightSeverity enums provides type
+    safety and self-documenting code. The InsightCollection wrapper adds filter methods
+    (filter_by_type, filter_by_severity, high_priority property) that make consumers'
+    code cleaner and more expressive than manual list filtering.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -235,5 +234,19 @@ patterns:
   recommended_workflow: null
   tags:
   - verification
+  - process
+  sample_count: 1
+- pattern: specification-compliance/*
+  insights:
+  - Dev initially implemented with typer/rich/pydantic when spec explicitly required
+    click>=8.0. Over-building creates drift from requirements and extra work during
+    QA. Always start with the minimal spec and only add dependencies explicitly required
+    in the task definition.
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - specification-compliance
   - process
   sample_count: 1

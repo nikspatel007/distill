@@ -1,0 +1,11 @@
+agent_id: 0d38b021
+created_at: '2026-02-05T09:30:50.050064'
+message: 'Blocking: fixture lives under tests/fixtures/.claude/, but .gitignore ignores
+  any .claude/ directory, so sample_session.json won''t be tracked. Add a .gitignore
+  exception or rename fixture dir. Tests only pass with PYTHONPATH=src and addopts
+  override; default pytest fails due to missing pytest-cov and package import.'
+metadata: null
+role: qa
+signal: needs_revision
+signal_id: 20f3a759
+workflow_id: mission-62ea732b-cycle-4-execute-add-parser-base-class
