@@ -1,12 +1,13 @@
 patterns:
 - pattern: architecture/*
   insights:
-  - The task required making cli.py explicitly import from parsers/ directory (ClaudeParser,
-    CodexParser, VermasParser) even though core.py already had access. This explicit
-    import pattern makes the CLI's dependencies visible and ensures the wiring is
-    intentional rather than transitive.
+  - Rather than duplicating parsing logic, the new sessions command directly instantiates
+    ClaudeParser and CodexParser and calls parse_directory(). This ensures consistency
+    with existing behavior and reduces maintenance burden. The pattern of passing
+    directory paths to established parser components is cleaner than reimplementing
+    discovery logic.
   revision_rate: null
-  success_rate: 0.0
+  success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
@@ -31,12 +32,11 @@ patterns:
   sample_count: 1
 - pattern: verification/*
   insights:
-  - When dev discovers feature already exists ('CLI wiring was already complete'),
-    the workflow should have an early exit path that marks the task as 'unnecessary'
-    rather than continuing through QA. This saves ~50% of cycle time for redundant
-    tasks.
+  - This 'verify-all-tests-pass' task had minimal code changes (only workflow artifacts).
+    Verification-type tasks confirm system state meets criteria without requiring
+    implementation work. Gate 0 check should distinguish verification from implementation.
   revision_rate: null
-  success_rate: 0.0
+  success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
@@ -45,9 +45,9 @@ patterns:
   sample_count: 1
 - pattern: testing/*
   insights:
-  - Despite fixing 2 bugs, all 185 existing tests continued to pass with 90% coverage.
-    The bug fixes were implementation changes (entrypoint config, property addition)
-    that aligned with existing test expectations rather than requiring test modifications.
+  - Reporting coverage per-module (pattern.py 92%, vermas.py 83%, etc.) rather than
+    just total coverage helps identify which modules need attention. The lowest-coverage
+    module (vermas.py 83%) is immediately visible for future improvement.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -132,11 +132,10 @@ patterns:
   sample_count: 1
 - pattern: code-review/*
   insights:
-  - When task requirements conflict with linter rules (e.g., required imports that
-    appear unused), create usage patterns rather than removing the imports. In this
-    workflow, QA first flagged unused imports (F401), then flagged that removing them
-    violated requirements. The solution was adding a PARSERS dict that uses the imports,
-    satisfying both constraints.
+  - QA initially signaled needs_revision because expected files were missing, prompting
+    dev to clarify the actual implementation path. The revision cycle ensured QA looked
+    at the real codebase (session_insights/cli.py) rather than expected paths (runner/interface/commands).
+    This catch-and-recheck pattern improved deliverable quality.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -359,10 +358,9 @@ patterns:
   sample_count: 1
 - pattern: workflow/*
   insights:
-  - 'The workflow demonstrated effective revision cycles: QA signaled ''needs_revision''
-    when the required deliverable (docs/cli-diagnostic.md) was missing, and dev responded
-    by creating it within seconds. This tight feedback loop ensures deliverables are
-    actually produced before signaling completion.'
+  - 'Successful workflows follow a clear signal chain: dev signals ''done'' with results,
+    QA signals ''approved'' after independent verification, then both signal ''complete''.
+    This ensures QA validation is a gate before workflow completion.'
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -581,4 +579,18 @@ patterns:
   tags:
   - validation
   - process
+  sample_count: 1
+- pattern: cli/*
+  insights:
+  - The sessions command outputs structured JSON (session_count, total_messages, date_range,
+    sources) rather than formatted text. This enables piping output to other tools
+    (jq, scripts) and makes the CLI composable. For discovery/listing commands, JSON
+    is preferable to human-readable output.
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - cli
+  - technical
   sample_count: 1

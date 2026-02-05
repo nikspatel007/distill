@@ -1,12 +1,12 @@
 agents:
   general:
     learnings:
-    - Dev agent provided highly detailed 'done' signal messages that explained exactly
-      what was fixed and why, enabling fast QA verification without additional back-and-forth
-    - QA agent (Codex-based) efficiently ran pytest and confirmed changes, signaling
-      'approved' in under 2 minutes after dev's done signal
-    - Watcher agent successfully coordinated workflow completion, ensuring both dev
-      and QA signals were captured before marking workflow complete
+    - Dev agent provided comprehensive coverage breakdown (8 modules with individual
+      percentages), enabling future targeted improvements
+    - QA agent independently ran the exact same pytest command rather than trusting
+      dev's output, demonstrating proper verification protocol
+    - Both agents efficiently completed their roles within 163 seconds total - verification
+      tasks should be quick
     strengths: []
     weaknesses: []
     best_practices: []
