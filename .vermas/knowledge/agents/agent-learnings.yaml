@@ -1,16 +1,19 @@
 agents:
   general:
     learnings:
-    - Dev agent produces high-quality code consistently - the analyze subcommand implementation
-      (+611 LOC with comprehensive tests) demonstrates strong technical execution.
-      The failure is purely in the merge/delivery step, not in code quality.
-    - 'The workflow''s ''watcher'' agent failed to catch the merge-drops-source issue
-      despite this being documented as the #1 systemic problem. Either the watcher
-      lacks the tooling to verify main branch state post-completion, or its checks
-      are insufficient.'
-    - QA agent's review framework (from prior cycles) correctly identifies this pattern
-      when reviewing, but the detection happens post-hoc rather than preventing the
-      issue. Moving the check to a pre-signal gate would be more effective.
+    - "Dev agent responded effectively to QA's needs_revision signal, producing 849\
+      \ LOC of comprehensive integration tests covering all 4 requested areas (rich\
+      \ content, VerMAS fields, Claude fields, exit codes) in a single revision cycle\
+      \ \u2014 demonstrating the dev-QA feedback loop works when QA provides specific,\
+      \ actionable feedback."
+    - "QA agent correctly identified the initial empty worktree state and provided\
+      \ a detailed list of missing test coverage areas, then verified the revision\
+      \ met all requirements before approving \u2014 showing disciplined review that\
+      \ neither rubber-stamps nor blocks unnecessarily."
+    - The watcher/merge agent continues to produce artifact-only commits that strip
+      source files, operating as a silent failure point that neither dev nor QA can
+      detect until post-merge review. This agent's merge logic is the root cause of
+      the project's largest systemic issue.
     strengths: []
     weaknesses: []
     best_practices: []

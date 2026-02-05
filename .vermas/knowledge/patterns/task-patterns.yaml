@@ -1,11 +1,12 @@
 patterns:
 - pattern: architecture/*
   insights:
-  - The formatter extracts structured sections (What Was Asked, Tool Usage Summary,
-    Accomplishments, Key Decisions) from raw conversation turns using pattern matching
-    and purpose inference maps. The _infer_tool_purpose() method maps 10 known tool
-    names to human-readable descriptions with a 'General tool usage' fallback. This
-    is a reusable pattern for transforming raw agent traces into readable reports.
+  - The integration tests use subprocess.run to invoke the CLI as a separate process
+    (sys.executable -m session_insights), testing actual exit codes, stdout/stderr
+    output, and argument parsing. This approach validates that the CLI entrypoint,
+    argument parsing, core pipeline, and formatter all work together without mocking,
+    providing true end-to-end confidence. The helper function _run_cli abstracts the
+    subprocess invocation pattern for reuse across 26 tests.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -47,18 +48,19 @@ patterns:
   sample_count: 1
 - pattern: testing/*
   insights:
-  - 'The branch reported 240 tests passing while main has only 218. The 22-test gap
-    (test_core_stats.py: 170 LOC, additional e2e and cli tests) represents lost test
-    coverage. The workflow reports ''success'' based on branch state but the deliverable
-    never reaches main. Future workflows should verify test counts on main after the
-    completion commit, not on the task branch.'
+  - "The dev agent created comprehensive integration tests using pytest fixtures that\
+    \ generate representative session data (Claude JSONL, VerMAS YAML) in tmp_path\
+    \ directories, then asserted rich content through the complete parse\u2192model\u2192\
+    format pipeline. This fixture-factory approach enables testing without real session\
+    \ data and makes assertions about formatted output content (not just structure).\
+    \ Each fixture builds realistic nested data structures matching the parser contract."
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - testing
-  - process
+  - technical
   sample_count: 1
 - pattern: code-recovery/*
   insights:
@@ -136,11 +138,12 @@ patterns:
   sample_count: 1
 - pattern: code-review/*
   insights:
-  - "The dev-QA interaction was efficient: dev signaled done, QA flagged 2 test issues\
-    \ within 21 seconds, dev clarified tests were already fixed (43 seconds), QA verified\
-    \ and approved (2 minutes later). Total resolution: ~3 minutes for the entire\
-    \ review cycle. The signal-based workflow (done \u2192 needs_revision \u2192 done\
-    \ \u2192 approved) created a clear audit trail with specific, actionable feedback."
+  - QA's initial needs_revision signal (0f494bc5) with specific missing items ('tests
+    that verify non-empty content sections, VerMAS notes include task description/signals/learnings')
+    drove the dev agent to produce a comprehensive 849-LOC test file covering all
+    requested areas. The specificity of QA's feedback (listing exactly what was missing)
+    resulted in targeted implementation rather than vague iteration. This is the dev-QA
+    loop working as designed.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -222,18 +225,20 @@ patterns:
   sample_count: 1
 - pattern: debugging/*
   insights:
-  - 'When using Typer with pyproject.toml console_scripts, pointing the entrypoint
-    directly at the Typer app object or a callback function produces no output. The
-    fix is to create a run() function that calls app() and point the entrypoint at
-    that wrapper. This is a common Typer pitfall: `session_insights.cli:run` where
-    run() calls app().'
+  - "For the 8th consecutive time, the merge from task branch to main dropped all\
+    \ src/ and tests/ changes, producing an artifact-only commit (c41a3a3) containing\
+    \ only .vermas/ state files, .coverage, and .worktrees/ entries. The branch (5590645)\
+    \ retains the +849 LOC. The root cause appears to be in the automated merge/commit\
+    \ process that constructs the main commit \u2014 it selectively stages .vermas/\
+    \ artifacts but not source code. This is now the project's #1 systemic issue with\
+    \ ~2,041 LOC stranded across 4 branches."
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - debugging
-  - technical
+  - process
   sample_count: 1
 - pattern: integration/*
   insights:
@@ -365,12 +370,12 @@ patterns:
   sample_count: 1
 - pattern: workflow/*
   insights:
-  - The entire workflow completed in 362 seconds with only 2 minutes between dev's
-    done signal (17:55:28) and QA's approval (17:57:22). For a task claiming 'full
-    pipeline implementation,' this timeline is too fast for meaningful code review.
-    Fast signal-to-approval times on complex tasks correlate with artifact-only or
-    low-value outcomes in this project's history. A minimum review time threshold
-    or mandatory diff-inspection step would prevent rubber-stamp approvals.
+  - "The workflow produces increasingly sophisticated code (849 LOC with 26 tests,\
+    \ 92% coverage, QA-approved) yet consistently fails at the final merge step. The\
+    \ development and QA phases work well \u2014 needs_revision drives improvement,\
+    \ done signal accurately reflects work, approval validates quality \u2014 but\
+    \ the merge automation negates all value by producing artifact-only commits. The\
+    \ workflow's weakest link is not code quality but deployment to main."
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
