@@ -45,11 +45,11 @@ patterns:
   sample_count: 1
 - pattern: testing/*
   insights:
-  - When changing CLI arguments from required to optional with defaults, existing
-    tests may assert 'missing argument' error behavior that no longer applies. QA's
-    'needs_revision' signal caught tests still expecting missing --output errors.
-    Always update test expectations to match new default behavior, converting negative
-    tests to positive assertions about default values.
+  - When reviewing CLI changes, run targeted test subsets first (tests/test_cli.py,
+    tests/integration/test_integration.py) rather than the full suite. This provides
+    faster feedback on the specific feature. QA ran 'PYTHONPATH=src python -m pytest
+    tests/test_cli.py tests/integration/test_integration.py::TestCLIExitCodes' to
+    verify the 8 relevant tests.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -134,12 +134,12 @@ patterns:
   sample_count: 1
 - pattern: code-review/*
   insights:
-  - QA effectively caught spec mismatches (Typer vs required Click dependency) that
-    dev overlooked in initial implementations. Explicit requirements (e.g., 'use click>=8.0')
-    should be verified early in QA reviews before functionality testing. This prevents
-    fundamental dependency mismatches that would cause integration issues downstream.
+  - Before conducting a detailed review, QA should first verify that the branch contains
+    actual code changes (git diff main...HEAD). Empty branches indicate dev hasn't
+    pushed yet or work was done in wrong worktree. This prevents wasted review cycles
+    on non-existent code.
   revision_rate: null
-  success_rate: 0.0
+  success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
@@ -359,4 +359,18 @@ patterns:
   tags:
   - cli-development
   - technical
+  sample_count: 1
+- pattern: workflow/*
+  insights:
+  - 'CLI argument changes commonly require two dev-QA iterations: first to implement
+    the feature, second to update test expectations. The initial implementation may
+    pass unit tests but fail integration tests that have implicit assumptions about
+    argument behavior. Plan for this in time estimates.'
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - workflow
+  - process
   sample_count: 1

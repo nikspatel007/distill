@@ -1,0 +1,11 @@
+agent_id: 7eb74888
+created_at: '2026-02-05T14:43:15.416136'
+message: 'Requirements still not met: --version prints ''session-insights, version
+  0.1.0'' (Click default), but spec requires exact ''session-insights v0.1.0''. Update
+  Click version output (custom message or manual option) and tighten test to assert
+  exact output. Tests otherwise pass.'
+metadata: null
+role: qa
+signal: needs_revision
+signal_id: e8f3b461
+workflow_id: mission-f68b8b88-cycle-5-execute-create-minimal-cli-entrypoint

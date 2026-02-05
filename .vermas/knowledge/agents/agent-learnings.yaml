@@ -1,13 +1,12 @@
 agents:
   general:
     learnings:
-    - Dev provided complete done signal with implementation details ('default=./insights/',
-      directory creation, confirmation message) enabling efficient QA review without
-      code archaeology
-    - QA correctly identified test-spec misalignment in first review (needs_revision
-      signal) rather than passing code that would fail in CI with outdated assertions
-    - Both agents coordinated efficiently - total workflow time of 455s with single
-      revision cycle demonstrates effective handoff protocol
+    - QA agent (Codex) effectively caught both the initial empty commit and subsequent
+      test failures, demonstrating thorough verification
+    - Dev agent responded quickly to feedback (1-2 minutes between QA rejection and
+      fix), showing efficient iteration
+    - Both agents signaled 'complete' after 'approved', following proper workflow
+      protocol
     strengths: []
     weaknesses: []
     best_practices: []
