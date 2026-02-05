@@ -54,6 +54,68 @@ def main(
     pass
 
 
+def _generate_index(
+    sessions: list[BaseSession],
+    daily_sessions: dict[date, list[BaseSession]],
+    result: AnalysisResult,
+) -> str:
+    """Generate an index.md file linking all sessions.
+
+    Args:
+        sessions: All analyzed sessions.
+        daily_sessions: Sessions grouped by date.
+        result: Analysis result with patterns and stats.
+
+    Returns:
+        Markdown content for the index file.
+    """
+    lines = [
+        "---",
+        "type: index",
+        f"created: {datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}",
+        f"total_sessions: {len(sessions)}",
+        "---",
+        "",
+        "# Session Insights Index",
+        "",
+        "## Overview",
+        "",
+        f"- **Total Sessions**: {len(sessions)}",
+        f"- **Total Days**: {len(daily_sessions)}",
+    ]
+
+    # Add date range if available
+    if result.stats.date_range:
+        start, end = result.stats.date_range
+        lines.append(f"- **Date Range**: {start.date()} to {end.date()}")
+
+    lines.extend(["", "## Sessions by Date", ""])
+
+    # List sessions grouped by date
+    for summary_date in sorted(daily_sessions.keys(), reverse=True):
+        date_sessions = daily_sessions[summary_date]
+        daily_link = f"[[daily/daily-{summary_date.isoformat()}|{summary_date.isoformat()}]]"
+        lines.append(f"### {daily_link}")
+        lines.append("")
+
+        for session in sorted(date_sessions, key=lambda s: s.start_time):
+            time_str = session.start_time.strftime("%H:%M")
+            session_link = f"[[sessions/{session.note_name}]]"
+            summary = session.summary[:60] + "..." if session.summary and len(session.summary) > 60 else (session.summary or "No summary")
+            lines.append(f"- {time_str} - {session_link}: {summary}")
+
+        lines.append("")
+
+    # Add patterns section if available
+    if result.patterns:
+        lines.extend(["## Detected Patterns", ""])
+        for pattern in result.patterns:
+            lines.append(f"- {pattern.description}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
 @app.command()
 def analyze_cmd(
     directory: Annotated[
@@ -76,6 +138,14 @@ def analyze_cmd(
             help="Output directory for Obsidian notes. Defaults to ./insights/",
         ),
     ] = None,
+    output_format: Annotated[
+        str,
+        typer.Option(
+            "--format",
+            "-f",
+            help="Output format. Currently only 'obsidian' is supported.",
+        ),
+    ] = "obsidian",
     source: Annotated[
         list[str] | None,
         typer.Option(
@@ -104,6 +174,12 @@ def analyze_cmd(
     Scans the specified directory for AI assistant session files and generates
     Obsidian-compatible markdown notes.
     """
+    # Validate format option
+    if output_format != "obsidian":
+        console.print(f"[red]Error:[/red] Unsupported format: {output_format}")
+        console.print("Currently only 'obsidian' format is supported.")
+        raise typer.Exit(1)
+
     # Set default output directory if not provided
     if output is None:
         output = Path("./insights/")
@@ -220,6 +296,11 @@ def analyze_cmd(
         daily_content = formatter.format_daily_summary(sessions, summary_date)
         daily_path = daily_dir / f"daily-{summary_date.isoformat()}.md"
         daily_path.write_text(daily_content, encoding="utf-8")
+
+    # Write index.md linking all sessions
+    index_content = _generate_index(all_sessions, daily_sessions, result)
+    index_path = output / "index.md"
+    index_path.write_text(index_content, encoding="utf-8")
 
     # Report results
     console.print()
