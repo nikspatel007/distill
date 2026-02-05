@@ -1,0 +1,10 @@
+agent_id: 28d9a450
+created_at: '2026-02-05T22:26:48.521179'
+message: 'QA approved. Reviewed commit 9d5584b; requirements met. Tests: `PYTHONPATH=src
+  pytest -q -o addopts='''' tests/parsers/test_vermas.py tests/parsers/test_vermas_metadata_exposure.py`
+  (80 passed). No issues found.'
+metadata: null
+role: qa
+signal: approved
+signal_id: a90a773c
+workflow_id: mission-2eabad9a-cycle-5-execute-vermas-parser-metadata-exposure

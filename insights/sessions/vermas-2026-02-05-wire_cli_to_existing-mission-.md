@@ -9,13 +9,13 @@ tags:
   - "#vermas"
 tools_used:
   []
-created: 2026-02-05T15:02:51
+created: 2026-02-05T16:21:02
 ---
 # Session 2026-02-05 18:29
 
 ## Summary
 
-Task: wire-cli-to-existing-parsers | Outcome: completed | Roles: qa, dev | Signals: 4 | Duration: 5.8m
+Task: wire-cli-to-existing-parsers | Outcome: completed | Roles: dev, qa | Signals: 4 | Duration: 5.8m
 
 ## Timeline
 
