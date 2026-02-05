@@ -2,7 +2,7 @@
 
 from .claude import ClaudeParser, ClaudeSession
 from .codex import CodexParser, CodexSession
-from .models import BaseSession, Message, ToolUsage
+from .models import BaseSession, ConversationTurn, Message, SessionOutcome, ToolCall, ToolUsage, ToolUsageSummary
 from .vermas import (
     AgentLearning,
     AgentSignal,
@@ -16,8 +16,12 @@ from .vermas import (
 
 __all__ = [
     "BaseSession",
+    "ConversationTurn",
     "Message",
+    "SessionOutcome",
+    "ToolCall",
     "ToolUsage",
+    "ToolUsageSummary",
     "ClaudeParser",
     "ClaudeSession",
     "CodexParser",

@@ -111,7 +111,7 @@ class ObsidianFormatter:
         # Related notes
         related_notes = self._format_related_notes(session)
 
-        return SESSION_BODY.substitute(
+        body = SESSION_BODY.substitute(
             title=title,
             summary=summary,
             start_time=start_time,
@@ -122,6 +122,12 @@ class ObsidianFormatter:
             conversation_section=conversation_section,
             related_notes=related_notes,
         )
+
+        # Append source-specific sections
+        if session.source == "vermas":
+            body += self._format_vermas_sections(session)
+
+        return body
 
     def _format_tools_section(self, session: BaseSession) -> str:
         """Format the tools used section."""
@@ -293,3 +299,104 @@ class ObsidianFormatter:
             patterns.append(f"- Outcome success rate: {rate:.0f}%")
 
         return "\n".join(patterns) if patterns else "_No patterns detected._"
+
+    # --- VerMAS-specific sections ---
+
+    def _format_vermas_sections(self, session: BaseSession) -> str:
+        """Format VerMAS-specific sections (task, signals, learnings)."""
+        sections = []
+
+        task_section = self._format_vermas_task_section(session)
+        if task_section:
+            sections.append(task_section)
+
+        signals_section = self._format_vermas_signals_section(session)
+        if signals_section:
+            sections.append(signals_section)
+
+        learnings_section = self._format_vermas_learnings_section(session)
+        if learnings_section:
+            sections.append(learnings_section)
+
+        return "\n" + "\n".join(sections) if sections else ""
+
+    def _format_vermas_task_section(self, session: BaseSession) -> str:
+        """Format VerMAS task details section."""
+        lines = ["## Task Details", ""]
+
+        task_name = getattr(session, "task_name", None)
+        task_desc = getattr(session, "task_description", "")
+        mission_id = getattr(session, "mission_id", None)
+        cycle = getattr(session, "cycle", None)
+        outcome = getattr(session, "outcome", "unknown")
+
+        if task_name:
+            lines.append(f"- **Task:** {task_name}")
+        if mission_id:
+            lines.append(f"- **Mission:** {mission_id}")
+        if cycle is not None:
+            lines.append(f"- **Cycle:** {cycle}")
+        lines.append(f"- **Outcome:** {outcome}")
+
+        if task_desc:
+            lines.append("")
+            lines.append("### Description")
+            lines.append("")
+            lines.append(task_desc)
+
+        lines.append("")
+        return "\n".join(lines)
+
+    def _format_vermas_signals_section(self, session: BaseSession) -> str:
+        """Format VerMAS agent signals timeline."""
+        signals = getattr(session, "signals", [])
+        if not signals:
+            return ""
+
+        lines = ["## Agent Signals", ""]
+        lines.append("| Time | Agent | Role | Signal | Message |")
+        lines.append("|------|-------|------|--------|---------|")
+
+        for signal in sorted(signals, key=lambda s: s.timestamp):
+            time_str = signal.timestamp.strftime("%H:%M:%S")
+            msg = signal.message[:60] + "..." if len(signal.message) > 60 else signal.message
+            lines.append(
+                f"| {time_str} | {signal.agent_id[:12]} | {signal.role} | {signal.signal} | {msg} |"
+            )
+
+        lines.append("")
+        return "\n".join(lines)
+
+    def _format_vermas_learnings_section(self, session: BaseSession) -> str:
+        """Format VerMAS agent learnings and improvements."""
+        agent_learnings = getattr(session, "agent_learnings", [])
+        improvements = getattr(session, "improvements", [])
+
+        if not agent_learnings and not improvements:
+            return ""
+
+        lines = ["## Learnings", ""]
+
+        for learning in agent_learnings:
+            lines.append(f"### Agent: {learning.agent}")
+            if learning.learnings:
+                for item in learning.learnings:
+                    lines.append(f"- {item}")
+            if learning.best_practices:
+                lines.append("")
+                lines.append("**Best Practices:**")
+                for item in learning.best_practices:
+                    lines.append(f"- {item}")
+            lines.append("")
+
+        if improvements:
+            lines.append("### Improvements")
+            lines.append("")
+            for imp in improvements:
+                status = "validated" if imp.validated else "pending"
+                lines.append(f"- **{imp.type}** ({imp.target}): {imp.change} [{status}]")
+                if imp.impact:
+                    lines.append(f"  - Impact: {imp.impact}")
+            lines.append("")
+
+        return "\n".join(lines)

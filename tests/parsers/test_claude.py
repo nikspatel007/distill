@@ -707,3 +707,216 @@ class TestParserEdgeCases:
         assert len(sessions) == 1
         assert len(sessions[0].tool_calls) == 1
         assert "changes" in sessions[0].tool_calls[0].arguments
+
+
+class TestClaudeEnrichment:
+    """Tests for Claude session enrichment (outcomes, tags, summary)."""
+
+    @pytest.fixture
+    def parser(self) -> ClaudeParser:
+        """Create a parser instance."""
+        return ClaudeParser()
+
+    @pytest.fixture
+    def temp_dir(self) -> Path:
+        """Create a temporary directory for test files."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield Path(tmpdir)
+
+    def test_auto_summary_from_first_user_message(
+        self, parser: ClaudeParser, temp_dir: Path
+    ) -> None:
+        """Test that summary is derived from first user message."""
+        session_file = temp_dir / "summary-test.jsonl"
+        entries = [
+            {
+                "type": "user",
+                "timestamp": "2024-01-15T10:30:00Z",
+                "message": {"content": "Help me fix the login bug"},
+            },
+            {
+                "type": "assistant",
+                "timestamp": "2024-01-15T10:30:05Z",
+                "message": {"content": [{"type": "text", "text": "Sure!"}]},
+            },
+        ]
+        session_file.write_text("\n".join(json.dumps(e) for e in entries))
+
+        sessions = parser.parse_directory(temp_dir)
+        assert len(sessions) == 1
+        assert "fix the login bug" in sessions[0].summary
+
+    def test_outcomes_from_edit_tool_calls(
+        self, parser: ClaudeParser, temp_dir: Path
+    ) -> None:
+        """Test that file modifications are extracted as outcomes."""
+        session_file = temp_dir / "edit-test.jsonl"
+        entries = [
+            {
+                "type": "user",
+                "timestamp": "2024-01-15T10:30:00Z",
+                "message": {"content": "Edit the auth file"},
+            },
+            {
+                "type": "assistant",
+                "timestamp": "2024-01-15T10:30:05Z",
+                "message": {
+                    "content": [
+                        {"type": "text", "text": "Editing..."},
+                        {
+                            "type": "tool_use",
+                            "id": "t1",
+                            "name": "Edit",
+                            "input": {"file_path": "/src/auth.py", "old_string": "a", "new_string": "b"},
+                        },
+                    ],
+                },
+            },
+            {
+                "type": "user",
+                "timestamp": "2024-01-15T10:30:10Z",
+                "message": {
+                    "content": [{"type": "tool_result", "tool_use_id": "t1", "content": "ok"}]
+                },
+            },
+        ]
+        session_file.write_text("\n".join(json.dumps(e) for e in entries))
+
+        sessions = parser.parse_directory(temp_dir)
+        assert len(sessions) == 1
+        assert len(sessions[0].outcomes) >= 1
+        file_outcome = next(o for o in sessions[0].outcomes if o.files_modified)
+        assert "/src/auth.py" in file_outcome.files_modified
+
+    def test_outcomes_from_bash_tool_calls(
+        self, parser: ClaudeParser, temp_dir: Path
+    ) -> None:
+        """Test that shell commands are extracted as outcomes."""
+        session_file = temp_dir / "bash-test.jsonl"
+        entries = [
+            {
+                "type": "user",
+                "timestamp": "2024-01-15T10:30:00Z",
+                "message": {"content": "Run the tests"},
+            },
+            {
+                "type": "assistant",
+                "timestamp": "2024-01-15T10:30:05Z",
+                "message": {
+                    "content": [
+                        {"type": "text", "text": "Running tests..."},
+                        {
+                            "type": "tool_use",
+                            "id": "t1",
+                            "name": "Bash",
+                            "input": {"command": "pytest tests/"},
+                        },
+                    ],
+                },
+            },
+            {
+                "type": "user",
+                "timestamp": "2024-01-15T10:30:10Z",
+                "message": {
+                    "content": [{"type": "tool_result", "tool_use_id": "t1", "content": "all passed"}]
+                },
+            },
+        ]
+        session_file.write_text("\n".join(json.dumps(e) for e in entries))
+
+        sessions = parser.parse_directory(temp_dir)
+        assert len(sessions) == 1
+        cmd_outcome = next(o for o in sessions[0].outcomes if "command" in o.description.lower())
+        assert cmd_outcome is not None
+
+    def test_auto_tagging_debugging(
+        self, parser: ClaudeParser, temp_dir: Path
+    ) -> None:
+        """Test that debugging-related content gets tagged."""
+        session_file = temp_dir / "debug-test.jsonl"
+        entries = [
+            {
+                "type": "user",
+                "timestamp": "2024-01-15T10:30:00Z",
+                "message": {"content": "I have a bug in my code, please help me debug it"},
+            },
+            {
+                "type": "assistant",
+                "timestamp": "2024-01-15T10:30:05Z",
+                "message": {"content": [{"type": "text", "text": "Let me look at the error."}]},
+            },
+        ]
+        session_file.write_text("\n".join(json.dumps(e) for e in entries))
+
+        sessions = parser.parse_directory(temp_dir)
+        assert len(sessions) == 1
+        assert "debugging" in sessions[0].tags
+
+    def test_auto_tagging_testing(
+        self, parser: ClaudeParser, temp_dir: Path
+    ) -> None:
+        """Test that testing-related content gets tagged."""
+        session_file = temp_dir / "test-tag.jsonl"
+        entries = [
+            {
+                "type": "user",
+                "timestamp": "2024-01-15T10:30:00Z",
+                "message": {"content": "Run pytest and check coverage"},
+            },
+        ]
+        session_file.write_text("\n".join(json.dumps(e) for e in entries))
+
+        sessions = parser.parse_directory(temp_dir)
+        assert len(sessions) == 1
+        assert "testing" in sessions[0].tags
+
+    def test_tools_used_auto_derived(
+        self, parser: ClaudeParser, temp_dir: Path
+    ) -> None:
+        """Test that tools_used is auto-derived from tool_calls."""
+        session_file = temp_dir / "tools-derive.jsonl"
+        entries = [
+            {
+                "type": "user",
+                "timestamp": "2024-01-15T10:30:00Z",
+                "message": {"content": "Read and edit files"},
+            },
+            {
+                "type": "assistant",
+                "timestamp": "2024-01-15T10:30:05Z",
+                "message": {
+                    "content": [
+                        {"type": "text", "text": "On it."},
+                        {"type": "tool_use", "id": "t1", "name": "Read", "input": {"file_path": "/a.py"}},
+                    ],
+                },
+            },
+            {
+                "type": "user",
+                "timestamp": "2024-01-15T10:30:10Z",
+                "message": {"content": [{"type": "tool_result", "tool_use_id": "t1", "content": "contents"}]},
+            },
+            {
+                "type": "assistant",
+                "timestamp": "2024-01-15T10:30:15Z",
+                "message": {
+                    "content": [
+                        {"type": "text", "text": "Editing."},
+                        {"type": "tool_use", "id": "t2", "name": "Read", "input": {"file_path": "/b.py"}},
+                    ],
+                },
+            },
+            {
+                "type": "user",
+                "timestamp": "2024-01-15T10:30:20Z",
+                "message": {"content": [{"type": "tool_result", "tool_use_id": "t2", "content": "contents"}]},
+            },
+        ]
+        session_file.write_text("\n".join(json.dumps(e) for e in entries))
+
+        sessions = parser.parse_directory(temp_dir)
+        assert len(sessions) == 1
+        # tools_used should be auto-derived from tool_calls
+        assert len(sessions[0].tools_used) > 0
+        read_usage = next(t for t in sessions[0].tools_used if t.name == "Read")
+        assert read_usage.count == 2

@@ -370,3 +370,142 @@ class TestFormatterOptions:
 
         # Should contain conversation content
         assert "user" in output.lower() or "assistant" in output.lower()
+
+
+class TestVermasFormatting:
+    """Test VerMAS-specific formatting sections."""
+
+    @pytest.fixture
+    def vermas_session(self) -> BaseSession:
+        """Create a VerMAS-like session using duck typing fields."""
+        from session_insights.parsers.vermas import (
+            AgentLearning,
+            AgentSignal,
+            KnowledgeImprovement,
+            VermasSession,
+        )
+
+        start = datetime(2024, 6, 15, 14, 0, 0)
+        end = datetime(2024, 6, 15, 14, 30, 0)
+
+        return VermasSession(
+            session_id="vermas-test-001",
+            timestamp=start,
+            start_time=start,
+            end_time=end,
+            source="vermas",
+            summary="Implemented pattern analyzer",
+            task_name="create-pattern-analyzer",
+            task_description="Build the pattern detection system for session analysis.",
+            mission_id="mission-abc123",
+            cycle=3,
+            outcome="completed",
+            signals=[
+                AgentSignal(
+                    signal_id="sig-1",
+                    agent_id="dev-agent-001",
+                    role="dev",
+                    signal="done",
+                    message="Code and tests written",
+                    timestamp=datetime(2024, 6, 15, 14, 20, 0),
+                    workflow_id="wf-001",
+                ),
+                AgentSignal(
+                    signal_id="sig-2",
+                    agent_id="qa-agent-001",
+                    role="qa",
+                    signal="approved",
+                    message="All tests pass, coverage met",
+                    timestamp=datetime(2024, 6, 15, 14, 25, 0),
+                    workflow_id="wf-001",
+                ),
+            ],
+            agent_learnings=[
+                AgentLearning(
+                    agent="dev",
+                    learnings=["Incremental testing prevents regressions"],
+                    best_practices=["Run tests after each change"],
+                ),
+            ],
+            improvements=[
+                KnowledgeImprovement(
+                    id="imp-1",
+                    type="process",
+                    target="test-workflow",
+                    change="Added pre-commit checks",
+                    validated=True,
+                    impact="Reduced failed commits by 50%",
+                ),
+            ],
+        )
+
+    def test_vermas_session_has_task_details(
+        self, vermas_session: BaseSession
+    ) -> None:
+        """Verify VerMAS notes show task details."""
+        formatter = ObsidianFormatter()
+        output = formatter.format_session(vermas_session)
+
+        assert "## Task Details" in output
+        assert "create-pattern-analyzer" in output
+        assert "mission-abc123" in output
+        assert "Cycle:** 3" in output
+        assert "completed" in output
+
+    def test_vermas_session_has_task_description(
+        self, vermas_session: BaseSession
+    ) -> None:
+        """Verify VerMAS notes show task description."""
+        formatter = ObsidianFormatter()
+        output = formatter.format_session(vermas_session)
+
+        assert "### Description" in output
+        assert "Build the pattern detection system" in output
+
+    def test_vermas_session_has_signals_timeline(
+        self, vermas_session: BaseSession
+    ) -> None:
+        """Verify VerMAS notes show agent signals timeline."""
+        formatter = ObsidianFormatter()
+        output = formatter.format_session(vermas_session)
+
+        assert "## Agent Signals" in output
+        assert "done" in output
+        assert "approved" in output
+        assert "dev" in output
+        assert "qa" in output
+
+    def test_vermas_session_has_learnings(
+        self, vermas_session: BaseSession
+    ) -> None:
+        """Verify VerMAS notes show agent learnings."""
+        formatter = ObsidianFormatter()
+        output = formatter.format_session(vermas_session)
+
+        assert "## Learnings" in output
+        assert "Incremental testing prevents regressions" in output
+        assert "Best Practices" in output
+        assert "Run tests after each change" in output
+
+    def test_vermas_session_has_improvements(
+        self, vermas_session: BaseSession
+    ) -> None:
+        """Verify VerMAS notes show improvements."""
+        formatter = ObsidianFormatter()
+        output = formatter.format_session(vermas_session)
+
+        assert "### Improvements" in output
+        assert "pre-commit checks" in output
+        assert "validated" in output
+        assert "Reduced failed commits" in output
+
+    def test_non_vermas_session_has_no_vermas_sections(
+        self, sample_session: BaseSession
+    ) -> None:
+        """Verify non-VerMAS sessions don't get VerMAS sections."""
+        formatter = ObsidianFormatter()
+        output = formatter.format_session(sample_session)
+
+        assert "## Task Details" not in output
+        assert "## Agent Signals" not in output
+        assert "## Learnings" not in output

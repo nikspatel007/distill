@@ -8,7 +8,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from .models import BaseSession, Message, ToolUsage
+from .models import BaseSession, Message, SessionOutcome, ToolUsage
 
 logger = logging.getLogger(__name__)
 
@@ -194,7 +194,7 @@ class ClaudeParser:
         for tool_use in pending_tool_uses.values():
             tool_calls.append(tool_use)
 
-        return ClaudeSession(
+        session = ClaudeSession(
             session_id=session_id,
             timestamp=first_timestamp,
             messages=messages,
@@ -205,6 +205,9 @@ class ClaudeParser:
             version=version,
             metadata=metadata,
         )
+
+        self._enrich_session(session)
+        return session
 
     def _process_user_entry(
         self,
@@ -305,6 +308,62 @@ class ClaudeParser:
                 )
 
         return model
+
+    def _enrich_session(self, session: ClaudeSession) -> None:
+        """Enrich a parsed session with outcomes, summary, and tags."""
+        # Generate summary from first user message if not already set
+        if not session.summary:
+            user_msgs = [m for m in session.messages if m.role == "user"]
+            if user_msgs:
+                first_msg = user_msgs[0].content[:200]
+                session.summary = first_msg
+
+        # Extract outcomes from tool calls
+        if session.tool_calls and not session.outcomes:
+            files_modified: list[str] = []
+            commands_run = 0
+
+            for tc in session.tool_calls:
+                if tc.tool_name in ("Edit", "Write", "NotebookEdit"):
+                    file_path = tc.arguments.get("file_path", "")
+                    if file_path and file_path not in files_modified:
+                        files_modified.append(file_path)
+                elif tc.tool_name == "Bash":
+                    commands_run += 1
+
+            outcomes: list[SessionOutcome] = []
+            if files_modified:
+                outcomes.append(
+                    SessionOutcome(
+                        description=f"Modified {len(files_modified)} file(s)",
+                        files_modified=files_modified,
+                    )
+                )
+            if commands_run > 0:
+                outcomes.append(
+                    SessionOutcome(
+                        description=f"Ran {commands_run} shell command(s)",
+                    )
+                )
+            session.outcomes = outcomes
+
+        # Auto-tag based on content
+        if not session.tags:
+            tags: list[str] = []
+            all_text = " ".join(m.content.lower() for m in session.messages)
+
+            tag_keywords = {
+                "debugging": ["bug", "fix", "error", "debug", "traceback", "exception"],
+                "refactoring": ["refactor", "rename", "restructure", "reorganize", "cleanup"],
+                "feature": ["implement", "add feature", "new feature", "create"],
+                "testing": ["test", "pytest", "coverage", "assert"],
+                "documentation": ["readme", "docstring", "documentation", "docs"],
+            }
+            for tag, keywords in tag_keywords.items():
+                if any(kw in all_text for kw in keywords):
+                    tags.append(tag)
+
+            session.tags = tags
 
     def _parse_timestamp(self, ts_str: str) -> datetime:
         """Parse an ISO format timestamp string.

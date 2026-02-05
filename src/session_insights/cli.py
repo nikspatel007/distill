@@ -168,11 +168,19 @@ def analyze_cmd(
             help="Include full conversation in notes.",
         ),
     ] = False,
+    include_global: Annotated[
+        bool,
+        typer.Option(
+            "--global/--no-global",
+            help="Also scan home directory (~/.claude, ~/.codex) for sessions.",
+        ),
+    ] = False,
 ) -> None:
     """Analyze session history and generate Obsidian notes.
 
     Scans the specified directory for AI assistant session files and generates
-    Obsidian-compatible markdown notes.
+    Obsidian-compatible markdown notes. Use --global to also include sessions
+    from your home directory.
     """
     # Validate format option
     if output_format != "obsidian":
@@ -205,7 +213,7 @@ def analyze_cmd(
         console=console,
     ) as progress:
         progress.add_task("Discovering session files...", total=None)
-        discovered = discover_sessions(directory, source)
+        discovered = discover_sessions(directory, source, include_home=include_global)
 
     if not discovered:
         console.print("[yellow]No session files found.[/yellow]")
@@ -339,30 +347,44 @@ def sessions_cmd(
             resolve_path=True,
         ),
     ] = Path("."),
+    include_global: Annotated[
+        bool,
+        typer.Option(
+            "--global/--no-global",
+            help="Also scan home directory (~/.claude, ~/.codex) for sessions.",
+        ),
+    ] = False,
 ) -> None:
     """Discover sessions and print a JSON summary.
 
     Scans the specified directory for .claude/ and .codex/ directories,
     uses the existing parsers to extract sessions, and prints a simple
     JSON summary with session count, total messages, and date range.
-
-    This is a minimal command to prove the CLI can use existing providers.
+    Use --global to also include sessions from your home directory.
     """
     claude_parser = ClaudeParser()
     codex_parser = CodexParser()
 
-    claude_sessions = []
-    codex_sessions = []
+    claude_sessions: list[BaseSession] = []
+    codex_sessions: list[BaseSession] = []
 
-    # Find .claude/ directory
-    claude_dir = directory / ".claude"
-    if claude_dir.exists() and claude_dir.is_dir():
-        claude_sessions = claude_parser.parse_directory(claude_dir)
+    # Collect directories to scan
+    dirs_to_scan = [directory]
+    if include_global:
+        home = Path.home()
+        if home != directory:
+            dirs_to_scan.append(home)
 
-    # Find .codex/ directory
-    codex_dir = directory / ".codex"
-    if codex_dir.exists() and codex_dir.is_dir():
-        codex_sessions = codex_parser.parse_directory(codex_dir)
+    for scan_dir in dirs_to_scan:
+        # Find .claude/ directory
+        claude_dir = scan_dir / ".claude"
+        if claude_dir.exists() and claude_dir.is_dir():
+            claude_sessions.extend(claude_parser.parse_directory(claude_dir))
+
+        # Find .codex/ directory
+        codex_dir = scan_dir / ".codex"
+        if codex_dir.exists() and codex_dir.is_dir():
+            codex_sessions.extend(codex_parser.parse_directory(codex_dir))
 
     # Combine all sessions
     all_sessions = claude_sessions + codex_sessions

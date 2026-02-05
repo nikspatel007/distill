@@ -1,11 +1,15 @@
-"""Parser-specific models for session data."""
+"""Unified session data models.
+
+This module defines the single BaseSession model used by both parsers and formatters.
+Parsers populate raw data (messages, tool_calls), and enriched fields (turns, tools_used,
+outcomes) are either auto-derived or set directly.
+"""
 
 from collections import Counter
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class Message(BaseModel):
@@ -16,8 +20,8 @@ class Message(BaseModel):
     timestamp: datetime | None = None
 
 
-class ToolUsage(BaseModel):
-    """Represents a tool call made during a session."""
+class ToolCall(BaseModel):
+    """Represents an individual tool call made during a session."""
 
     tool_name: str
     arguments: dict[str, Any] = Field(default_factory=dict)
@@ -25,102 +29,134 @@ class ToolUsage(BaseModel):
     duration_ms: int | None = None
 
 
-@dataclass
-class ToolUsageSummary:
-    """Simplified tool usage for compatibility with models.ToolUsage."""
+# Backward compatibility alias for parsers that import ToolUsage
+ToolUsage = ToolCall
+
+
+class ToolUsageSummary(BaseModel):
+    """Aggregated tool usage summary for display."""
 
     name: str
     count: int = 1
+    arguments: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ConversationTurn(BaseModel):
+    """Represents a single turn in the conversation."""
+
+    role: str  # 'user' or 'assistant'
+    content: str
+    timestamp: datetime | None = None
+    tools_called: list[str] = Field(default_factory=list)
+
+
+class SessionOutcome(BaseModel):
+    """Represents an outcome or result of a session."""
+
+    description: str
+    files_modified: list[str] = Field(default_factory=list)
+    success: bool = True
 
 
 class BaseSession(BaseModel):
-    """Abstract base model for AI coding assistant sessions.
+    """Unified base model for AI coding assistant sessions.
 
-    This serves as the common interface for sessions from different sources
-    (Claude, Cursor, etc.).
+    Accepts construction with either parser fields (session_id, timestamp,
+    messages, tool_calls) or formatter fields (id, start_time, turns,
+    tools_used, outcomes). Auto-derives enriched fields from raw data
+    when not directly provided.
     """
 
-    session_id: str
-    timestamp: datetime
+    # Core identity
+    session_id: str = ""
+    timestamp: datetime = Field(default_factory=lambda: datetime.min)
+
+    # Time range
+    start_time: datetime | None = None
+    end_time: datetime | None = None
+
+    # Source and description
     source: str = "unknown"
-    messages: list[Message] = Field(default_factory=list)
-    tool_calls: list[ToolUsage] = Field(default_factory=list)
     summary: str = ""
+
+    # Raw parser data
+    messages: list[Message] = Field(default_factory=list)
+    tool_calls: list[ToolCall] = Field(default_factory=list)
+
+    # Enriched/formatted data
+    turns: list[ConversationTurn] = Field(default_factory=list)
+    tools_used: list[ToolUsageSummary] = Field(default_factory=list)
+    outcomes: list[SessionOutcome] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+
+    # Extra
     metadata: dict[str, Any] = Field(default_factory=dict)
 
-    # Compatibility properties for models/__init__.py:BaseSession interface
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_fields(cls, data: Any) -> Any:
+        """Accept both parser and formatter field names."""
+        if isinstance(data, dict):
+            # Accept 'id' as alias for 'session_id'
+            if "id" in data and not data.get("session_id"):
+                data["session_id"] = data.pop("id")
+            elif "id" in data:
+                data.pop("id")
+
+            # Sync start_time and timestamp
+            if "start_time" in data and not data.get("timestamp"):
+                data["timestamp"] = data["start_time"]
+            elif "timestamp" in data and "start_time" not in data:
+                data["start_time"] = data["timestamp"]
+        return data
+
+    def model_post_init(self, __context: Any) -> None:
+        """Auto-derive enriched fields from raw data if not directly provided."""
+        # Derive tools_used from tool_calls
+        if not self.tools_used and self.tool_calls:
+            tool_counts: Counter[str] = Counter(
+                tc.tool_name for tc in self.tool_calls
+            )
+            self.tools_used = [
+                ToolUsageSummary(name=name, count=count)
+                for name, count in tool_counts.items()
+            ]
+
+        # Derive turns from messages
+        if not self.turns and self.messages:
+            self.turns = [
+                ConversationTurn(
+                    role=m.role, content=m.content, timestamp=m.timestamp
+                )
+                for m in self.messages
+            ]
+
     @property
     def id(self) -> str:
-        """Alias for session_id (compatibility with models.BaseSession)."""
+        """Alias for session_id (backward compatibility)."""
         return self.session_id
-
-    @property
-    def start_time(self) -> datetime:
-        """Alias for timestamp (compatibility with models.BaseSession).
-
-        Note: Subclasses may override this with an actual field.
-        """
-        # Check if subclass has start_time as a field (not a property)
-        cls = type(self)
-        if "start_time" in cls.model_fields and not isinstance(
-            cls.__dict__.get("start_time"), property
-        ):
-            val = self.__dict__.get("start_time")
-            if val is not None:
-                return val
-        return self.timestamp
-
-    @property
-    def end_time(self) -> datetime | None:
-        """End time derived from last message timestamp.
-
-        Note: Subclasses may override this with an actual field.
-        """
-        # Check if subclass has end_time as a field (not a property)
-        cls = type(self)
-        if "end_time" in cls.model_fields and not isinstance(
-            cls.__dict__.get("end_time"), property
-        ):
-            val = self.__dict__.get("end_time")
-            if val is not None:
-                return val
-        # Fall back to deriving from message timestamps
-        timestamps = [m.timestamp for m in self.messages if m.timestamp is not None]
-        return max(timestamps) if timestamps else None
-
-    @property
-    def tools_used(self) -> list[ToolUsageSummary]:
-        """Convert tool_calls to tools_used format (compatibility)."""
-        tool_counts: Counter[str] = Counter(tc.tool_name for tc in self.tool_calls)
-        return [ToolUsageSummary(name=name, count=count) for name, count in tool_counts.items()]
 
     @property
     def note_name(self) -> str:
         """Generate Obsidian-compatible note name."""
-        date_str = self.timestamp.strftime("%Y-%m-%d")
-        time_str = self.timestamp.strftime("%H%M")
+        ts = self.start_time or self.timestamp
+        date_str = ts.strftime("%Y-%m-%d")
+        time_str = ts.strftime("%H%M")
         return f"session-{date_str}-{time_str}-{self.session_id[:8]}"
 
     @property
-    def tags(self) -> list[str]:
-        """Return empty tags list (compatibility with models.BaseSession)."""
-        return []
-
-    @property
-    def turns(self) -> list[Any]:
-        """Return messages as turns (compatibility with models.BaseSession)."""
-        return [{"role": m.role, "content": m.content, "timestamp": m.timestamp} for m in self.messages]
-
-    @property
-    def outcomes(self) -> list[Any]:
-        """Return empty outcomes (compatibility with models.BaseSession)."""
-        return []
-
-    @property
     def duration_minutes(self) -> float | None:
-        """Calculate session duration based on first and last message timestamps."""
-        timestamps = [m.timestamp for m in self.messages if m.timestamp is not None]
-        if len(timestamps) < 2:
+        """Calculate session duration in minutes."""
+        st = self.start_time or self.timestamp
+        et = self.end_time
+        if et is None:
+            # Fall back to deriving from message timestamps (need 2+ for a span)
+            timestamps = [
+                m.timestamp for m in self.messages if m.timestamp is not None
+            ]
+            if len(timestamps) >= 2:
+                et = max(timestamps)
+        if et is None:
             return None
-        delta = max(timestamps) - min(timestamps)
+        delta = et - st
         return delta.total_seconds() / 60

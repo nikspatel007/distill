@@ -147,6 +147,28 @@ class TestDiscoverSessions:
 
         assert discovered == {}
 
+    def test_discover_with_include_home(self, tmp_path: Path) -> None:
+        """Test that include_home adds home directory sources."""
+        # Create a .claude dir in tmp_path
+        claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir()
+        (claude_dir / "projects").mkdir()
+
+        # include_home=True should not crash and should return at least the local dir
+        discovered = discover_sessions(tmp_path, include_home=True)
+        assert "claude" in discovered
+        # The local .claude dir should be included
+        assert any(p.parent == tmp_path for p in discovered["claude"])
+
+    def test_discover_include_home_no_duplicate(self, tmp_path: Path) -> None:
+        """Test that include_home doesn't duplicate when dir==home."""
+        # When scanning home dir itself, include_home shouldn't duplicate
+        discovered = discover_sessions(tmp_path, include_home=False)
+        discovered_with_home = discover_sessions(tmp_path, include_home=True)
+        # Should not have duplicate paths for the same source
+        for source, paths in discovered_with_home.items():
+            assert len(paths) == len(set(paths)), f"Duplicate paths for {source}"
+
 
 class TestParseSessionFile:
     """Tests for parsing session files."""

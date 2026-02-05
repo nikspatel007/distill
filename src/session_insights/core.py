@@ -78,6 +78,7 @@ def discover_source_roots(
 def discover_sessions(
     directory: Path,
     sources: list[str] | None = None,
+    include_home: bool = False,
 ) -> dict[str, list[Path]]:
     """Discover session directories/roots in a directory.
 
@@ -87,12 +88,26 @@ def discover_sessions(
     Args:
         directory: Root directory to scan.
         sources: Filter to specific sources. If None, discover all.
+        include_home: Also scan home directory (~/.claude, ~/.codex, ~/.vermas).
 
     Returns:
         Dictionary mapping source name to list containing the source root path.
     """
     roots = discover_source_roots(directory, sources)
-    return {source: [path] for source, path in roots.items()}
+    result: dict[str, list[Path]] = {source: [path] for source, path in roots.items()}
+
+    if include_home:
+        home = Path.home()
+        if home != directory:
+            home_roots = discover_source_roots(home, sources)
+            for source, path in home_roots.items():
+                if source in result:
+                    if path not in result[source]:
+                        result[source].append(path)
+                else:
+                    result[source] = [path]
+
+    return result
 
 
 def parse_sessions(root: Path, source: str) -> list[BaseSession]:
