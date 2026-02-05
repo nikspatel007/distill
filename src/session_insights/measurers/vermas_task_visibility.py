@@ -1,28 +1,31 @@
 """VerMAS task visibility KPI measurer.
 
-Parses generated notes for VerMAS sessions and checks that each expected
-metadata field (task_description, signals, learnings, cycle_info) is present
-and non-empty.
+Generates Obsidian notes for VerMAS sessions via the CLI, then reads the
+generated note files and checks that each expected metadata section
+(task description, signals, learnings, cycle info) is present and non-empty.
 """
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
 import yaml
 
-from session_insights.core import discover_sessions, parse_session_file
 from session_insights.measurers.base import KPIResult, Measurer
-from session_insights.parsers.models import BaseSession
 
-# Fields to check on VerMAS sessions. Each tuple is
-# (field_name, attribute_path_description).
-VERMAS_METADATA_FIELDS: list[str] = [
-    "task_description",
-    "signals",
-    "learnings",
-    "cycle_info",
+_SRC_DIR = str(Path(__file__).parents[2])
+
+# Sections to check in generated VerMAS note files.
+# Each tuple is (field_name, heading/marker to look for in the note).
+VERMAS_NOTE_SECTIONS: list[tuple[str, str]] = [
+    ("task_description", "## Task Details"),
+    ("signals", "## Agent Signals"),
+    ("learnings", "## Learnings"),
+    ("cycle_info", "**Cycle:**"),
 ]
 
 
@@ -59,6 +62,12 @@ def _create_sample_vermas_dir(base: Path) -> None:
         "---\nstatus: done\n---\n# Complete Task\n\nA fully described task.\n"
     )
 
+    # Mission epic
+    mission_dir = vermas_dir / "tasks" / "mission-full"
+    (mission_dir / "_epic.md").write_text(
+        "---\nstatus: in_progress\npriority: high\n---\n# Full Mission\n\nA complete test.\n"
+    )
+
     # Agent learnings
     agents_dir = vermas_dir / "knowledge" / "agents"
     agents_dir.mkdir(parents=True)
@@ -74,7 +83,7 @@ def _create_sample_vermas_dir(base: Path) -> None:
     }
     (agents_dir / "agent-learnings.yaml").write_text(yaml.dump(learnings))
 
-    # --- Workflow 2: Partial metadata (no task description, no learnings) ---
+    # --- Workflow 2: Partial metadata (no task description file, shared learnings) ---
     wf2 = vermas_dir / "state" / "mission-partial-cycle-1-execute-sparse-task"
     sig2 = wf2 / "signals"
     sig2.mkdir(parents=True)
@@ -91,21 +100,38 @@ def _create_sample_vermas_dir(base: Path) -> None:
     (sig2 / "sp1.yaml").write_text(yaml.dump(data))
 
 
-def _check_field(session: BaseSession, field: str) -> bool:
-    """Check whether a metadata field is present and non-empty on a session."""
-    value = getattr(session, field, None)
-    if value is None:
-        return False
-    if isinstance(value, str):
-        return len(value.strip()) > 0
-    if isinstance(value, list):
-        return len(value) > 0
-    # For objects (e.g. CycleInfo), presence is enough
-    return True
+def _run_cli(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
+    """Run the session-insights CLI as a subprocess."""
+    return subprocess.run(
+        [sys.executable, "-m", "session_insights", *args],
+        capture_output=True,
+        text=True,
+        cwd=cwd,
+        env={**os.environ, "PYTHONPATH": _SRC_DIR},
+        timeout=30,
+    )
+
+
+def score_vermas_note(note_path: Path) -> dict[str, bool]:
+    """Score a VerMAS note file for expected metadata sections.
+
+    Returns:
+        Dict mapping field name to presence boolean.
+    """
+    content = note_path.read_text(encoding="utf-8")
+    results: dict[str, bool] = {}
+    for field_name, marker in VERMAS_NOTE_SECTIONS:
+        results[field_name] = marker in content
+    return results
 
 
 class VermasTaskVisibilityMeasurer(Measurer):
-    """Measures percentage of expected metadata fields present in VerMAS sessions."""
+    """Measures percentage of expected metadata sections present in generated
+    VerMAS notes.
+
+    Workflow: create sample .vermas data -> run CLI to generate notes ->
+    read VerMAS .md files -> check each for expected sections.
+    """
 
     KPI_NAME = "vermas_task_visibility"
     TARGET = 90.0
@@ -115,53 +141,82 @@ class VermasTaskVisibilityMeasurer(Measurer):
             base = Path(tmpdir)
             return self._measure_from_directory(base)
 
-    def measure_from_sessions(self, sessions: list[BaseSession]) -> KPIResult:
-        """Measure visibility from pre-parsed sessions (useful for testing)."""
-        vermas_sessions = [s for s in sessions if s.source == "vermas"]
-        return self._score_sessions(vermas_sessions)
+    def measure_from_note_files(self, note_files: list[Path]) -> KPIResult:
+        """Measure visibility from pre-generated VerMAS note files."""
+        return self._score_note_files(note_files)
 
     def _measure_from_directory(self, base: Path) -> KPIResult:
-        """Set up sample data, parse, and score."""
+        """Set up sample data, run CLI, read generated notes, and score."""
         _create_sample_vermas_dir(base)
 
-        all_sessions: list[BaseSession] = []
-        discovered = discover_sessions(base, sources=["vermas"])
-        for src, paths in discovered.items():
-            for path in paths:
-                all_sessions.extend(parse_session_file(path, src))
+        output_dir = base / "output"
 
-        vermas_sessions = [s for s in all_sessions if s.source == "vermas"]
-        return self._score_sessions(vermas_sessions)
+        result = _run_cli(
+            "analyze",
+            "--dir",
+            str(base),
+            "--source",
+            "vermas",
+            "--output",
+            str(output_dir),
+            cwd=base,
+        )
 
-    def _score_sessions(self, sessions: list[BaseSession]) -> KPIResult:
-        """Score VerMAS sessions against metadata field checklist."""
-        if not sessions:
+        if result.returncode != 0:
             return KPIResult(
                 kpi=self.KPI_NAME,
                 value=0.0,
                 target=self.TARGET,
-                details={"error": "no vermas sessions found"},
+                details={
+                    "error": "CLI failed",
+                    "returncode": result.returncode,
+                    "stderr": result.stderr[:300],
+                },
             )
 
+        sessions_dir = output_dir / "sessions"
+        if not sessions_dir.exists():
+            return KPIResult(
+                kpi=self.KPI_NAME,
+                value=0.0,
+                target=self.TARGET,
+                details={"error": "no sessions directory generated"},
+            )
+
+        # Only score VerMAS notes (filename starts with "vermas-")
+        vermas_notes = [
+            f for f in sessions_dir.glob("*.md") if f.stem.startswith("vermas-")
+        ]
+        if not vermas_notes:
+            return KPIResult(
+                kpi=self.KPI_NAME,
+                value=0.0,
+                target=self.TARGET,
+                details={"error": "no vermas note files generated"},
+            )
+
+        return self._score_note_files(vermas_notes)
+
+    def _score_note_files(self, note_files: list[Path]) -> KPIResult:
+        """Score VerMAS note files against metadata section checklist."""
         total_fields = 0
         present_fields = 0
-        per_session: list[dict[str, object]] = []
+        per_note: list[dict[str, object]] = []
 
-        for session in sessions:
-            field_results: dict[str, bool] = {}
-            for field in VERMAS_METADATA_FIELDS:
-                present = _check_field(session, field)
-                field_results[field] = present
-                total_fields += 1
-                if present:
-                    present_fields += 1
+        for note_path in note_files:
+            scores = score_vermas_note(note_path)
 
-            per_session.append(
+            note_total = len(scores)
+            note_present = sum(1 for v in scores.values() if v)
+            total_fields += note_total
+            present_fields += note_present
+
+            per_note.append(
                 {
-                    "session_id": session.session_id[:30],
-                    "fields": field_results,
-                    "present": sum(1 for v in field_results.values() if v),
-                    "total": len(field_results),
+                    "file": note_path.name,
+                    "fields": scores,
+                    "present": note_present,
+                    "total": note_total,
                 }
             )
 
@@ -172,10 +227,10 @@ class VermasTaskVisibilityMeasurer(Measurer):
             value=round(value, 1),
             target=self.TARGET,
             details={
-                "total_sessions": len(sessions),
+                "total_notes": len(note_files),
                 "total_fields": total_fields,
                 "present_fields": present_fields,
-                "per_session": per_session,
+                "per_note": per_note,
             },
         )
 

@@ -1,30 +1,33 @@
 """Note content richness KPI measurer.
 
-Generates notes via the CLI pipeline and scores each note against a checklist
-of expected content fields. Reports percentage of fields present across all
-notes.
+Runs the CLI to generate Obsidian notes, then reads each generated note file
+and scores it against a checklist of expected content fields.  Reports
+percentage of fields present across all notes.
 """
 
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import yaml
 
-from session_insights.core import analyze, discover_sessions, parse_session_file
-from session_insights.formatters.obsidian import ObsidianFormatter
 from session_insights.measurers.base import KPIResult, Measurer
-from session_insights.parsers.models import BaseSession
 
-# Checklist fields to look for in generated notes.
-# Each tuple is (field_name, search_string_or_callable).
+_SRC_DIR = str(Path(__file__).parents[2])
+
+# ---------------------------------------------------------------------------
+# Field checklists – strings to search for in the generated .md note files
+# ---------------------------------------------------------------------------
 COMMON_FIELDS: list[tuple[str, str]] = [
-    ("has_timestamps", "start_time:"),
-    ("has_duration", "duration"),
-    ("has_tool_list", "## Tools"),
+    ("has_timestamps", "**Started:**"),
+    ("has_duration", "**Duration:**"),
+    ("has_tool_list", "## Tools Used"),
     ("has_outcomes", "## Outcomes"),
 ]
 
@@ -39,6 +42,9 @@ VERMAS_FIELDS: list[tuple[str, str]] = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Helpers to create sample source data
+# ---------------------------------------------------------------------------
 def _create_sample_claude_dir(base: Path) -> None:
     """Create a .claude dir with sample sessions."""
     project_dir = base / ".claude" / "projects" / "test-project"
@@ -77,7 +83,6 @@ def _create_sample_vermas_dir(base: Path) -> None:
     """Create a .vermas dir with sample workflow data that has rich metadata."""
     vermas_dir = base / ".vermas"
 
-    # Workflow with signals
     workflow_dir = vermas_dir / "state" / "mission-rich-cycle-1-execute-implement-feature"
     signals_dir = workflow_dir / "signals"
     signals_dir.mkdir(parents=True)
@@ -99,20 +104,17 @@ def _create_sample_vermas_dir(base: Path) -> None:
         }
         (signals_dir / f"sig{i}.yaml").write_text(yaml.dump(signal_data))
 
-    # Task description
     task_dir = vermas_dir / "tasks" / "mission-rich" / "feature"
     task_dir.mkdir(parents=True)
     (task_dir / "implement-feature.md").write_text(
         "---\nstatus: done\n---\n# Implement Feature\n\nBuild the new feature.\n"
     )
 
-    # Mission epic
     mission_dir = vermas_dir / "tasks" / "mission-rich"
     (mission_dir / "_epic.md").write_text(
         "---\nstatus: in_progress\npriority: high\n---\n# Rich Mission\n\nA rich test mission.\n"
     )
 
-    # Agent learnings
     agents_dir = vermas_dir / "knowledge" / "agents"
     agents_dir.mkdir(parents=True)
     learnings_data = {
@@ -128,25 +130,62 @@ def _create_sample_vermas_dir(base: Path) -> None:
     (agents_dir / "agent-learnings.yaml").write_text(yaml.dump(learnings_data))
 
 
-def _score_note(content: str, source: str) -> dict[str, bool]:
-    """Score a note against the field checklist for its source type."""
-    results: dict[str, bool] = {}
+def _run_cli(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
+    """Run the session-insights CLI as a subprocess."""
+    return subprocess.run(
+        [sys.executable, "-m", "session_insights", *args],
+        capture_output=True,
+        text=True,
+        cwd=cwd,
+        env={**os.environ, "PYTHONPATH": _SRC_DIR},
+        timeout=30,
+    )
 
+
+def _detect_source(note_path: Path, content: str) -> str:
+    """Detect the source type from note filename or frontmatter."""
+    name = note_path.stem.lower()
+    if name.startswith("vermas-"):
+        return "vermas"
+    # Check frontmatter source field
+    if "source: vermas" in content:
+        return "vermas"
+    if "source: claude" in content:
+        return "claude"
+    if "source: codex" in content:
+        return "codex"
+    return "unknown"
+
+
+def score_note_file(note_path: Path) -> tuple[str, dict[str, bool]]:
+    """Read a note file and score it against the checklist.
+
+    Returns:
+        Tuple of (source, field_scores).
+    """
+    content = note_path.read_text(encoding="utf-8")
+    source = _detect_source(note_path, content)
+
+    results: dict[str, bool] = {}
     for field_name, search_str in COMMON_FIELDS:
-        results[field_name] = search_str.lower() in content.lower()
+        results[field_name] = search_str in content
 
     if source == "claude":
         for field_name, search_str in CLAUDE_FIELDS:
-            results[field_name] = search_str.lower() in content.lower()
+            results[field_name] = search_str in content
     elif source == "vermas":
         for field_name, search_str in VERMAS_FIELDS:
-            results[field_name] = search_str.lower() in content.lower()
+            results[field_name] = search_str in content
 
-    return results
+    return source, results
 
 
 class NoteContentRichnessMeasurer(Measurer):
-    """Measures percentage of expected content fields present in generated notes."""
+    """Measures percentage of expected content fields present in generated notes.
+
+    Workflow: create sample data -> run CLI to generate notes -> read the
+    generated .md files -> score each file against the field checklist.
+    """
 
     KPI_NAME = "note_content_richness"
     TARGET = 90.0
@@ -156,42 +195,76 @@ class NoteContentRichnessMeasurer(Measurer):
             base = Path(tmpdir)
             return self._measure_from_directory(base)
 
-    def measure_from_sessions(self, sessions: list[BaseSession]) -> KPIResult:
-        """Measure richness from pre-parsed sessions (useful for testing)."""
-        return self._score_sessions(sessions)
+    def measure_from_note_files(self, note_dir: Path) -> KPIResult:
+        """Measure richness from pre-generated note files on disk."""
+        note_files = list(note_dir.glob("**/*.md"))
+        # Exclude index.md and daily summaries — only score session notes
+        note_files = [
+            f
+            for f in note_files
+            if f.name != "index.md" and not f.name.startswith("daily-")
+        ]
+        return self._score_note_files(note_files)
 
     def _measure_from_directory(self, base: Path) -> KPIResult:
-        """Set up sample data, parse, format, and score."""
+        """Set up sample data, run CLI, read generated notes, and score."""
         _create_sample_claude_dir(base)
         _create_sample_vermas_dir(base)
 
-        all_sessions: list[BaseSession] = []
-        discovered = discover_sessions(base, sources=None)
-        for src, paths in discovered.items():
-            for path in paths:
-                all_sessions.extend(parse_session_file(path, src))
+        output_dir = base / "output"
 
-        return self._score_sessions(all_sessions)
+        # Run the CLI to generate Obsidian notes
+        result = _run_cli(
+            "analyze",
+            "--dir",
+            str(base),
+            "--output",
+            str(output_dir),
+            "--include-conversation",
+            cwd=base,
+        )
 
-    def _score_sessions(self, sessions: list[BaseSession]) -> KPIResult:
-        """Format sessions to notes and score them."""
-        if not sessions:
+        if result.returncode != 0:
             return KPIResult(
                 kpi=self.KPI_NAME,
                 value=0.0,
                 target=self.TARGET,
-                details={"error": "no sessions found"},
+                details={
+                    "error": "CLI failed",
+                    "returncode": result.returncode,
+                    "stderr": result.stderr[:300],
+                },
             )
 
-        formatter = ObsidianFormatter(include_conversation=True)
+        # Collect generated session note files
+        sessions_dir = output_dir / "sessions"
+        if not sessions_dir.exists():
+            return KPIResult(
+                kpi=self.KPI_NAME,
+                value=0.0,
+                target=self.TARGET,
+                details={"error": "no sessions directory generated"},
+            )
 
+        note_files = list(sessions_dir.glob("*.md"))
+        if not note_files:
+            return KPIResult(
+                kpi=self.KPI_NAME,
+                value=0.0,
+                target=self.TARGET,
+                details={"error": "no note files generated"},
+            )
+
+        return self._score_note_files(note_files)
+
+    def _score_note_files(self, note_files: list[Path]) -> KPIResult:
+        """Read and score each note file."""
         total_fields = 0
         present_fields = 0
         per_note: list[dict[str, object]] = []
 
-        for session in sessions:
-            note_content = formatter.format_session(session)
-            scores = _score_note(note_content, session.source)
+        for note_path in note_files:
+            source, scores = score_note_file(note_path)
 
             note_total = len(scores)
             note_present = sum(1 for v in scores.values() if v)
@@ -200,8 +273,8 @@ class NoteContentRichnessMeasurer(Measurer):
 
             per_note.append(
                 {
-                    "session_id": session.session_id[:20],
-                    "source": session.source,
+                    "file": note_path.name,
+                    "source": source,
                     "fields_present": note_present,
                     "fields_total": note_total,
                     "scores": scores,
@@ -215,7 +288,7 @@ class NoteContentRichnessMeasurer(Measurer):
             value=round(value, 1),
             target=self.TARGET,
             details={
-                "total_notes": len(sessions),
+                "total_notes": len(note_files),
                 "total_fields": total_fields,
                 "present_fields": present_fields,
                 "per_note": per_note,
