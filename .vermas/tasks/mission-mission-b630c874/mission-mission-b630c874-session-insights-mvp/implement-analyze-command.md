@@ -1,9 +1,8 @@
 ---
-status: pending
+status: done
 priority: medium
-workflow: 
+workflow: null
 ---
-
 # Implement analyze CLI command with full pipeline
 
 Wire up the full analysis pipeline in the CLI:
