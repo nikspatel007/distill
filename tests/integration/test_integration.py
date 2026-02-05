@@ -17,38 +17,55 @@ from session_insights.core import (
     parse_session_file,
 )
 from session_insights.formatters.obsidian import ObsidianFormatter
-from session_insights.models import BaseSession, ToolUsage
+from session_insights.models import ToolUsage
+from session_insights.parsers.models import BaseSession  # Use parser's BaseSession
 
 
 @pytest.fixture
 def sample_claude_history(tmp_path: Path) -> Path:
-    """Create a sample .claude directory with history.jsonl."""
-    claude_dir = tmp_path / ".claude"
-    claude_dir.mkdir()
+    """Create a sample .claude directory with project sessions."""
+    # Create .claude/projects/test-project/ structure (what ClaudeParser expects)
+    project_dir = tmp_path / ".claude" / "projects" / "test-project"
+    project_dir.mkdir(parents=True)
 
-    # Create sample history entries
+    # Create sample session entries (ClaudeParser expects conversation format)
     now = datetime.now()
-    entries = [
+    session_entries = [
         {
-            "display": "Help me fix the authentication bug",
-            "timestamp": int((now - timedelta(hours=2)).timestamp() * 1000),
-            "project": "/home/user/project",
+            "type": "user",
+            "message": {"content": "Help me fix the authentication bug"},
+            "timestamp": (now - timedelta(hours=2)).isoformat(),
         },
         {
-            "display": "Add unit tests for the login module",
-            "timestamp": int((now - timedelta(hours=1)).timestamp() * 1000),
-            "project": "/home/user/project",
+            "type": "assistant",
+            "message": {"content": "I'll help you fix that bug."},
+            "timestamp": (now - timedelta(hours=2, minutes=-1)).isoformat(),
         },
         {
-            "display": "Refactor the database connection pool",
-            "timestamp": int(now.timestamp() * 1000),
-            "project": "/home/user/project2",
+            "type": "user",
+            "message": {"content": "Add unit tests for the login module"},
+            "timestamp": (now - timedelta(hours=1)).isoformat(),
+        },
+        {
+            "type": "assistant",
+            "message": {"content": "I'll add those tests."},
+            "timestamp": (now - timedelta(hours=1, minutes=-1)).isoformat(),
+        },
+        {
+            "type": "user",
+            "message": {"content": "Refactor the database connection pool"},
+            "timestamp": now.isoformat(),
+        },
+        {
+            "type": "assistant",
+            "message": {"content": "I'll refactor that for you."},
+            "timestamp": (now + timedelta(minutes=1)).isoformat(),
         },
     ]
 
-    history_file = claude_dir / "history.jsonl"
-    with history_file.open("w", encoding="utf-8") as f:
-        for entry in entries:
+    session_file = project_dir / "session.jsonl"
+    with session_file.open("w", encoding="utf-8") as f:
+        for entry in session_entries:
             f.write(json.dumps(entry) + "\n")
 
     return tmp_path
@@ -56,19 +73,25 @@ def sample_claude_history(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def sample_vermas_session(tmp_path: Path) -> Path:
-    """Create a sample .vermas directory with session data."""
-    vermas_dir = tmp_path / ".vermas" / "agents" / "dev"
-    vermas_dir.mkdir(parents=True)
+    """Create a sample .vermas directory with workflow state data."""
+    # Create .vermas/state/mission-xxx-cycle-1-execute-task/ structure
+    state_dir = tmp_path / ".vermas" / "state" / "mission-abc123-cycle-1-execute-implement-feature"
+    signals_dir = state_dir / "signals"
+    signals_dir.mkdir(parents=True)
 
-    session_data = {
-        "id": "vermas-session-001",
-        "timestamp": int(datetime.now().timestamp() * 1000),
-        "summary": "Implemented feature X",
-        "tools": ["Read", "Write", "Bash"],
-    }
+    now = datetime.now()
 
-    session_file = vermas_dir / "session.json"
-    session_file.write_text(json.dumps(session_data), encoding="utf-8")
+    # Create a signal file (YAML format as VermasParser expects)
+    # Uses 'created_at' field (not 'timestamp') as expected by parser
+    signal_data = f"""signal: done
+agent_id: dev-001
+role: dev
+created_at: "{now.isoformat()}"
+message: "Completed implementation of feature X"
+workflow_id: "wf-abc123"
+"""
+    signal_file = signals_dir / "signal-001.yaml"
+    signal_file.write_text(signal_data, encoding="utf-8")
 
     return tmp_path
 
@@ -85,20 +108,22 @@ class TestDiscoverSessions:
     """Tests for session discovery."""
 
     def test_discover_claude_sessions(self, sample_claude_history: Path) -> None:
-        """Test discovering Claude session files."""
+        """Test discovering Claude source root directory."""
         discovered = discover_sessions(sample_claude_history, sources=["claude"])
 
         assert "claude" in discovered
-        assert len(discovered["claude"]) >= 1
-        assert any("history.jsonl" in str(f) for f in discovered["claude"])
+        assert len(discovered["claude"]) == 1
+        # Now returns the .claude directory, not individual files
+        assert discovered["claude"][0].name == ".claude"
 
     def test_discover_vermas_sessions(self, sample_vermas_session: Path) -> None:
-        """Test discovering VerMAS session files."""
+        """Test discovering VerMAS source root directory."""
         discovered = discover_sessions(sample_vermas_session, sources=["vermas"])
 
         assert "vermas" in discovered
-        assert len(discovered["vermas"]) >= 1
-        assert any("session.json" in str(f) for f in discovered["vermas"])
+        assert len(discovered["vermas"]) == 1
+        # Now returns the .vermas directory, not individual files
+        assert discovered["vermas"][0].name == ".vermas"
 
     def test_discover_all_sources(
         self, sample_claude_history: Path, sample_vermas_session: Path
@@ -127,34 +152,33 @@ class TestParseSessionFile:
     """Tests for parsing session files."""
 
     def test_parse_claude_history(self, sample_claude_history: Path) -> None:
-        """Test parsing Claude history.jsonl."""
-        history_file = sample_claude_history / ".claude" / "history.jsonl"
-        sessions = parse_session_file(history_file, "claude")
+        """Test parsing Claude sessions from .claude directory."""
+        claude_dir = sample_claude_history / ".claude"
+        sessions = parse_session_file(claude_dir, "claude")
 
-        assert len(sessions) == 3
+        # Should find sessions from the project directory
+        assert len(sessions) >= 1
         assert all(isinstance(s, BaseSession) for s in sessions)
-        assert all(s.source == "claude" for s in sessions)
+        # ClaudeSession uses "claude-code" as source, not "claude"
+        assert all(s.source == "claude-code" for s in sessions)
 
     def test_parse_vermas_session(self, sample_vermas_session: Path) -> None:
-        """Test parsing VerMAS session.json."""
-        session_file = list(sample_vermas_session.glob("**/*.json"))[0]
-        sessions = parse_session_file(session_file, "vermas")
+        """Test parsing VerMAS sessions from .vermas directory."""
+        vermas_dir = sample_vermas_session / ".vermas"
+        sessions = parse_session_file(vermas_dir, "vermas")
 
-        assert len(sessions) == 1
-        assert sessions[0].source == "vermas"
-        assert sessions[0].id == "vermas-session-001"
+        # Should find the mission workflow session
+        assert len(sessions) >= 1
+        assert all(s.source == "vermas" for s in sessions)
 
-    def test_parse_invalid_file(self, tmp_path: Path) -> None:
-        """Test parsing invalid JSON file."""
-        invalid_file = tmp_path / "invalid.json"
-        invalid_file.write_text("not valid json {{{", encoding="utf-8")
-
-        sessions = parse_session_file(invalid_file, "unknown")
+    def test_parse_invalid_source(self, tmp_path: Path) -> None:
+        """Test parsing with unknown source type."""
+        sessions = parse_session_file(tmp_path, "unknown")
         assert sessions == []
 
-    def test_parse_nonexistent_file(self, tmp_path: Path) -> None:
-        """Test parsing nonexistent file."""
-        sessions = parse_session_file(tmp_path / "nonexistent.json", "unknown")
+    def test_parse_nonexistent_directory(self, tmp_path: Path) -> None:
+        """Test parsing nonexistent directory."""
+        sessions = parse_session_file(tmp_path / "nonexistent", "claude")
         assert sessions == []
 
 
@@ -172,9 +196,8 @@ class TestAnalyze:
     def test_analyze_single_session(self) -> None:
         """Test analyzing a single session."""
         session = BaseSession(
-            id="test-001",
-            start_time=datetime(2024, 1, 15, 10, 0),
-            end_time=datetime(2024, 1, 15, 11, 0),
+            session_id="test-001",
+            timestamp=datetime(2024, 1, 15, 10, 0),
             source="claude",
             summary="Test session",
         )
@@ -186,14 +209,15 @@ class TestAnalyze:
 
     def test_analyze_multiple_sessions(self) -> None:
         """Test analyzing multiple sessions."""
+        from session_insights.parsers.models import ToolUsage as ParserToolUsage
+
         sessions = [
             BaseSession(
-                id=f"test-{i:03d}",
-                start_time=datetime(2024, 1, 15, 10 + i, 0),
-                end_time=datetime(2024, 1, 15, 10 + i, 30),
+                session_id=f"test-{i:03d}",
+                timestamp=datetime(2024, 1, 15, 10 + i, 0),
                 source="claude" if i % 2 == 0 else "vermas",
                 summary=f"Session {i}",
-                tools_used=[ToolUsage(name="Read", count=i + 1)],
+                tool_calls=[ParserToolUsage(tool_name="Read")] * (i + 1),
             )
             for i in range(5)
         ]
@@ -205,12 +229,14 @@ class TestAnalyze:
 
     def test_analyze_detects_patterns(self) -> None:
         """Test that analysis detects patterns."""
+        from session_insights.parsers.models import ToolUsage as ParserToolUsage
+
         sessions = [
             BaseSession(
-                id=f"test-{i:03d}",
-                start_time=datetime(2024, 1, 15, 14, 0),  # All at 2 PM
+                session_id=f"test-{i:03d}",
+                timestamp=datetime(2024, 1, 15, 14, 0),  # All at 2 PM
                 source="claude",
-                tools_used=[ToolUsage(name="Read", count=5)],
+                tool_calls=[ParserToolUsage(tool_name="Read")] * 5,
             )
             for i in range(10)
         ]

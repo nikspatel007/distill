@@ -7,7 +7,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from session_insights.models import BaseSession, ToolUsage
+from session_insights.parsers import ClaudeParser, CodexParser, VermasParser
+from session_insights.parsers.models import BaseSession
 
 
 class SessionStats(BaseModel):
@@ -37,161 +38,123 @@ class AnalysisResult(BaseModel):
     patterns: list[SessionPattern] = Field(default_factory=list)
 
 
-# Known session file patterns by source
-SESSION_PATTERNS: dict[str, list[str]] = {
-    "claude": ["history.jsonl", "sessions/*.jsonl", "projects/**/history.jsonl"],
-    "codex": ["history.jsonl", "sessions/*.json"],
-    "vermas": [".vermas/**/session.json", ".vermas/**/history.jsonl"],
+# Known source directory names
+SOURCE_DIRECTORIES: dict[str, str] = {
+    "claude": ".claude",
+    "codex": ".codex",
+    "vermas": ".vermas",
 }
 
 
-def discover_sessions(
+def discover_source_roots(
     directory: Path,
     sources: list[str] | None = None,
-) -> dict[str, list[Path]]:
-    """Discover session files in a directory.
+) -> dict[str, Path]:
+    """Find root directories for each source type.
 
     Args:
         directory: Root directory to scan.
         sources: Filter to specific sources. If None, discover all.
 
     Returns:
-        Dictionary mapping source name to list of session file paths.
+        Dictionary mapping source name to root directory path.
     """
     if sources is None:
-        sources = list(SESSION_PATTERNS.keys())
+        sources = list(SOURCE_DIRECTORIES.keys())
 
-    discovered: dict[str, list[Path]] = {}
+    roots: dict[str, Path] = {}
 
     for source in sources:
-        if source not in SESSION_PATTERNS:
+        if source not in SOURCE_DIRECTORIES:
             continue
 
-        patterns = SESSION_PATTERNS[source]
-        found_files: list[Path] = []
+        source_dir = directory / SOURCE_DIRECTORIES[source]
+        if source_dir.exists() and source_dir.is_dir():
+            roots[source] = source_dir
 
-        for pattern in patterns:
-            # Check for .claude directory
-            claude_dir = directory / ".claude"
-            if claude_dir.exists():
-                for match in claude_dir.glob(pattern):
-                    if match.is_file() and match not in found_files:
-                        found_files.append(match)
-
-            # Also check the directory itself for vermas patterns
-            if source == "vermas":
-                for match in directory.glob(pattern):
-                    if match.is_file() and match not in found_files:
-                        found_files.append(match)
-
-        if found_files:
-            discovered[source] = sorted(found_files, key=lambda p: p.stat().st_mtime, reverse=True)
-
-    return discovered
+    return roots
 
 
-def parse_session_file(path: Path, source: str) -> list[BaseSession]:
-    """Parse a session file into BaseSession objects.
+def discover_sessions(
+    directory: Path,
+    sources: list[str] | None = None,
+) -> dict[str, list[Path]]:
+    """Discover session directories/roots in a directory.
+
+    This is a compatibility wrapper that returns source roots as single-item lists.
+    Prefer using discover_source_roots() for new code.
 
     Args:
-        path: Path to the session file.
+        directory: Root directory to scan.
+        sources: Filter to specific sources. If None, discover all.
+
+    Returns:
+        Dictionary mapping source name to list containing the source root path.
+    """
+    roots = discover_source_roots(directory, sources)
+    return {source: [path] for source, path in roots.items()}
+
+
+def parse_sessions(root: Path, source: str) -> list[BaseSession]:
+    """Parse sessions from a source root directory.
+
+    Dispatches to the appropriate parser based on source type.
+
+    Args:
+        root: Root directory for the source (e.g., .claude, .codex, .vermas).
         source: The source type (claude, codex, vermas).
 
     Returns:
         List of parsed sessions.
     """
-    import json
+    if source == "claude":
+        parser = ClaudeParser()
+        return list(parser.parse_directory(root))
+    elif source == "codex":
+        parser = CodexParser()
+        return list(parser.parse_directory(root))
+    elif source == "vermas":
+        parser = VermasParser()
+        return list(parser.parse_directory(root))
 
-    sessions: list[BaseSession] = []
-
-    try:
-        if path.suffix == ".jsonl":
-            # JSONL format - one JSON object per line
-            with path.open("r", encoding="utf-8") as f:
-                for line_num, line in enumerate(f):
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        data = json.loads(line)
-                        session = _parse_session_entry(data, source, f"{path.stem}-{line_num}")
-                        if session:
-                            sessions.append(session)
-                    except json.JSONDecodeError:
-                        continue
-        else:
-            # JSON format - single object or array
-            with path.open("r", encoding="utf-8") as f:
-                data = json.load(f)
-
-            if isinstance(data, list):
-                for i, entry in enumerate(data):
-                    session = _parse_session_entry(entry, source, f"{path.stem}-{i}")
-                    if session:
-                        sessions.append(session)
-            else:
-                session = _parse_session_entry(data, source, path.stem)
-                if session:
-                    sessions.append(session)
-
-    except (OSError, json.JSONDecodeError):
-        pass
-
-    return sessions
+    return []
 
 
-def _parse_session_entry(
-    data: dict[str, Any],
-    source: str,
-    fallback_id: str,
-) -> BaseSession | None:
-    """Parse a single session entry from raw data.
+def parse_session_file(path: Path, source: str) -> list[BaseSession]:
+    """Parse sessions from a path.
+
+    This is a compatibility wrapper. For source directories, it dispatches
+    to the appropriate parser. Prefer using parse_sessions() for new code.
 
     Args:
-        data: Raw session data dictionary.
-        source: The source type.
-        fallback_id: ID to use if none found in data.
+        path: Path to a source directory or file.
+        source: The source type (claude, codex, vermas).
 
     Returns:
-        Parsed BaseSession or None if invalid.
+        List of parsed sessions.
     """
-    # Extract timestamp
-    timestamp = data.get("timestamp")
-    if timestamp is None:
-        return None
+    # If path is a directory, use the new parser-based approach
+    if path.is_dir():
+        return parse_sessions(path, source)
 
-    # Convert timestamp (milliseconds or ISO string)
-    if isinstance(timestamp, (int, float)):
-        start_time = datetime.fromtimestamp(timestamp / 1000)
-    elif isinstance(timestamp, str):
-        try:
-            start_time = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-        except ValueError:
-            return None
-    else:
-        return None
+    # For files, try to find the parent source directory
+    # and use the appropriate parser
+    parent = path.parent
+    if source == "claude":
+        # Walk up to find .claude directory
+        for p in [parent] + list(parent.parents):
+            if p.name == ".claude" or (p / ".claude").exists():
+                return parse_sessions(p if p.name == ".claude" else p / ".claude", source)
+    elif source == "codex":
+        for p in [parent] + list(parent.parents):
+            if p.name == ".codex" or (p / ".codex").exists():
+                return parse_sessions(p if p.name == ".codex" else p / ".codex", source)
+    elif source == "vermas":
+        for p in [parent] + list(parent.parents):
+            if p.name == ".vermas" or (p / ".vermas").exists():
+                return parse_sessions(p if p.name == ".vermas" else p / ".vermas", source)
 
-    # Extract ID
-    session_id = data.get("id") or data.get("session_id") or fallback_id
-
-    # Extract summary/display content
-    summary = data.get("display", "") or data.get("summary", "") or data.get("content", "")
-    if isinstance(summary, str) and len(summary) > 200:
-        summary = summary[:200] + "..."
-
-    # Extract project info as metadata
-    metadata: dict[str, Any] = {}
-    if "project" in data:
-        metadata["project"] = data["project"]
-
-    return BaseSession(
-        id=str(session_id),
-        start_time=start_time,
-        end_time=None,  # Most history entries don't have end time
-        source=source,
-        summary=summary,
-        metadata=metadata,
-    )
+    return []
 
 
 def analyze(sessions: list[BaseSession]) -> AnalysisResult:
