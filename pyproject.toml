@@ -5,9 +5,8 @@ description = "Analyze AI coding assistant sessions and generate Obsidian notes"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "click>=8.0",
     "pydantic>=2.0",
-    "rich>=13.0",
-    "typer>=0.9",
 ]
 
 [project.optional-dependencies]
@@ -20,7 +19,7 @@ dev = [
 ]
 
 [project.scripts]
-session-insights = "session_insights.cli:app"
+session-insights = "session_insights.cli:main"
 
 [build-system]
 requires = ["hatchling"]
