@@ -1,11 +1,10 @@
 patterns:
 - pattern: testing/*
   insights:
-  - 'The Claude parser tests demonstrate good organization: separate test classes
-    for model validation (TestClaudeSessionIndex, TestClaudeSession) and parser functionality
-    (TestClaudeParser), plus integration tests for real data. This structure enables
-    progressive validation from unit to integration level and should be replicated
-    for future parsers.'
+  - 'The test suite covered 17 scenarios including: valid session parsing, index-based
+    parsing, tool call extraction, thinking content extraction, malformed JSON handling,
+    empty files, nonexistent paths, and integration with real session structures.
+    Testing edge cases upfront reduces QA rejection rate.'
   revision_rate: null
   success_rate: 0.0
   avg_duration: null
@@ -16,10 +15,9 @@ patterns:
   sample_count: 1
 - pattern: architecture/*
   insights:
-  - Extract string templates to a dedicated templates.py module with Template objects
-    and helper functions (format_tag, format_duration, etc.). The formatter class
-    then focuses on data transformation while templates handle presentation, improving
-    maintainability and testability.
+  - Project uses Click library for CLI with a main entry point and analyze subcommand.
+    Entry point configured in pyproject.toml as session_insights.cli:main. This modular
+    structure allows adding new subcommands without modifying the main CLI structure.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -30,9 +28,9 @@ patterns:
   sample_count: 1
 - pattern: code-review/*
   insights:
-  - When dev signals completion, include specific metrics (test count, coverage percentage,
-    files changed) to enable QA to quickly verify scope and prioritize review. This
-    reduces QA investigation time and enables faster approval cycles.
+  - QA agent approval message explicitly states which commands were run and passed
+    ('uv run session-insights --help and uv run pytest passed'). This provides evidence-based
+    approval rather than subjective assessment, making it clear what was verified.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -67,4 +65,33 @@ patterns:
   tags:
   - reliability
   - process
+  sample_count: 1
+- pattern: workflow-coordination/*
+  insights:
+  - 'Watcher agent monitors workflow state and emits progress signals documenting
+    key transitions (dev done, QA approved, commit hash). This creates a complete
+    audit trail and enables post-workflow analysis. The final watcher signal summarized:
+    ''Dev implemented CLI, QA approved, changes committed (48e0730)''.'
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - workflow-coordination
+  - process
+  sample_count: 1
+- pattern: implementation/*
+  insights:
+  - 'The implemented ClaudeParser uses a solid architecture: abstract BaseParser/BaseSession
+    classes for future parser extensions, Pydantic models with field aliases for JSON
+    mapping, and graceful handling of multiple entry points (.claude dir, projects
+    dir, or direct session files). This design enables adding new parsers (Cursor,
+    Copilot) by extending the base classes.'
+  revision_rate: null
+  success_rate: 0.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - implementation
+  - technical
   sample_count: 1

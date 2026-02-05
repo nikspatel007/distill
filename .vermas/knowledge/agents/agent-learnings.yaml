@@ -1,12 +1,13 @@
 agents:
   general:
     learnings:
-    - Dev agent successfully implemented complete functionality (372-line parser,
-      391-line test file) but failed to preserve work through commits
-    - Agent may have spent too much time on implementation without intermediate checkpoints
-      or heartbeats
-    - No evidence of QA involvement - workflow failed before dev could signal completion
-      to trigger QA review
+    - Dev agent completed substantial implementation work (parser code + models +
+      17 tests) but failed to maintain heartbeat during the final phase, resulting
+      in premature termination
+    - The tmux session 'vermas-agents-e-parser-d176' was terminated, suggesting either
+      the agent process crashed or was killed by workflow timeout
+    - No workflow signals were recorded for implement-claude-parser (unlike successful
+      workflows which show dev done -> QA approved -> dev complete signal chain)
     strengths: []
     weaknesses: []
     best_practices: []
