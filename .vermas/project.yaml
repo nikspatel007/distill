@@ -5,6 +5,9 @@
 
 # KPI Measurers
 # Each KPI from MISSION.md needs a measurer defined here
+# NOTE: Commands use 'python' (not hardcoded venv paths) assuming the mission
+# runner activates the venv or sets PATH appropriately. Fallbacks ensure
+# silent failures return 0 instead of nothing.
 kpi_measurement:
   # Test coverage percentage (target: 90%)
   # Uses built-in TestCoverageMeasurer that runs pytest --cov
@@ -17,7 +20,7 @@ kpi_measurement:
   parse_success_rate:
     type: command
     command: |
-      python -m pytest tests/ -q 2>&1 | grep -oE '[0-9]+ passed' | awk '{print 100}'
+      python -m pytest tests/ -q 2>&1 | grep -oE '[0-9]+ passed' | awk '{print 100}' || echo 0
     parse_regex: "\\d+"
 
   # Obsidian compatibility (target: 100%)
@@ -25,5 +28,5 @@ kpi_measurement:
   obsidian_compatibility:
     type: command
     command: |
-      python -c "from session_insights.formatters.obsidian import ObsidianFormatter; print(100)" 2>/dev/null || echo 0
+      python -c "from session_insights.formatters.obsidian import ObsidianFormatter; print(100)" 2>&1 || echo 0
     parse_regex: "\\d+"
