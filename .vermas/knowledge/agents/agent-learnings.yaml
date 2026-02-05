@@ -1,15 +1,16 @@
 agents:
   general:
     learnings:
-    - Dev agent was responsive to QA feedback, shipping revised code within 2-3 minutes
-      of each revision request, but over-signaled completion (3 redundant 'done' signals
-      for the same fix).
-    - QA agent provided high-quality, specific revision requests that identified both
-      functional (stub vs full pipeline) and operational (entrypoint wiring) issues,
-      demonstrating multi-layer verification.
-    - "The two-agent dev+QA loop completed in 15 minutes with 2 revision cycles \u2014\
-      \ the revision overhead (~10 min) was justified by catching real issues that\
-      \ would have caused post-merge failures."
+    - "Dev agent produced high-quality code (+269 LOC with 225 tests passing) on the\
+      \ task branch, demonstrating that the implementation capability is not the bottleneck\
+      \ \u2014 the merge process is."
+    - QA agent correctly detected the artifact-only commit initially (needs_revision
+      signal) but then accepted dev's verbal claim of branch-level work without verifying
+      the main-branch state, undermining the detection system.
+    - Post-workflow, three previously-stalled action items (spanning 3+ review cycles)
+      were finally executed as direct commits, suggesting that treating action items
+      as standalone fixes rather than workflow-routed tasks breaks the execution stall
+      pattern.
     strengths: []
     weaknesses: []
     best_practices: []

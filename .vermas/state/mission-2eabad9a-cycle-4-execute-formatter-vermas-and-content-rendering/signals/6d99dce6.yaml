@@ -1,0 +1,12 @@
+agent_id: eb373c9a
+created_at: '2026-02-05T18:53:01.090374'
+message: 'QA found test issues: new tests `test_long_user_message_truncated` and `test_max_five_user_questions`
+  will fail because include_conversation defaults to True, so full conversation includes
+  the full long message and all questions. Either set include_conversation=False in
+  those tests, scope assertions to summary section, or truncate full conversation.
+  Also pytest run failed due to missing pytest-cov plugin (pyproject addopts).'
+metadata: null
+role: qa
+signal: needs_revision
+signal_id: 6d99dce6
+workflow_id: mission-2eabad9a-cycle-4-execute-formatter-vermas-and-content-rendering
