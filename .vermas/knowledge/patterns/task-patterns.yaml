@@ -1,11 +1,10 @@
 patterns:
 - pattern: testing/*
   insights:
-  - Task specified creating tests/parsers/test_claude.py with specific test cases,
-    but the tests directory for parsers was never created. The dev agent focused solely
-    on implementation code and skipped the test creation requirement entirely. Tasks
-    should enumerate deliverables as a checklist that agents verify before signaling
-    completion.
+  - The task explicitly required tests/parsers/test_claude.py but this directory was
+    never created. When task specifications list specific test files, create them
+    simultaneously with implementation to avoid incomplete deliverables. Test files
+    should be committed in the same commit as the implementation they test.
   revision_rate: null
   success_rate: 0.0
   avg_duration: null
@@ -74,12 +73,12 @@ patterns:
   sample_count: 1
 - pattern: workflow-coordination/*
   insights:
-  - 'Watcher agent monitors workflow state and emits progress signals documenting
-    key transitions (dev done, QA approved, commit hash). This creates a complete
-    audit trail and enables post-workflow analysis. The final watcher signal summarized:
-    ''Dev implemented CLI, QA approved, changes committed (48e0730)''.'
+  - QA agent relied solely on git status being clean to determine no implementation
+    existed. However, the files were present but untracked. QA could check for file
+    existence in addition to git status to provide more accurate feedback and detect
+    uncommitted work.
   revision_rate: null
-  success_rate: 1.0
+  success_rate: 0.0
   avg_duration: null
   recommended_workflow: null
   tags:

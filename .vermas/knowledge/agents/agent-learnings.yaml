@@ -1,13 +1,13 @@
 agents:
   general:
     learnings:
-    - Dev agent completed substantial implementation work (2 production files with
-      clean architecture) but consistently fails at the git commit step, indicating
-      a priority issue in agent task execution order
-    - The pattern of incomplete test coverage suggests the agent optimizes for 'working
-      code' over 'task checklist completion' - test files are frequently deprioritized
-    - Agent did not create tests/parsers/ directory at all, suggesting the task decomposition
-      may not be explicit enough about directory structure requirements
+    - 'Dev agent completed implementation work (claude.py: 12KB, models.py: 1.4KB
+      created) but failed to execute the critical git add/commit workflow step'
+    - QA agent correctly identified missing implementation but could have distinguished
+      between 'not created' vs 'created but not committed' by checking worktree file
+      existence
+    - Agent termination occurred during revision cycle, suggesting potential timeout
+      or resource issues when handling QA feedback
     strengths: []
     weaknesses: []
     best_practices: []
