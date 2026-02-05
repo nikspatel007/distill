@@ -1,14 +1,17 @@
 agents:
   general:
     learnings:
-    - 'Dev agent completed implementation work (claude.py: 12KB, models.py: 1.4KB
-      created) but failed to execute the critical git add/commit workflow step'
-    - QA agent correctly identified missing implementation but could have distinguished
-      between 'not created' vs 'created but not committed' by checking worktree file
-      existence
-    - Agent termination occurred during revision cycle, suggesting potential timeout
-      or resource issues when handling QA feedback
+    - Dev agent shows pattern of completing code implementation but failing at the
+      commit step, suggesting the commit workflow is not sufficiently prioritized
+      or time-budgeted
+    - Agent death occurred after QA requested revision, indicating revision handling
+      may be more resource-intensive than initial implementation
+    - The 248-second duration suggests the agent was actively working when it died,
+      not idle - possibly ran out of turns or hit a timeout
     strengths: []
     weaknesses: []
-    best_practices: []
-    prompt_tips: []
+    best_practices:
+    - Dev agents must run `git status` and verify no untracked implementation files remain before signaling done
+    - QA agents should check for untracked files in src/ and tests/, not just rely on "nothing to commit" status
+    prompt_tips:
+    - Add explicit instruction: "Before signaling done, run git status. If any files in src/ or tests/ are untracked, git add and commit them."

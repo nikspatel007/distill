@@ -43,11 +43,10 @@ patterns:
   sample_count: 1
 - pattern: workflow/*
   insights:
-  - Dev agent implemented ClaudeParser with 340+ lines of production code (claude.py,
-    models.py) but failed to git add/commit before signaling done. QA validates committed
-    code state, not working directory, causing the workflow to fail despite complete
-    implementation. This is a repeated failure mode that needs explicit commit verification
-    in the workflow.
+  - Dev agents repeatedly complete implementation but fail to git add/commit before
+    signaling done. Workflows should require commit verification (non-empty git diff
+    HEAD) as a precondition for the 'done' signal, preventing QA from reviewing uncommitted
+    work.
   revision_rate: null
   success_rate: 0.0
   avg_duration: null
@@ -102,10 +101,10 @@ patterns:
   sample_count: 1
 - pattern: debugging/*
   insights:
-  - When QA reports 'no implementation found' after dev claims completion, first run
-    'git status' in the worktree. Untracked files indicate the dev agent completed
-    the code but failed to commit. This is a common failure mode fixable by manually
-    committing the orphaned files.
+  - When QA reports 'no implementation found', check if files exist but are untracked
+    vs truly missing. Git status shows clean but files may exist in worktree. QA should
+    run both 'git status' and file existence checks to provide accurate feedback about
+    the actual state.
   revision_rate: null
   success_rate: 0.0
   avg_duration: null
