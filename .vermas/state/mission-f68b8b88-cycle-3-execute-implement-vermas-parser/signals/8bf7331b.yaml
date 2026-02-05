@@ -1,9 +1,0 @@
-agent_id: 9fee1c0c
-created_at: '2026-02-05T08:52:54.505916'
-message: 'QA review failed: missing VerMAS parser + tests; worktree clean. See QA
-  report for details.'
-metadata: null
-role: qa
-signal: needs_revision
-signal_id: 8bf7331b
-workflow_id: mission-f68b8b88-cycle-3-execute-implement-vermas-parser

@@ -20,11 +20,31 @@ states:
       - pytest for testing
       - Type hints throughout
       
-      For parsing tasks (e.g., vermas-parser):
+      CRITICAL - CLI Task Decomposition:
+      CLI implementation is a known high-risk area. If your task involves CLI work:
+      1. NEVER implement argument parsing, dispatch, and business logic in a single task
+      2. Break CLI tasks into these discrete layers:
+         - Layer 1: Argument/option parsing with Click decorators
+         - Layer 2: Command dispatch and routing
+         - Layer 3: Business logic (call existing parser/analysis functions)
+      3. Implement and test ONE layer at a time
+      4. If the task scope covers multiple layers, signal 'blocked' and request decomposition
+      
+      For the 'analyze-command' specifically:
+      - The parser is already complete and stable - use it, don't rewrite it
+      - Focus on wiring Click options to parser function calls
+      - Start with the minimal viable command (single file input, basic output)
+      
+      For parsing tasks:
       - Start with the simplest case first and add complexity incrementally
       - Write a failing test before implementing each parsing feature
       - If the parsing logic is complex, break it into smaller helper functions
       - Handle edge cases explicitly (empty input, malformed input, etc.)
+      
+      Pre-implementation checklist:
+      [ ] Is this task small enough to complete in one cycle?
+      [ ] Are all dependencies (parser, models, utils) already available?
+      [ ] Can I write a single, focused test that validates completion?
       
       Run tests before signaling done:
       `uv run pytest tests/ -x -q`
@@ -32,31 +52,35 @@ states:
       If tests fail, fix them before signaling.
       
       Signal "done" when implementation is complete and tests pass.
-      Signal "blocked" if you encounter infrastructure issues or unsolvable dependencies.
+      Signal "blocked" if:
+      - Task scope is too large (needs decomposition)
+      - Missing dependencies identified
+      - Infrastructure issues encountered
     on_signal:
-      done:
-        from: engineer
-        next: reviewing
       blocked:
         from: engineer
         next: blocked
+      done:
+        from: engineer
+        next: reviewing
     timeout:
-      duration: 30m
       action: nudge
+      duration: 30m
 
   reviewing:
     instructions: |
-      Review the implementation for correctness and quality.
+      Review the engineer's implementation.
       
-      Verification steps:
-      1. Read all changed files
-      2. Run full test suite with coverage
-      3. Test CLI manually if applicable
-      4. Check for edge cases and error handling
+      Check for:
+      - Tests pass: `uv run pytest tests/ -x -q`
+      - Type hints present and correct
+      - Code follows project conventions
+      - No unnecessary complexity
       
-      For parsing implementations:
-      - Verify edge cases are handled (empty, malformed, boundary conditions)
-      - Check that error messages are helpful for debugging
+      For CLI implementations specifically:
+      - Verify the task stayed within its designated layer (parsing/dispatch/logic)
+      - Confirm no scope creep into adjacent layers
+      - Check that existing parser functions are reused, not reimplemented
       
       Signal "approved" if quality is acceptable.
       Signal "needs_revision" with specific feedback if changes needed.
@@ -68,14 +92,14 @@ states:
         from: reviewer
         next: engineering
     timeout:
-      duration: 15m
       action: nudge
+      duration: 15m
 
   blocked:
     type: terminal
     on_entry:
       - action: log
-        message: Workflow blocked - engineer signaled infrastructure or dependency issue
+        message: "Workflow blocked - task requires decomposition or has missing dependencies"
 
   finalize:
     type: terminal

@@ -1,25 +1,10 @@
 patterns:
-- pattern: testing/*
-  insights:
-  - 'When fixing bugs, add specific test cases that would have caught them: test_claude_messages_converted_to_turns,
-    test_codex_messages_converted_to_turns, test_vermas_no_duplicates_with_multiple_files.
-    These regression tests document the bug and prevent recurrence. Test count increased
-    from 103 to 106 specifically for the edge cases.'
-  revision_rate: null
-  success_rate: 1.0
-  avg_duration: null
-  recommended_workflow: null
-  tags:
-  - testing
-  - technical
-  sample_count: 1
 - pattern: architecture/*
   insights:
-  - 'When integrating multiple parser types, create a _convert_parser_session_to_base()
-    function that maps parser-specific models to a unified BaseSession. Critical:
-    actually populate the turns list from messages with role, content, timestamp,
-    and tools_called fields. Empty mapping causes features like --include-conversation
-    to silently fail.'
+  - When integrating multiple specialized parsers (Claude, Codex, VerMAS), add a _convert_parser_session_to_base()
+    function that maps parser-specific message formats to a common BaseSession.turns
+    structure. This enables downstream features like --include-conversation to work
+    uniformly across all sources without source-specific handling in display code.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -28,209 +13,28 @@ patterns:
   - architecture
   - technical
   sample_count: 1
-- pattern: code-review/*
+- pattern: git-workflow/*
   insights:
-  - QA effectively caught spec mismatches (Typer vs Click requirement) that dev overlooked.
-    Explicit requirements (e.g., 'use click>=8.0') should be verified early in QA
-    reviews before functionality testing. This caught a fundamental dependency mismatch
-    that would have caused integration issues.
-  revision_rate: null
-  success_rate: 0.0
-  avg_duration: null
-  recommended_workflow: null
-  tags:
-  - code-review
-  - process
-  sample_count: 1
-- pattern: workflow/*
-  insights:
-  - "The optimal dev-QA signal pattern is: needs_revision (with numbered issue list)\
-    \ \u2192 done (with specific fixes per issue) \u2192 needs_revision or approved.\
-    \ Dev's done signal should explicitly address each issue from the needs_revision\
-    \ signal. QA's approved signal confirms resolution before dev signals complete."
+  - 'When code exists in git worktrees but was never committed to main, recover it
+    by: (1) copying files from worktree to main, (2) running tests to verify functionality,
+    (3) using ''git add'' explicitly on each deliverable file, (4) verifying tracking
+    with ''git ls-files --error-unmatch'', (5) committing with descriptive message
+    referencing the original action item IDs. This workflow recovered 2000+ lines
+    of parser code (VerMAS: 830 lines, Codex: 514 lines) plus 1793 lines of tests.'
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
-  - workflow
-  - process
-  sample_count: 1
-- pattern: reliability/*
-  insights:
-  - MCP 'Connection refused' errors can cause agents to fail silently without sending
-    workflow signals. Monitor MCP server health and implement retry logic. Tmux session
-    crashes combined with MCP issues lead to complete coordination failure even when
-    code work is successful.
-  revision_rate: null
-  success_rate: 0.0
-  avg_duration: null
-  recommended_workflow: null
-  tags:
-  - reliability
-  - technical
-  sample_count: 1
-- pattern: workflow-coordination/*
-  insights:
-  - The workflow completed in ~6.5 minutes with dev producing 800 lines of analyzer
-    code and 581 lines of tests, both properly committed to the repository. Unlike
-    previous cycles where code existed but wasn't committed, this workflow verified
-    deliverables were tracked in git before signaling done.
-  revision_rate: null
-  success_rate: 1.0
-  avg_duration: null
-  recommended_workflow: null
-  tags:
-  - workflow-coordination
-  - process
-  sample_count: 1
-- pattern: implementation/*
-  insights:
-  - The pattern analyzer implementation uses an abstract BaseAnalyzer class with a
-    required analyze() method, then implements three specialized analyzers (SuccessFailureAnalyzer,
-    TimelineAnalyzer, CrossSessionCorrelator). This separation allows each analyzer
-    to focus on one concern while sharing ID generation and common interfaces. A run_all_analyzers()
-    convenience function orchestrates all analyzers and returns a unified InsightCollection.
-  revision_rate: null
-  success_rate: 1.0
-  avg_duration: null
-  recommended_workflow: null
-  tags:
-  - implementation
-  - technical
-  sample_count: 1
-- pattern: debugging/*
-  insights:
-  - When QA identifies specific issues, make surgical fixes addressing exactly those
-    points rather than refactoring the entire solution. Dev agent added message mapping
-    and directory cache as targeted additions, preserving working code. This approach
-    minimizes regression risk and speeds iteration cycles.
-  revision_rate: null
-  success_rate: 1.0
-  avg_duration: null
-  recommended_workflow: null
-  tags:
-  - debugging
-  - process
-  sample_count: 1
-- pattern: python/*
-  insights:
-  - Structure pyproject.toml with core dependencies in [project.dependencies] and
-    testing/linting tools in [project.optional-dependencies.dev]. Use 'uv run --extra
-    dev pytest' for CI/QA verification. Configure tool settings (pytest, mypy, ruff)
-    in the same file.
-  revision_rate: null
-  success_rate: 1.0
-  avg_duration: null
-  recommended_workflow: null
-  tags:
-  - python
-  - technical
-  sample_count: 1
-- pattern: agent-lifecycle/*
-  insights:
-  - Workflows running over 10 minutes need active heartbeat monitoring to detect agent
-    death before the full timeout. The dev agent died without signaling, causing the
-    workflow to fail silently. Implementing periodic heartbeat checks (every 60-120
-    seconds) would allow earlier detection and potential agent restart.
-  revision_rate: null
-  success_rate: 0.0
-  avg_duration: null
-  recommended_workflow: null
-  tags:
-  - agent-lifecycle
-  - process
-  sample_count: 1
-- pattern: task-recovery/*
-  insights:
-  - When an agent dies mid-task, all progress is lost if no intermediate commits exist.
-    Agents should checkpoint progress by committing partial work frequently (every
-    significant change), enabling workflow resumption from the last checkpoint rather
-    than restarting from scratch.
-  revision_rate: null
-  success_rate: 0.0
-  avg_duration: null
-  recommended_workflow: null
-  tags:
-  - task-recovery
-  - process
-  sample_count: 1
-- pattern: validation/*
-  insights:
-  - The improvement logs indicate adding a 'validate' state before 'engineering' helps
-    isolate environment/setup issues from implementation issues. Running a single-agent
-    validation step first proves the execution environment works before spawning multiple
-    agents, reducing complex failure modes.
-  revision_rate: null
-  success_rate: 0.0
-  avg_duration: null
-  recommended_workflow: null
-  tags:
-  - validation
-  - process
-  sample_count: 1
-- pattern: code-design/*
-  insights:
-  - Using Pydantic models with InsightType and InsightSeverity enums provides type
-    safety and self-documenting code. The InsightCollection wrapper adds filter methods
-    (filter_by_type, filter_by_severity, high_priority property) that make consumers'
-    code cleaner and more expressive than manual list filtering.
-  revision_rate: null
-  success_rate: 1.0
-  avg_duration: null
-  recommended_workflow: null
-  tags:
-  - code-design
-  - technical
-  sample_count: 1
-- pattern: parser-implementation/*
-  insights:
-  - When parsing JSON files that may come from different sources, support common wrapper
-    patterns (objects with 'messages', 'entries', or 'conversation' keys) in addition
-    to direct arrays. This makes the parser resilient to variations in how tools export
-    session data.
-  revision_rate: null
-  success_rate: 1.0
-  avg_duration: null
-  recommended_workflow: null
-  tags:
-  - parser-implementation
-  - technical
-  sample_count: 1
-- pattern: workflow-infrastructure/*
-  insights:
-  - When an agent completes its work and signals done/approved, but its process dies
-    before the workflow orchestrator confirms termination, the entire workflow is
-    marked as failed despite successful task completion. The orchestrator should check
-    for completion signals before flagging agent death as workflow failure.
-  revision_rate: null
-  success_rate: 0.0
-  avg_duration: null
-  recommended_workflow: null
-  tags:
-  - workflow-infrastructure
-  - process
-  sample_count: 1
-- pattern: code-delivery/*
-  insights:
-  - Code committed to worktree branches does not automatically appear in main. After
-    'git commit' in a worktree, you must explicitly merge or cherry-pick to main.
-    The task completion signal was sent after the worktree commit, but the merge step
-    was skipped, leaving the code stranded in the feature branch.
-  revision_rate: null
-  success_rate: 1.0
-  avg_duration: null
-  recommended_workflow: null
-  tags:
-  - code-delivery
+  - git-workflow
   - process
   sample_count: 1
 - pattern: verification/*
   insights:
-  - The pre-signal-check.sh script verifies tests pass and git status is clean, but
-    doesn't verify the deliverable files exist in the target (main) branch. Add a
-    check like 'git show main:src/path/to/file.py >/dev/null 2>&1' to confirm code
-    was actually merged before signaling 'done'.
+  - When prior workflows failed due to verification gaps, fix the verification script
+    before starting new work. This workflow fixed pre-signal-check.sh (commit e2182f8)
+    to verify deliverables are git-tracked before signaling done. This prevented the
+    same failure mode that caused 4 consecutive incomplete tasks in Cycle 3.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -239,138 +43,55 @@ patterns:
   - verification
   - process
   sample_count: 1
-- pattern: specification-compliance/*
+- pattern: testing/*
   insights:
-  - Dev initially implemented with typer/rich/pydantic when spec explicitly required
-    click>=8.0. Over-building creates drift from requirements and extra work during
-    QA. Always start with the minimal spec and only add dependencies explicitly required
-    in the task definition.
+  - Initial implementation passed local tests but QA review identified missing parser
+    dispatch logic, incomplete directory scanning, and missing message-to-turn conversion
+    for --include-conversation. Two review cycles with specific issue lists enabled
+    targeted fixes. Integration tests should verify feature flags like --include-conversation
+    work end-to-end, not just that parsers exist.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
-  - specification-compliance
+  - testing
   - process
   sample_count: 1
-- pattern: integration/*
+- pattern: code-recovery/*
   insights:
-  - 'The task definition included a specific verification command: ''session-insights
-    analyze --dir . --output vault/ --analyze''. Using a concrete CLI invocation as
-    acceptance criteria ensures the dev tests the actual user-facing behavior and
-    the QA has a clear verification target.'
+  - When integrating components developed in git worktrees, first verify and commit
+    the code to main before wiring them into the core system. This workflow successfully
+    recovered 1,140 lines of Codex parser code and 2,030 lines of VerMAS parser code
+    that existed in worktrees but were never committed. The recovery step (commits
+    d9e3b74, becde1e) preceded the integration step (commit 9d038df).
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
-  - integration
-  - process
-  sample_count: 1
-- pattern: caching/*
-  insights:
-  - When a parser processes multiple files from the same source directory (e.g., multiple
-    signal files in .vermas/), use a module-level cache (_vermas_parsed_dirs) to track
-    already-parsed directories. Always expose a reset function (reset_vermas_cache())
-    for test isolation to prevent cache pollution between test runs.
-  revision_rate: null
-  success_rate: 1.0
-  avg_duration: null
-  recommended_workflow: null
-  tags:
-  - caching
-  - technical
-  sample_count: 1
-- pattern: workflow-configuration/*
-  insights:
-  - Workflow attempted to execute implement-cli-skeleton under mission-f68b8b88, but
-    this task only exists under mission-62ea732b. Before launching a workflow, verify
-    the task file exists in the expected mission directory (e.g., .vermas/tasks/mission-{id}/{task}.md).
-    This prevents wasted compute and confusing 'agents died' errors from missing prerequisites.
-  revision_rate: null
-  success_rate: 0.0
-  avg_duration: null
-  recommended_workflow: null
-  tags:
-  - workflow-configuration
+  - code-recovery
   - process
   sample_count: 1
 - pattern: infrastructure/*
   insights:
-  - Agent death without producing any artifacts (no trace files, no state) indicates
-    infrastructure failure rather than task failure. The 995-second duration suggests
-    the system waited for already-dead agents. Implement pre-flight validation of
-    task file existence, tmux session health, and agent availability before starting
-    the state machine.
+  - Agent workflows can fail catastrophically when the underlying tmux session terminates
+    unexpectedly. For long-running tasks (>10 minutes), ensure tmux sessions are configured
+    with appropriate keepalive settings and consider implementing agent heartbeat
+    monitoring to detect session death early.
   revision_rate: null
   success_rate: 0.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - infrastructure
-  - technical
-  sample_count: 1
-- pattern: workflow-orchestration/*
-  insights:
-  - Mission-f68b8b88 focused on completing session-insights parsers (codex, vermas,
-    pattern analyzer), but cycle-4 attempted implement-cli-skeleton which is a foundation
-    task from mission-62ea732b. Task selection during cycle planning should be constrained
-    to tasks defined within the active mission's task directory.
-  revision_rate: null
-  success_rate: 0.0
-  avg_duration: null
-  recommended_workflow: null
-  tags:
-  - workflow-orchestration
-  - process
-  sample_count: 1
-- pattern: resilience/*
-  insights:
-  - The 995-second workflow duration suggests the system waited for agents that had
-    already died. Implementing a pre-flight check that verifies task file existence,
-    agent availability, and tmux session health before starting the state machine
-    would fail fast with clear error messages rather than timing out.
-  revision_rate: null
-  success_rate: 0.0
-  avg_duration: null
-  recommended_workflow: null
-  tags:
-  - resilience
-  - technical
-  sample_count: 1
-- pattern: workflow-reliability/*
-  insights:
-  - Workflows running 77+ minutes (4666 seconds) are vulnerable to session timeouts.
-    The watcher confirmed completion at 09:43:59, but agents died before clean workflow
-    exit. Consider implementing session keepalive or checkpoint-based recovery.
-  revision_rate: null
-  success_rate: 0.0
-  avg_duration: null
-  recommended_workflow: null
-  tags:
-  - workflow-reliability
-  - process
-  sample_count: 1
-- pattern: git-workflow/*
-  insights:
-  - The worktree branch shows same commit as main (6d801ce), indicating either changes
-    were never committed OR were not merged to main before session ended. This matches
-    the known 'deliverable verification gap' pattern where tasks are signaled complete
-    without git tracking.
-  revision_rate: null
-  success_rate: 0.0
-  avg_duration: null
-  recommended_workflow: null
-  tags:
-  - git-workflow
   - process
   sample_count: 1
 - pattern: error-handling/*
   insights:
-  - 'When agents crash immediately without producing artifacts, the error message
-    ''agents died. Dead roles: dev. Tmux session may have ended'' doesn''t reveal
-    the root cause (missing task file). Error handling should catch and report missing
-    prerequisites explicitly before spawning agents, enabling faster debugging.'
+  - 'The ''agents died'' error with ''Dead roles: [dev]'' indicates the workflow orchestrator
+    correctly detected the missing agent but lacks retry/recovery logic. Consider
+    adding agent restart capability for recoverable failures versus fatal abort.'
   revision_rate: null
   success_rate: 0.0
   avg_duration: null
@@ -379,17 +100,145 @@ patterns:
   - error-handling
   - technical
   sample_count: 1
-- pattern: workflow-lifecycle/*
+- pattern: compatibility/*
   insights:
-  - The DSL workflow runner tracks agent liveness independently from task completion
-    signals. A workflow can complete all tasks successfully but be marked 'failed'
-    if agent processes die afterward. This indicates a need for explicit 'workflow_complete'
-    handling that terminates the monitoring loop.
+  - When two parts of a system use similar but incompatible data models, add compatibility
+    properties to the newer model rather than changing all consumers. The BaseSession
+    in parsers/models.py gained properties like 'id' (aliasing session_id), 'start_time'
+    (aliasing timestamp), and 'tools_used' (converting tool_calls) to maintain compatibility
+    with models/__init__.py:BaseSession consumers.
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - compatibility
+  - technical
+  sample_count: 1
+- pattern: workflow-reliability/*
+  insights:
+  - Workflow signaled 'complete' with successful commit (a3380b2) but DSL reported
+    failure due to 'agents died' after workflow concluded. The 77-minute duration
+    suggests possible timeout or resource exhaustion. Workflows should handle graceful
+    shutdown and distinguish between agent death during vs after task execution.
   revision_rate: null
   success_rate: 0.0
   avg_duration: null
   recommended_workflow: null
   tags:
-  - workflow-lifecycle
+  - workflow-reliability
   - process
+  sample_count: 1
+- pattern: code-review/*
+  insights:
+  - Initial implementation used Typer instead of required Click framework. QA caught
+    this mismatch and integration test failures in first review. Developer then fixed
+    framework choice and added missing --since option. Two review cycles achieved
+    112 passing tests before approval.
+  revision_rate: null
+  success_rate: 0.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - code-review
+  - process
+  sample_count: 1
+- pattern: dependencies/*
+  insights:
+  - Plain 'uv run pytest' failed without pytest-cov plugin; 'uv run --extra dev pytest'
+    was required for full test execution. Projects should document required test dependencies
+    and consider making pytest-cov optional to reduce friction.
+  revision_rate: null
+  success_rate: 0.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - dependencies
+  - technical
+  sample_count: 1
+- pattern: workflow-resilience/*
+  insights:
+  - When tmux sessions terminate unexpectedly, agents die without opportunity to save
+    state or signal failure. This creates opaque failures reported as 'agents died'
+    without diagnostic information. Long-running tasks are particularly vulnerable
+    to this infrastructure failure mode.
+  revision_rate: null
+  success_rate: 0.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - workflow-resilience
+  - process
+  sample_count: 1
+- pattern: task-decomposition/*
+  insights:
+  - CLI implementation that combines argument parsing, command dispatch, and business
+    logic in a single task has a high failure rate. Breaking CLI tasks into discrete
+    layers (verify structure, minimal entrypoint, subcommand stub, wire to existing
+    logic) dramatically improves success rate. The follow-up cycle-5 with decomposed
+    tasks succeeded.
+  revision_rate: null
+  success_rate: 0.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - task-decomposition
+  - process
+  sample_count: 1
+- pattern: failure-recovery/*
+  insights:
+  - When cycle-4 'implement-cli-skeleton' failed, the system had already evolved a
+    decomposition plan. Cycle-5 'add-analyze-subcommand-stub' succeeded with 186 tests
+    passing. This validates that incremental task breakdown is an effective recovery
+    strategy after infrastructure or scope failures.
+  revision_rate: null
+  success_rate: 0.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - failure-recovery
+  - process
+  sample_count: 1
+- pattern: performance/*
+  insights:
+  - When parsing file-discovery-based sources (like VerMAS scanning .vermas/ directories),
+    implement a _parsed_dirs cache to track already-processed directories. Without
+    this, scanning multiple files from the same source creates duplicate sessions
+    in aggregated results. Add reset_cache() function for test isolation.
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - performance
+  - technical
+  sample_count: 1
+- pattern: debugging/*
+  insights:
+  - When tests fail due to missing optional plugins like pytest-cov specified in pyproject.toml
+    addopts, use 'PYTHONPATH=src python -m pytest -q -o addopts=""' to override and
+    skip coverage requirements. This enables running tests in environments without
+    the full dev dependency stack.
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - debugging
+  - technical
+  sample_count: 1
+- pattern: integration/*
+  insights:
+  - When adding new session sources to a discovery system, update SESSION_PATTERNS
+    to include the new directory patterns (.claude/, .codex/, .vermas/) AND update
+    parse_session_file() dispatch logic to route to the correct parser based on file
+    path context. QA should explicitly verify both discovery and parsing for each
+    new source.
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - integration
+  - technical
   sample_count: 1

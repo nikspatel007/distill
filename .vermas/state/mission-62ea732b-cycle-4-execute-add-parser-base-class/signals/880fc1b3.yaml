@@ -1,9 +1,0 @@
-agent_id: dfc547cb
-created_at: '2026-02-05T09:31:36.799386'
-message: Fixed .gitignore to include exception for tests/fixtures/.claude/ so the
-  sample_session.json fixture is tracked. All 94 tests pass with uv run pytest.
-metadata: null
-role: dev
-signal: done
-signal_id: 880fc1b3
-workflow_id: mission-62ea732b-cycle-4-execute-add-parser-base-class

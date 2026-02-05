@@ -1,15 +1,13 @@
 agents:
   general:
     learnings:
-    - QA agent provided high-value feedback by testing actual user-facing features
-      (--include-conversation) rather than just checking code structure, catching
-      two critical bugs the dev agent missed.
-    - "Dev agent showed strong iteration skills: received specific QA feedback and\
-      \ delivered targeted fixes in under 3 minutes per cycle, maintaining test count\
-      \ growth (103\u2192106) throughout."
-    - Both agents recognized and documented the pytest-cov environment issue, sharing
-      the workaround (PYTHONPATH=src python -m pytest -q -o addopts='') rather than
-      getting stuck.
+    - QA agent (Codex) provided highly specific issue lists with exact failure points
+      (missing dispatch, missing tests, missing conversion) which enabled targeted
+      dev fixes without ambiguity
+    - Dev agent completed fixes within single revision cycles by addressing all QA
+      points systematically rather than partially
+    - Watcher agent coordinated meeting-based debugging for worktree status issues,
+      enabling proactive identification of uncommitted implementation work
     strengths: []
     weaknesses: []
     best_practices: []

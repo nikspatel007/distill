@@ -16,7 +16,36 @@
 
 set -e
 
-DELIVERABLE_COUNT=$#
+# Parse flags
+ALLOW_NO_DELIVERABLES=false
+DELIVERABLES=()
+
+for arg in "$@"; do
+    if [ "$arg" = "--allow-no-deliverables" ]; then
+        ALLOW_NO_DELIVERABLES=true
+    else
+        DELIVERABLES+=("$arg")
+    fi
+done
+
+DELIVERABLE_COUNT=${#DELIVERABLES[@]}
+
+# Fail-safe: require deliverables unless explicitly opted out
+if [ $DELIVERABLE_COUNT -eq 0 ] && [ "$ALLOW_NO_DELIVERABLES" = false ]; then
+    echo "ERROR: No deliverables specified."
+    echo ""
+    echo "Every task should have deliverables to verify. This prevents"
+    echo "signaling 'done' when code exists but was never committed."
+    echo ""
+    echo "Usage: pre-signal-check.sh <deliverable1> [deliverable2] ..."
+    echo "       pre-signal-check.sh --allow-no-deliverables  # For docs-only changes"
+    echo ""
+    echo "Examples:"
+    echo "  pre-signal-check.sh src/module.py tests/test_module.py"
+    echo "  pre-signal-check.sh --allow-no-deliverables  # Only if no code changes"
+    exit 1
+fi
+
 if [ $DELIVERABLE_COUNT -gt 0 ]; then
     TOTAL_STEPS=3
 else
@@ -54,7 +83,7 @@ echo ""
 # 3. Verify deliverables are tracked (if provided)
 if [ $DELIVERABLE_COUNT -gt 0 ]; then
     echo "[3/$TOTAL_STEPS] Verifying deliverables are tracked in git..."
-    for file in "$@"; do
+    for file in "${DELIVERABLES[@]}"; do
         if ! git ls-files --error-unmatch "$file" >/dev/null 2>&1; then
             echo ""
             echo "FAIL: $file is NOT tracked in git"
