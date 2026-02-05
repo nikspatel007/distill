@@ -85,23 +85,32 @@ class ClaudeParser:
         """Parse all sessions from a single project directory.
 
         Args:
-            project_dir: Path to a project directory containing .jsonl session files
+            project_dir: Path to a project directory containing session files.
+                         Handles both direct .jsonl files and sessions/ subdirectory.
 
         Returns:
             List of parsed ClaudeSession objects
         """
         sessions: list[ClaudeSession] = []
+        session_files: list[Path] = []
 
-        # Look for .jsonl files (session transcripts)
-        jsonl_files = list(project_dir.glob("*.jsonl"))
+        # Look for session files directly in project directory
+        session_files.extend(project_dir.glob("*.jsonl"))
+        session_files.extend(project_dir.glob("*.json"))
 
-        for jsonl_file in jsonl_files:
+        # Also check sessions/ subdirectory (common Claude structure)
+        sessions_dir = project_dir / "sessions"
+        if sessions_dir.exists() and sessions_dir.is_dir():
+            session_files.extend(sessions_dir.glob("*.jsonl"))
+            session_files.extend(sessions_dir.glob("*.json"))
+
+        for session_file in session_files:
             try:
-                session = self._parse_session_file(jsonl_file)
+                session = self._parse_session_file(session_file)
                 if session is not None:
                     sessions.append(session)
             except Exception as e:
-                error_msg = f"Error parsing {jsonl_file}: {e}"
+                error_msg = f"Error parsing {session_file}: {e}"
                 logger.warning(error_msg)
                 self._parse_errors.append(error_msg)
 
