@@ -1,10 +1,10 @@
 patterns:
 - pattern: testing/*
   insights:
-  - Each analyzer class has a corresponding test class (TestSuccessFailureAnalyzer,
-    TestTimelineAnalyzer, TestCrossSessionCorrelator) with fixtures for analyzer instances
-    and tests covering empty input, minimal input below threshold, and pattern detection
-    scenarios. This 1:1 mapping makes test coverage gaps obvious and maintenance straightforward.
+  - Tests may pass locally with specific environment configurations (PYTHONPATH=src,
+    pytest addopts overrides) but fail in default environments. QA should verify that
+    tests pass using the standard project test runner (e.g., 'uv run pytest' without
+    overrides) to catch configuration-dependent test failures before merge.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -15,10 +15,11 @@ patterns:
   sample_count: 1
 - pattern: architecture/*
   insights:
-  - Using SHA256 hash of insight components (truncated to 12 chars) produces deterministic
-    IDs that remain stable across runs for the same input data. This enables deduplication
-    and tracking of insights across multiple analysis runs without requiring external
-    ID generation.
+  - 'For extensible parser systems, define a dataclass for the data structure (SessionData
+    with source, timestamp, content fields) and an abstract base class with the core
+    interface method (parse(path: Path) -> list[SessionData]). This establishes a
+    clear contract for all parser implementations while keeping the data model separate
+    from behavior.'
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -29,9 +30,12 @@ patterns:
   sample_count: 1
 - pattern: code-review/*
   insights:
-  - QA caught pyproject.toml dependencies not matching TASK.md requirements. Comparing
-    actual dependencies against spec is a high-value QA check that catches scope creep
-    early. Always verify that installed dependencies match exactly what the spec requires.
+  - When creating test fixtures with directory names that match project-wide gitignore
+    rules (like .claude/), QA review will catch that the fixtures won't be tracked
+    in version control. The dev-QA cycle identified that tests/fixtures/.claude/ was
+    ignored by the blanket .claude/ rule, requiring either an exception (!tests/fixtures/.claude/)
+    or renaming the fixture directory. Always check if fixture paths conflict with
+    gitignore patterns.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -42,9 +46,11 @@ patterns:
   sample_count: 1
 - pattern: workflow/*
   insights:
-  - 'Workflow completed successfully via quick iteration: dev signaled done (4 tests
-    from QA gap), QA sent needs_revision with specific file:line reference, dev fixed
-    in 2 minutes and re-signaled done, QA approved. Total revision cycle under 5 minutes.'
+  - 'The dev-QA collaboration completed a full revision cycle in under 5 minutes:
+    dev signaled done, QA identified blocking issues with specific technical details
+    (.gitignore conflict, test execution requirements), dev fixed within 90 seconds,
+    QA re-reviewed and approved. Providing specific, actionable feedback with file
+    paths and reproduction steps enables rapid iteration.'
   revision_rate: null
   success_rate: 1.0
   avg_duration: null

@@ -1,13 +1,13 @@
 agents:
   general:
     learnings:
-    - Dev agent delivered substantial code (1380+ lines total) in a single implementation
-      pass, demonstrating ability to handle complex multi-class implementations without
-      iteration.
-    - The workflow properly committed code to main branch, addressing the systemic
-      issue from previous cycles where code was written but left uncommitted in worktrees.
-    - Test coverage follows good patterns with edge case handling (empty input, below-threshold
-      input) and multiple scenario tests per analyzer.
+    - QA agent identified a subtle but blocking issue (gitignore conflict) that would
+      have caused the fixture file to be untracked in version control - demonstrating
+      the value of thorough review beyond just 'tests pass'
+    - Dev agent responded to revision feedback quickly (90 seconds) with a targeted
+      fix, showing effective handling of specific QA feedback
+    - The watcher/orchestration properly captured the complete signal flow (done ->
+      needs_revision -> done -> approved -> complete) enabling audit trail
     strengths: []
     weaknesses: []
     best_practices: []
