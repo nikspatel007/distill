@@ -1,0 +1,21 @@
+agent_id: a7d3b03a
+created_at: '2026-02-05T08:59:12.557627'
+message: 'Fixed QA issue: Added support for standard JSON files (array/object format)
+  in addition to JSONL.
+
+
+  Changes:
+
+  - Added _load_entries() method to detect and handle both formats
+
+  - Supports JSON array of entries, wrapper objects with messages/entries/conversation
+  keys, and single entry objects
+
+  - Added 4 new tests for JSON format coverage
+
+  - All 116 tests pass with 85% coverage'
+metadata: null
+role: dev
+signal: done
+signal_id: 7e0181b8
+workflow_id: mission-64ee338c-cycle-3-execute-implement-codex-parser

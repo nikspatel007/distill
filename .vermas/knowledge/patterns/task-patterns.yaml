@@ -1,10 +1,9 @@
 patterns:
 - pattern: testing/*
   insights:
-  - When signaling task completion, including specific test metrics (35 test cases,
-    95% coverage, 122 total tests) provides QA with concrete verification targets.
-    This allows QA to validate claims against actual test runs rather than relying
-    on qualitative assessments.
+  - QA couldn't verify coverage because pytest-cov wasn't installed in their environment.
+    Dev reported 99% coverage but QA had to approve based on trust, not verification.
+    Agent environments should have consistent test dependencies.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -30,17 +29,16 @@ patterns:
   sample_count: 1
 - pattern: code-review/*
   insights:
-  - When QA reviews before dev completes work, signaling 'needs_revision' with specific
-    missing requirements creates a clear handoff. The dev agent then implements to
-    those requirements, and QA re-reviews. This pattern works better than QA waiting
-    indefinitely, as it establishes clear expectations early.
+  - 'When adding `# pragma: no cover` comments to exclude lines from coverage, always
+    add a justification explaining why (e.g., ''entry point bypassed by CliRunner'').
+    QA flagged unexplained pragmas as incomplete work, requiring revision.'
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - code-review
-  - process
+  - technical
   sample_count: 1
 - pattern: workflow/*
   insights:
@@ -98,16 +96,17 @@ patterns:
   sample_count: 1
 - pattern: debugging/*
   insights:
-  - When using git worktrees for parallel development, pytest can pick up wrong module
-    from another worktree's sys.path. QA agent discovered that explicit PYTHONPATH=src
-    or editable install is required to ensure tests use the correct worktree's code.
+  - The dev agent initially investigated a 'failed' prior mission and discovered the
+    code was complete but uncommitted. This debug meeting pattern - investigating
+    artifacts before assuming failure - prevented duplicate work and identified the
+    true root cause as orchestration issues.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - debugging
-  - technical
+  - process
   sample_count: 1
 - pattern: python/*
   insights:

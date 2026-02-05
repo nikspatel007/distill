@@ -1,0 +1,13 @@
+agent_id: 75e028b5
+created_at: '2026-02-05T08:57:52.048420'
+message: 'QA: Found requirement gap. `CodexParser.parse_session_file` fails for standard
+  `.json` files containing a JSON array/object (raises `''list'' object has no attribute
+  get''`). Requirement states .codex uses JSON files; parser only handles JSONL lines.
+  Add JSON parsing path (json.load for .json; iterate list/object) and tests. Ran
+  `uv run --all-extras pytest -q` -> 112 passed. Initial `uv run pytest -q` failed
+  due to missing pytest-cov addopts.'
+metadata: null
+role: qa
+signal: needs_revision
+signal_id: d040dbdf
+workflow_id: mission-64ee338c-cycle-3-execute-implement-codex-parser

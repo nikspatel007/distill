@@ -1,0 +1,10 @@
+agent_id: 75e028b5
+created_at: '2026-02-05T08:52:09.983235'
+message: 'QA review: implementation missing. `src/session_insights/parsers/codex.py`
+  not present, `tests/parsers/test_codex.py` not present, and `parsers/__init__.py`
+  not updated. Repo clean. Please implement Codex parser and tests per TASK.md.'
+metadata: null
+role: qa
+signal: needs_revision
+signal_id: 29bd4b94
+workflow_id: mission-64ee338c-cycle-3-execute-implement-codex-parser

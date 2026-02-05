@@ -1,14 +1,15 @@
 agents:
   general:
     learnings:
-    - Dev agent produced substantial output (35 tests, 95% coverage) in approximately
-      4 minutes of implementation time, demonstrating efficiency when following established
-      patterns
-    - QA agent adapted its verification strategy (targeted test execution) when encountering
-      environment issues, showing problem-solving capability rather than blocking
-      on failures
-    - The watcher agent role is listed but had minimal visible activity in this workflow
-      - its contribution is unclear from the event logs
+    - Dev agent demonstrated effective forensic debugging by investigating worktree
+      contents of a prior 'failed' mission before starting new work, discovering completed
+      code that just needed committing
+    - QA agent caught subtle issues (untracked test files, unjustified pragmas) that
+      dev missed, demonstrating value of the review cycle even when dev reports high
+      coverage
+    - Dev responded to QA feedback comprehensively in one revision cycle, addressing
+      all 4 concerns (git add, justification comments, 7 new edge case tests, verification)
+      without multiple back-and-forth
     strengths: []
     weaknesses: []
     best_practices: []
