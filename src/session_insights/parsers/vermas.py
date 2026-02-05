@@ -126,8 +126,6 @@ class VermasSession(BaseSession):
     signals: list[AgentSignal] = Field(default_factory=list)
     outcome: str = "unknown"  # completed, approved, blocked, done, in_progress
     task_description: str = ""
-    start_time: datetime | None = None
-    end_time: datetime | None = None
     mission_info: MissionInfo | None = None
     improvements: list[KnowledgeImprovement] = Field(default_factory=list)
     agent_learnings: list[AgentLearning] = Field(default_factory=list)

@@ -42,7 +42,7 @@ class BaseSession(BaseModel):
     """Base model for AI coding assistant sessions."""
 
     id: str
-    start_time: datetime
+    start_time: datetime | None = None
     end_time: datetime | None = None
     source: str = "unknown"  # 'claude-code', 'cursor', etc.
     summary: str = ""
@@ -55,7 +55,7 @@ class BaseSession(BaseModel):
     @property
     def duration_minutes(self) -> float | None:
         """Calculate session duration in minutes."""
-        if self.end_time is None:
+        if self.start_time is None or self.end_time is None:
             return None
         delta = self.end_time - self.start_time
         return delta.total_seconds() / 60
@@ -63,6 +63,8 @@ class BaseSession(BaseModel):
     @property
     def note_name(self) -> str:
         """Generate Obsidian-compatible note name."""
+        if self.start_time is None:
+            return f"session-unknown-{self.id[:8]}"
         date_str = self.start_time.strftime("%Y-%m-%d")
         time_str = self.start_time.strftime("%H%M")
         return f"session-{date_str}-{time_str}-{self.id[:8]}"

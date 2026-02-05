@@ -1,13 +1,10 @@
 agents:
   general:
     learnings:
-    - QA agent (Codex) provided highly specific issue lists with exact failure points
-      (missing dispatch, missing tests, missing conversion) which enabled targeted
-      dev fixes without ambiguity
-    - Dev agent completed fixes within single revision cycles by addressing all QA
-      points systematically rather than partially
-    - Watcher agent coordinated meeting-based debugging for worktree status issues,
-      enabling proactive identification of uncommitted implementation work
+    - No agents were spawned in this 3-second workflow - failure occurred at infrastructure
+      layer before agent registration
+    - Prior cycles showed agents perform well when infrastructure is stable, suggesting
+      this failure is environmental rather than agent-related
     strengths: []
     weaknesses: []
     best_practices: []
