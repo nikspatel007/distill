@@ -1,10 +1,13 @@
 patterns:
 - pattern: architecture/*
   insights:
-  - Using an ABC (Measurer) with a Pydantic model (KPIResult) as the return type ensures
-    all KPI scripts produce consistent JSON output with kpi name, value (0-100), target,
-    and details dict. This pattern makes it trivial to add new measurers and aggregate
-    results. The base class is only 30 lines but provides strong interface guarantees.
+  - 'Each measurer follows a consistent pattern: define a checklist of expected fields/behaviors,
+    run the system under test, score presence/quality of each checklist item, and
+    output JSON with kpi name, measured value, target, and details. The three measurers
+    (cli_runs_clean with 12 CLI scenarios, note_content_richness with field checklist
+    scoring, vermas_task_visibility with metadata field checking) collectively provide
+    automated regression detection for output quality. This pattern is reusable for
+    any quality measurement task.'
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -15,12 +18,12 @@ patterns:
   sample_count: 1
 - pattern: git-workflow/*
   insights:
-  - The pattern shows completion commits (c9e60c9) are created as new commits on main
-    that cherry-pick only artifacts, rather than merge commits that incorporate the
-    full task branch. A proper git merge --no-ff of the task branch would preserve
-    all source changes. The successful C1-new cycle used this approach (merge commit
-    6eec1c4 brought 56e97f6's code to main). The workflow should enforce 'git merge
-    --no-ff task-branch' as the completion step.
+  - When dev agents work in git worktrees on feature branches, the workflow completion
+    commit to main captures only workflow artifacts (.vermas/ state, traces, MISSION.md)
+    but omits the actual source and test changes. This is the 9th occurrence of merge-drops-source
+    in this project. The root cause is that the workflow's commit step runs on the
+    main worktree which doesn't have the branch's src/tests changes, and no merge
+    or cherry-pick step exists in the workflow.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -46,11 +49,12 @@ patterns:
   sample_count: 1
 - pattern: testing/*
   insights:
-  - 'QA caught that note_content_richness was checking BaseSession model fields (start_time)
-    instead of what appears in the generated Obsidian notes (**Started:**). The lesson
-    is: when measuring output quality, always measure the actual output artifact (generated
-    files on disk), not the intermediate data model. This applies broadly to any end-to-end
-    quality measurement.'
+  - 'The test file organizes 20 new tests into three domain-focused classes: TestVermasFormatting
+    (signals elapsed time, timestamps, quality assessment), TestEnrichedConversation
+    (user questions, tool usage, decisions, accomplishments, edge cases), and TestFormatTimedelta
+    (unit tests for helper). This domain-based grouping produces highly readable test
+    suites where each class maps to a user-facing feature area rather than an implementation
+    class or method.'
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -339,12 +343,13 @@ patterns:
   sample_count: 1
 - pattern: workflow-coordination/*
   insights:
-  - This model unification task was correctly sequenced as the first task in a 4-task
-    cycle, since the other 3 tasks (formatter, analyze subcommand, integration tests)
-    depended on the unified model. The 678-second completion time (including one revision
-    cycle) was fast enough to unblock dependent workflows. Breaking the merge-drops-source
-    pattern (8 prior occurrences) by committing directly to main rather than using
-    branches eliminated the merge failure risk.
+  - 'The workflow used three agents (dev=claude, watcher=claude, qa=codex) with signal-based
+    coordination. Timeline: QA reviewed empty branch at T+0, dev implemented at T+~6min,
+    QA approved at T+~11min, workflow complete at T+~11min. The fast turnaround shows
+    that when the task is well-scoped (enhance existing formatter) and requirements
+    are clear (specific KPI target), the multi-agent pipeline can deliver substantial
+    code (+487 LOC) efficiently. However, the benefit is nullified if code doesn''t
+    land on main.'
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -747,5 +752,72 @@ patterns:
   recommended_workflow: null
   tags:
   - refactoring
+  - technical
+  sample_count: 1
+- pattern: code-delivery/*
+  insights:
+  - "The 'Complete task' commits (d30eed2, 67b9e77) are workflow artifact commits\
+    \ that contain only .vermas/ state files, .coverage, and .worktrees pointers \u2014\
+    \ zero source code. When dev work happens on a branch, the completion commit must\
+    \ be a merge commit that includes the branch's source changes. The automated-kpi-measurers\
+    \ task avoided this because dev committed source directly to main during QA iteration,\
+    \ so the completion commit only needed artifacts. The formatter task failed because\
+    \ source was on branch 6ea299c and the completion commit (67b9e77) was not a merge."
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - code-delivery
+  - process
+  sample_count: 1
+- pattern: qa-workflow/*
+  insights:
+  - 'QA agent (Codex) provided two rounds of precise, actionable feedback: Round 1
+    identified that measurers should run CLI and parse generated files (not format
+    sessions directly) and flagged timestamp field mismatches. Round 2 caught a spec
+    mismatch (task_description checking always-present marker instead of actual content)
+    and environment issues. Dev fixed both rounds quickly (9 minutes and 4 minutes
+    respectively). The specificity of QA feedback (exact field names, exact test commands,
+    exact error descriptions) enabled rapid turnaround.'
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - qa-workflow
+  - process
+  sample_count: 1
+- pattern: quality-assurance/*
+  insights:
+  - "QA agent reviewed the branch early (signal bb8e1b75 at T+0) and correctly identified\
+    \ 'branch has no code changes vs main' before dev had implemented anything, issuing\
+    \ needs_revision. Dev then implemented the full feature and signaled done ~6 minutes\
+    \ later. This early QA catch is a positive pattern \u2014 QA should review before\
+    \ dev signals done to catch setup issues, but it also means QA ran before there\
+    \ was code to review, wasting a review cycle."
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - quality-assurance
+  - process
+  sample_count: 1
+- pattern: code-quality/*
+  insights:
+  - 'The formatter implementation demonstrates a reusable pattern for extracting structured
+    sections (user questions, tool usage analysis, key decisions, accomplishments)
+    from unstructured conversation turns. Key technique: use role-based filtering,
+    keyword/marker-based decision extraction (''decided to'', ''chose to'', ''going
+    to''), and tool_call metadata for context enrichment. Each extraction method is
+    a separate private method with truncation guards (200 chars for questions, 150
+    for decisions, 60 for tool args).'
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - code-quality
   - technical
   sample_count: 1

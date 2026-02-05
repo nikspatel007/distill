@@ -1,0 +1,14 @@
+agent_id: 0759b736
+created_at: '2026-02-05T20:34:00.921065'
+message: 'QA review: requirements not fully covered. cli_runs_clean matrix/tests miss
+  several required negative-path scenarios (missing --global home dirs, permission
+  errors, empty/zero-byte files, valid JSON w/ no sessions, large files, no-message/system-only
+  sessions) and do not verify no-traceback/error-message output. --global test uses
+  real Path.home making tests environment-dependent; needs mocked home path to assert
+  ~/.claude and ~/.codex discovery. See src/session_insights/measurers/cli_runs_clean.py
+  and tests/measurers/test_cli_runs_clean.py.'
+metadata: null
+role: qa
+signal: needs_revision
+signal_id: 98a6d15f
+workflow_id: mission-2eabad9a-cycle-5-execute-negative-path-cli-tests
