@@ -1,10 +1,14 @@
 agents:
   general:
     learnings:
-    - No agents were spawned in this 3-second workflow - failure occurred at infrastructure
-      layer before agent registration
-    - Prior cycles showed agents perform well when infrastructure is stable, suggesting
-      this failure is environmental rather than agent-related
+    - All agents died simultaneously, suggesting infrastructure failure (tmux session
+      death) rather than individual agent issues. No agent-specific behavioral patterns
+      can be extracted.
+    - The existing task-patterns.yaml already contains 'task-planning/*' insight noting
+      cli.py exists - this knowledge was not applied when scheduling this workflow.
+    - No agents registered before failure occurred, indicating the failure happened
+      at the infrastructure layer during workflow initialization or very early in
+      execution.
     strengths: []
     weaknesses: []
     best_practices: []

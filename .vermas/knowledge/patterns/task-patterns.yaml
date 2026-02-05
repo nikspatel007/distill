@@ -31,12 +31,12 @@ patterns:
   sample_count: 1
 - pattern: verification/*
   insights:
-  - When prior workflows failed due to verification gaps, fix the verification script
-    before starting new work. This workflow fixed pre-signal-check.sh (commit e2182f8)
-    to verify deliverables are git-tracked before signaling done. This prevented the
-    same failure mode that caused 4 consecutive incomplete tasks in Cycle 3.
+  - MEMORY.md documents a Two-Gate Model but Gate 1 (pre-execution discovery) was
+    not applied before this workflow launched. A simple 'git ls-files --error-unmatch
+    src/session_insights/cli.py' would have returned success, indicating the deliverable
+    exists and the task is stale.
   revision_rate: null
-  success_rate: 1.0
+  success_rate: 0.0
   avg_duration: null
   recommended_workflow: null
   tags:
@@ -75,17 +75,17 @@ patterns:
   sample_count: 1
 - pattern: infrastructure/*
   insights:
-  - Agent workflows can fail catastrophically when the underlying tmux session terminates
-    unexpectedly. For long-running tasks (>10 minutes), ensure tmux sessions are configured
-    with appropriate keepalive settings and consider implementing agent heartbeat
-    monitoring to detect session death early.
+  - 'The error message ''agents died. Dead roles: [watcher, dev, qa]'' provides no
+    information about why the tmux session ended (timeout, user action, resource exhaustion,
+    or system restart). Adding diagnostic logging before session teardown would enable
+    root cause analysis.'
   revision_rate: null
   success_rate: 0.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - infrastructure
-  - process
+  - technical
   sample_count: 1
 - pattern: error-handling/*
   insights:
@@ -173,11 +173,10 @@ patterns:
   sample_count: 1
 - pattern: task-decomposition/*
   insights:
-  - CLI implementation that combines argument parsing, command dispatch, and business
-    logic in a single task has a high failure rate. Breaking CLI tasks into discrete
-    layers (verify structure, minimal entrypoint, subcommand stub, wire to existing
-    logic) dramatically improves success rate. The follow-up cycle-5 with decomposed
-    tasks succeeded.
+  - The feature description explicitly noted breaking CLI into '5 atomic micro-tasks'
+    after 5 consecutive failures. However, decomposition cannot fix a fundamentally
+    obsolete task. The diagnostic step (diagnose-cli-failure.md) should have discovered
+    that cli.py already exists and is functional, preventing wasted infrastructure.
   revision_rate: null
   success_rate: 0.0
   avg_duration: null
@@ -245,10 +244,11 @@ patterns:
   sample_count: 1
 - pattern: task-planning/*
   insights:
-  - This is at least the 4th failure of 'implement-cli-skeleton' task (Cycles 3-5
-    and now Cycle 6). Prior analysis showed CLI already exists in main (src/session_insights/cli.py).
-    Tasks should be invalidated when discovery shows deliverables already exist, preventing
-    repeated failures on stale work items.
+  - This workflow attempted 'implement-cli-skeleton' when cli.py already exists in
+    git with multiple prior commits. Task backlog systems must query git (git ls-files
+    --error-unmatch <deliverable>) before spawning agent workflows. Tasks targeting
+    existing files should be auto-converted to 'enhance' or 'fix' tasks, or auto-closed
+    entirely.
   revision_rate: null
   success_rate: 0.0
   avg_duration: null
@@ -259,12 +259,10 @@ patterns:
   sample_count: 1
 - pattern: workflow-lifecycle/*
   insights:
-  - The workflow completed all tasks successfully with QA approval and 'complete'
-    signals, but was marked failed because agent processes died afterward. The DSL
-    workflow runner tracks agent liveness independently from task completion, meaning
-    successful workflows can be marked 'failed' if agents die before clean shutdown.
-    Implement explicit workflow_complete handling that terminates monitoring once
-    all tasks signal complete.
+  - At 4666 seconds (77+ minutes), all three agents (watcher, dev, qa) died simultaneously,
+    indicating tmux session termination rather than individual agent failures. Workflows
+    exceeding 30 minutes should implement session keepalive mechanisms or checkpoint-based
+    recovery to survive infrastructure interruptions.
   revision_rate: null
   success_rate: 0.0
   avg_duration: null
