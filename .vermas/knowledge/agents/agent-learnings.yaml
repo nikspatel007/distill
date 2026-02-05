@@ -1,0 +1,13 @@
+agents:
+  general:
+    learnings:
+    - Dev agent successfully implemented complete functionality (372-line parser,
+      391-line test file) but failed to preserve work through commits
+    - Agent may have spent too much time on implementation without intermediate checkpoints
+      or heartbeats
+    - No evidence of QA involvement - workflow failed before dev could signal completion
+      to trigger QA review
+    strengths: []
+    weaknesses: []
+    best_practices: []
+    prompt_tips: []

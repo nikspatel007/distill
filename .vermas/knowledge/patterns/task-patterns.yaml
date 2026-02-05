@@ -1,0 +1,70 @@
+patterns:
+- pattern: testing/*
+  insights:
+  - 'The Claude parser tests demonstrate good organization: separate test classes
+    for model validation (TestClaudeSessionIndex, TestClaudeSession) and parser functionality
+    (TestClaudeParser), plus integration tests for real data. This structure enables
+    progressive validation from unit to integration level and should be replicated
+    for future parsers.'
+  revision_rate: null
+  success_rate: 0.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - testing
+  - technical
+  sample_count: 1
+- pattern: architecture/*
+  insights:
+  - Extract string templates to a dedicated templates.py module with Template objects
+    and helper functions (format_tag, format_duration, etc.). The formatter class
+    then focuses on data transformation while templates handle presentation, improving
+    maintainability and testability.
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - architecture
+  - technical
+  sample_count: 1
+- pattern: code-review/*
+  insights:
+  - When dev signals completion, include specific metrics (test count, coverage percentage,
+    files changed) to enable QA to quickly verify scope and prioritize review. This
+    reduces QA investigation time and enables faster approval cycles.
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - code-review
+  - process
+  sample_count: 1
+- pattern: workflow/*
+  insights:
+  - The watcher agent monitors both dev and QA progress, emitting status updates at
+    key transitions (dev working, dev done, QA reviewing, QA approved). This creates
+    a clear audit trail and helps identify bottlenecks in multi-agent workflows.
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - workflow
+  - process
+  sample_count: 1
+- pattern: reliability/*
+  insights:
+  - The workflow detected 'agents died' for the dev role after 248 seconds. Long-running
+    implementations without regular heartbeats can cause workflow infrastructure to
+    terminate the agent. Agents should call heartbeat after completing each significant
+    action (file creation, test run) and especially during long operations.
+  revision_rate: null
+  success_rate: 0.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - reliability
+  - process
+  sample_count: 1
