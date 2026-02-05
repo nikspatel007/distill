@@ -1,14 +1,13 @@
 agents:
   general:
     learnings:
-    - All agents died simultaneously, suggesting infrastructure failure (tmux session
-      death) rather than individual agent issues. No agent-specific behavioral patterns
-      can be extracted.
-    - The existing task-patterns.yaml already contains 'task-planning/*' insight noting
-      cli.py exists - this knowledge was not applied when scheduling this workflow.
-    - No agents registered before failure occurred, indicating the failure happened
-      at the infrastructure layer during workflow initialization or very early in
-      execution.
+    - Dev agent provided detailed done signal with implementation specifics (6 tests
+      passing, exact changes made), enabling efficient QA review without back-and-forth
+      clarification.
+    - QA agent identified environment-specific test behavior (PYTHONPATH requirement)
+      and documented it in approval message, preventing future confusion.
+    - Three-agent setup (dev, watcher, qa) with codex-based QA enabled automated verification
+      even though the watcher agent role was minimal in this short cycle.
     strengths: []
     weaknesses: []
     best_practices: []

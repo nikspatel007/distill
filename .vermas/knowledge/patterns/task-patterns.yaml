@@ -31,12 +31,13 @@ patterns:
   sample_count: 1
 - pattern: verification/*
   insights:
-  - MEMORY.md documents a Two-Gate Model but Gate 1 (pre-execution discovery) was
-    not applied before this workflow launched. A simple 'git ls-files --error-unmatch
-    src/session_insights/cli.py' would have returned success, indicating the deliverable
-    exists and the task is stale.
+  - QA approval message explicitly verified 'Requirements satisfied' before confirming
+    tests pass. This validates the implementation meets the spec (print confirmation
+    message, validate directory exists, accept --dir flag with default) rather than
+    just checking that code runs. Earlier cycles failed because dev over-built beyond
+    spec requirements.
   revision_rate: null
-  success_rate: 0.0
+  success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
@@ -45,13 +46,13 @@ patterns:
   sample_count: 1
 - pattern: testing/*
   insights:
-  - When implementing a minimal stub CLI, existing integration tests may expect full
-    functionality. Rather than implementing extra features, mark tests as skipped
-    with clear documentation (e.g., '@pytest.mark.skip - requires full CLI, not minimal
-    stub'). This maintains spec compliance while documenting what will be needed in
-    future tasks.
+  - QA noted that 'running pytest without PYTHONPATH uses main repo install and fails
+    new test'. When developing in git worktrees, use 'PYTHONPATH=src python -m pytest
+    tests/' to ensure tests run against the local worktree code rather than the installed
+    package. This prevents false negatives when testing new features not yet merged
+    to main.
   revision_rate: null
-  success_rate: 0.0
+  success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
@@ -117,18 +118,17 @@ patterns:
   sample_count: 1
 - pattern: workflow-reliability/*
   insights:
-  - Workflows running 77+ minutes (4666 seconds) are vulnerable to tmux session timeouts
-    or agent process death. The watcher confirmed completion at 09:43:59, but all
-    agents (watcher, dev, qa) died before clean workflow exit. Consider implementing
-    session keepalive mechanisms, checkpoint-based recovery, or reducing workflow
-    duration by breaking into smaller increments.
+  - At 4666 seconds (77+ minutes), all three agents died simultaneously due to tmux
+    session termination. This is the second workflow to fail this way. Long-running
+    workflows need session keepalive mechanisms, periodic checkpointing, or architectural
+    limits (break tasks into <30 minute increments) to survive infrastructure interruptions.
   revision_rate: null
   success_rate: 0.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - workflow-reliability
-  - process
+  - technical
   sample_count: 1
 - pattern: code-review/*
   insights:
@@ -173,12 +173,13 @@ patterns:
   sample_count: 1
 - pattern: task-decomposition/*
   insights:
-  - The feature description explicitly noted breaking CLI into '5 atomic micro-tasks'
-    after 5 consecutive failures. However, decomposition cannot fix a fundamentally
-    obsolete task. The diagnostic step (diagnose-cli-failure.md) should have discovered
-    that cli.py already exists and is functional, preventing wasted infrastructure.
+  - 'After 5 consecutive CLI implementation failures due to monolithic tasks, breaking
+    work into single-purpose micro-tasks (argparse setup, then flags, then wiring)
+    enabled reliable completion. Each task had exactly ONE deliverable with clear
+    success criteria (e.g., ''print confirmation: Analyzing directory: {dir}''). The
+    atomic approach allowed dev to complete and QA to approve in under 10 minutes.'
   revision_rate: null
-  success_rate: 0.0
+  success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
@@ -284,4 +285,76 @@ patterns:
   tags:
   - specification-compliance
   - process
+  sample_count: 1
+- pattern: task-validation/*
+  insights:
+  - This cycle-4 workflow attempted to implement cli.py which already existed as 242
+    lines of functional code in git main branch. Running 'git ls-files --error-unmatch
+    src/session_insights/cli.py' would have returned success, indicating the task
+    is stale. Task backlog systems should auto-validate deliverables exist before
+    spawning expensive multi-agent workflows.
+  revision_rate: null
+  success_rate: 0.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - task-validation
+  - process
+  sample_count: 1
+- pattern: error-diagnostics/*
+  insights:
+  - 'The error ''agents died. Dead roles: [watcher, dev, qa]'' provides no information
+    about why the tmux session ended (timeout, user action, resource exhaustion, or
+    crash). Adding pre-termination hooks or periodic state snapshots would enable
+    root cause analysis and distinguish recoverable from fatal failures.'
+  revision_rate: null
+  success_rate: 0.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - error-diagnostics
+  - technical
+  sample_count: 1
+- pattern: task-backlog/*
+  insights:
+  - Tasks targeting files that already exist in git should be automatically converted
+    to 'enhance' or 'fix' variants, or auto-closed with explanation. This prevents
+    wasted compute on obsolete work and aligns the backlog with actual codebase state.
+  revision_rate: null
+  success_rate: 0.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - task-backlog
+  - process
+  sample_count: 1
+- pattern: workflow-coordination/*
+  insights:
+  - 'The successful workflow followed a three-signal pattern: (1) dev signals ''done''
+    with implementation details, (2) QA signals ''approved'' after verifying requirements
+    and running tests, (3) dev signals ''complete'' confirming final state. This handoff
+    ensures explicit verification before marking work finished and prevents the ''done
+    but not committed'' anti-pattern.'
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - workflow-coordination
+  - process
+  sample_count: 1
+- pattern: cli-development/*
+  insights:
+  - When adding directory arguments to Typer CLI commands, use 'exists=True' parameter
+    for automatic validation rather than implementing manual os.path.exists() checks.
+    Dev noted '--dir argument already exists with default=. (2) Directory validation
+    via exists=True'. This leverages framework capabilities and provides consistent
+    error messages.
+  revision_rate: null
+  success_rate: 1.0
+  avg_duration: null
+  recommended_workflow: null
+  tags:
+  - cli-development
+  - technical
   sample_count: 1
