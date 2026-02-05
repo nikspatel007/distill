@@ -112,11 +112,10 @@ fi
 if [ $DELIVERABLE_COUNT -gt 0 ] && [ "$ALLOW_ARTIFACT_ONLY" = false ]; then
     echo "[4/$TOTAL_STEPS] Checking for source code changes..."
 
-    # Get the base branch (usually main)
-    BASE_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo "main")
-
-    # Check if there are any changes to src/ or tests/ compared to base
-    SRC_DIFF=$(git diff "$BASE_BRANCH" -- src/ tests/ 2>/dev/null | head -1)
+    # Check if the LATEST commit has any changes to src/ or tests/
+    # Previously compared main..HEAD which allowed artifact-only commits
+    # to pass if ANY prior commit had src/tests changes (bug act-2d5f5e36)
+    SRC_DIFF=$(git diff HEAD~1..HEAD -- src/ tests/ 2>/dev/null | head -1)
 
     if [ -z "$SRC_DIFF" ]; then
         echo ""
