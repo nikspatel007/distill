@@ -1,0 +1,29 @@
+id: adapt-mission-42d76466-c3-session-insights-bootstrap-v2
+date: '2026-02-06T04:01:03.790599'
+type: workflow_change
+target: workflow/session-insights-bootstrap-v2
+change: "The current engineering instructions focus on 'validation mode' but lack\
+  \ three critical elements identified by the evidence: (1) Zero KPIs have automated\
+  \ measurers \u2014 the single biggest blocker identified in learnings and evaluation\
+  \ suggestions. The instructions must make building automated measurers the explicit\
+  \ top priority. (2) Project detection accuracy has the largest gap to target (80%\
+  \ vs 95%) \u2014 the instructions should call out specific edge cases (monorepos,\
+  \ symlinks, nested projects). (3) CLI implementation is flagged as high-risk (cycle\
+  \ 4-6 learning) \u2014 any CLI work must be decomposed into layers. (4) The reviewing\
+  \ state needs a measurer-validation gate: the reviewer should verify that measurer\
+  \ output matches claimed KPI values, since cycle 5-6 flagged that KPIs were measuring\
+  \ the wrong things. (5) Added a circuit breaker: if KPI progress stalls for 2 consecutive\
+  \ cycles, escalate rather than retry."
+before_metrics:
+  revision_rate: null
+  avg_duration: null
+  success_rate: 0.55
+  token_usage: null
+after_metrics:
+  revision_rate: null
+  avg_duration: null
+  success_rate: null
+  token_usage: null
+validated: false
+impact: null
+notes: null

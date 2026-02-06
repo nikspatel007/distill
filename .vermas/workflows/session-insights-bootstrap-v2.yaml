@@ -11,38 +11,43 @@ states:
     instructions: |
       Implement the assigned task for the session-insights CLI tool.
 
-      PHASE AWARENESS - YOU ARE IN VALIDATION MODE:
-      The construction phase is complete. Measurers and pipelines exist but have
-      NOT been fully validated against real data. Your priorities reflect this phase.
+      PHASE AWARENESS - YOU ARE IN MEASUREMENT & HARDENING MODE:
+      Construction and basic validation are complete (55% KPI progress).
+      The remaining 45% is concentrated in measurement infrastructure and
+      edge-case hardening, NOT new feature development.
+
+      PRIORITY 1 - AUTOMATED KPI MEASURERS:
+      Zero KPIs currently have automated measurers. All progress percentages
+      are estimates. If your task can include building or improving a measurer,
+      do that FIRST. A measurer is a script or test that outputs a concrete
+      metric value (e.g., accuracy %, pass rate, coverage %).
+
+      PRIORITY 2 - EDGE-CASE HARDENING:
+      Project detection accuracy has the largest gap (est. 80% vs 95% target).
+      Edge cases to test and fix: monorepos, symlinks, nested projects,
+      projects without standard markers (no pyproject.toml, no package.json).
 
       MANDATORY FIRST STEP - MEASURE BEFORE BUILDING:
-      Before writing ANY new code, run the existing KPI measurers against real data:
+      Before writing ANY new code, run existing tests and tools:
         uv run pytest tests/ -x -q
         uv run python -m session_insights analyze --dir . --global
-      Capture and record the ACTUAL measured values for each KPI.
-      If a measurer fails on real data, fixing it IS your task.
-      Do NOT proceed to new features until measurers produce real numbers.
+      Record the ACTUAL measured values. If a measurer fails on real data,
+      fixing it IS your task. Do NOT proceed to new features.
 
-      KPI PRIORITY ORDER:
-      1. tests_pass - Run the full test suite. Fix failures. This validates everything else.
-      2. project_detection - Run detection against known projects, measure accuracy.
-      3. Remaining KPIs - Only after 1 and 2 are green.
+      CLI IMPLEMENTATION SAFETY (HIGH-RISK AREA):
+      If your task involves CLI changes, you MUST decompose into:
+      1. Argument parsing layer (Click decorators, parameter validation)
+      2. Dispatch layer (routing CLI commands to domain functions)
+      3. Logic layer (pure functions, independently testable)
+      Never implement CLI changes as a single monolithic function.
 
-      TASK DECOMPOSITION REQUIREMENT:
-      Do NOT work on monolithic "fix everything" tasks. Each task must target
-      exactly ONE KPI with a clear acceptance criterion, e.g.:
-        - "Make tests_pass reach 100% by fixing test_cli_skeleton"
-        - "Improve project_detection accuracy to 70% on sample data"
-      If your assigned task is too broad, decompose it before starting.
+      BEFORE SIGNALING DONE:
+      - All tests pass: `uv run pytest tests/ -x -q`
+      - If you built a measurer, show its output with real data
+      - If you hardened edge cases, show test results for each edge case
+      - Do NOT signal done with failing tests or untested measurers
 
-      MANDATORY LAST STEP - MEASURE AFTER BUILDING:
-      After completing work, re-run all measurers and include a MEASURED DATA
-      section in your done signal with before/after values for each KPI.
-      Format: KPI_NAME: before_value -> after_value (measured, not estimated)
-
-      Signal "done" only when:
-      - All tests pass (uv run pytest tests/ -x -q)
-      - You have measured KPI values (not estimates) to report
+      Signal "done" when implementation is complete and tests pass.
     on_signal:
       done:
         from: engineer
@@ -52,25 +57,30 @@ states:
       action: nudge
   reviewing:
     instructions: |
-      Review the implementation for correctness and KPI impact.
+      Review the implementation for correctness, quality, and KPI alignment.
 
-      MANDATORY VERIFICATION:
-      1. Run the full test suite: uv run pytest tests/ -x -q --cov=session_insights
-      2. Verify the engineer included MEASURED KPI data (not estimates) in their
-         done signal. If they did not, signal needs_revision immediately.
-      3. Verify the claimed KPI improvements by re-running the relevant measurers.
-      4. Check that the task targeted a specific KPI, not a vague remediation.
+      CRITICAL CHECK - MEASUREMENT VALIDATION:
+      If the engineer claims to have built or improved a KPI measurer,
+      you MUST independently run it and verify the output matches claims.
+      Do NOT accept estimated KPI values — demand measured values.
+      If a measurer does not exist for the KPI being claimed, flag this
+      as needs_revision with the specific request to add a measurer.
 
-      REJECT if:
-      - Tests fail
-      - No measured KPI data provided
-      - KPI values are estimates rather than measured outputs
-      - Task was too broad ("fix multiple things") without clear KPI targeting
+      Verification steps:
+      1. Read all changed files
+      2. Run full test suite: `uv run pytest tests/ -x -q --cov=session_insights`
+      3. If measurer was added, run it independently and verify output
+      4. Test CLI manually if applicable
+      5. Check for edge cases and error handling
+      6. Verify CLI changes are properly decomposed (not monolithic)
 
-      Signal "approved" if measured KPI data confirms improvement.
+      KPI ALIGNMENT CHECK:
+      Does this work actually move a KPI forward? If the task completed
+      features but added no measurer and no edge-case coverage, consider
+      requesting revision to add measurement.
+
+      Signal "approved" if quality is acceptable AND work is KPI-aligned.
       Signal "needs_revision" with specific feedback if changes needed.
-
-      Include a git diff summary and measured KPI values in your signal message.
     on_signal:
       approved:
         from: reviewer

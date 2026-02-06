@@ -1,0 +1,23 @@
+id: adapt-mission-42d76466-c3-engineer
+date: '2026-02-06T04:01:03.791788'
+type: other
+target: agent/engineer
+change: 'The engineer agent definition is generic and doesn''t reflect the current
+  mission phase. Two key additions: (1) Explicit guidance on building automated measurers,
+  since the agent has been completing feature tasks without measurement infrastructure.
+  (2) CLI decomposition pattern, since CLI work has been flagged as high-risk across
+  multiple cycles. These additions align the agent''s standing instructions with the
+  evidence without changing its core identity.'
+before_metrics:
+  revision_rate: null
+  avg_duration: null
+  success_rate: 0.55
+  token_usage: null
+after_metrics:
+  revision_rate: null
+  avg_duration: null
+  success_rate: null
+  token_usage: null
+validated: false
+impact: null
+notes: null

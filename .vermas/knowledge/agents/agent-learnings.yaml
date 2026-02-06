@@ -1,17 +1,15 @@
 agents:
   general:
     learnings:
-    - "Dev agent responded effectively to QA's needs_revision signal, completing all\
-      \ required changes (new section names, core.py integration, CLI wiring, 28 tests)\
-      \ in a single revision round of approximately 5 minutes \u2014 demonstrating\
-      \ that specific QA feedback enables fast turnaround."
-    - QA agent (Codex) provided high-quality, actionable feedback identifying both
-      functional gaps (missing sections, no CLI/core wiring) and environmental issues
-      (missing pytest-cov), enabling the dev to address everything in one pass without
-      back-and-forth.
-    - Watcher agent observed the workflow but the dev agent's session was loaded with
-      context from an unrelated debug meeting (mission-b630c874), suggesting the session
-      management system doesn't provide clean isolation between tasks.
+    - "Dev agent was highly productive \u2014 540 LOC across 8 files with 39 tests\
+      \ in ~8 minutes \u2014 but failed to follow the direct-to-main commit mandate,\
+      \ resulting in code stranded on a branch for the 12th time."
+    - Watcher agent provided a single progress signal at the start but did not detect
+      or flag that the dev's commit went to a branch instead of main, missing its
+      monitoring purpose.
+    - QA agent (Codex) was configured but appears to have had minimal interaction
+      window given the fast dev completion; the workflow concluded before meaningful
+      QA review could occur.
     strengths: []
     weaknesses: []
     best_practices: []

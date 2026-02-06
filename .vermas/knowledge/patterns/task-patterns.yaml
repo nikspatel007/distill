@@ -1,18 +1,19 @@
 patterns:
 - pattern: architecture/*
   insights:
-  - The dev agent's session (31ed9e2f) was initially used for a debug meeting about
-    a completely different mission (b630c874), then repurposed for the weekly-digest
-    implementation task (42d76466). While this worked here, reusing agent sessions
-    across unrelated tasks risks context contamination where previous task context
-    influences current decisions. Fresh sessions per task provide cleaner boundaries.
+  - 'The project detection module uses a two-layer design: detect_project_from_cwd()
+    handles single paths with edge case filtering (home dirs, worktrees, generic names),
+    while detect_project_from_cwds() uses Counter-based frequency analysis for sessions
+    with multiple working directories. This pattern of single-input-pure-function
+    + multi-input-aggregator is reusable for any metadata extraction where sessions
+    may have variable-length inputs.'
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - architecture
-  - process
+  - technical
   sample_count: 1
 - pattern: git-workflow/*
   insights:
@@ -46,11 +47,11 @@ patterns:
   sample_count: 1
 - pattern: testing/*
   insights:
-  - The dev added 28 tests covering weekly grouping, formatting, challenge detection,
-    and file output pipeline in the same commit as the implementation. When QA requested
-    revisions, having existing tests as a safety net allowed the dev to refactor sections
-    confidently without introducing regressions. The full suite went from pre-existing
-    failures only to 469 passing (2 unrelated failures).
+  - 'Rather than only unit testing with synthetic data, the project_detection measurer
+    samples 60+ actual session files from insights/sessions/ and validates both presence
+    and plausibility of extracted project names. This ''measurer pattern'' serves
+    dual purpose: it''s both a KPI reporting tool and a high-fidelity integration
+    test against real production data, catching issues that synthetic unit tests miss.'
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -337,11 +338,12 @@ patterns:
   sample_count: 1
 - pattern: workflow-coordination/*
   insights:
-  - "The dev agent implemented, signaled done, QA reviewed and signaled needs_revision,\
-    \ dev revised and re-signaled done, QA approved \u2014 all within 388 seconds.\
-    \ The signal-based async coordination (without meetings) is efficient for well-scoped\
-    \ tasks with clear acceptance criteria. QA's specificity in revision feedback\
-    \ enabled single-round fixes."
+  - The dev agent completed implementation and signaled done within ~8 minutes (09:43
+    to 09:51). The watcher confirmed dev was working at 09:43, and dev signaled done
+    at 09:51. With such fast turnaround, the QA agent had minimal window for iterative
+    feedback. The 'done' signal was sent before QA could provide needs_revision feedback,
+    which may have contributed to the merge process being bypassed (code committed
+    to branch, not merged properly to main).
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -689,13 +691,11 @@ patterns:
   sample_count: 1
 - pattern: deployment/*
   insights:
-  - "This is the 12th occurrence of a pattern where code committed to a task branch\
-    \ (e7659080: +72 insertions across 4 src/test files) is not included when the\
-    \ 'Complete task' commit lands on main. The main commit (a3e2ac48) contains only\
-    \ workflow metadata, insights, and .vermas artifacts \u2014 zero src/ or tests/\
-    \ changes. Direct-to-main commits have a 10/10 success rate while branch merges\
-    \ have 0/12. Any workflow using branch-based development in this project must\
-    \ validate that src/ diffs exist on main after merge."
+  - 'For the 12th time, a successful implementation was committed to a task branch
+    (71345895, +540 LOC across 8 src/test files) but the merge commit on main (f7d8691e)
+    contains only workflow artifacts (23 files: .vermas/, .worktrees/, insights/)
+    with zero source code. The direct-to-main mandate from prior reviews was not followed.
+    Recovery requires selective file checkout from the branch.'
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -721,19 +721,18 @@ patterns:
   sample_count: 1
 - pattern: implementation/*
   insights:
-  - 'The task had clear acceptance criteria: create a ProjectNotesMeasurer class,
-    generate per-project Obsidian notes with specific sections, wire into the analyze
-    pipeline, and add tests. Dev delivered 492 LOC across 5 files (measurer, formatter,
-    CLI wiring, 2 init exports) plus 172 LOC tests in approximately 6 minutes. Atomic
-    task scoping with explicit section requirements (timeline, milestones, key decisions,
-    related sessions) removes ambiguity and accelerates implementation.'
+  - The task specification explicitly defined a measurable acceptance criterion (70%+
+    accuracy across 50+ samples) and a structured output format. The dev agent exceeded
+    the target (80% across 60 samples) and delivered both the core feature and its
+    measurement in a single pass. KPI-anchored task specs eliminate ambiguity about
+    'done' and enable objective QA validation.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - implementation
-  - technical
+  - process
   sample_count: 1
 - pattern: refactoring/*
   insights:
