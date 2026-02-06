@@ -1,9 +1,8 @@
 ---
-status: pending
+status: done
 priority: medium
-workflow: 
+workflow: null
 ---
-
 # Build automated narrative scorer and fix quality to reach 80%+
 
 Based on `KPI_BASELINE.md` measurements, fix narrative quality issues.
