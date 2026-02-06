@@ -1,0 +1,19 @@
+agent_id: ac293268
+created_at: '2026-02-06T04:02:22.855812'
+message: 'Added 39 comprehensive negative-path CLI tests in tests/test_cli_negative_paths.py.
+  All 330 tests pass. Coverage: (1) malformed input - truncated JSON, invalid JSONL,
+  binary garbage, partial writes, JSON arrays in JSONL files, corrupt codex sessions
+  (7 tests), (2) missing directories - non-existent --dir, file-as-dir, empty dirs,
+  .claude with no projects (6 tests), (3) permission errors - mocked unreadable files
+  and dirs for both analyze and sessions commands (3 tests), (4) empty session files
+  - zero-byte, whitespace-only, empty arrays/objects, codex empty (6 tests), (5) edge
+  cases - no messages, system-only messages, large files (5000 entries), invalid dates,
+  invalid formats, null content, deep nesting, mixed sources (13 tests), (6) --global
+  flag - discovers claude/codex from mocked home, empty home, combined local+home,
+  no-global ignores home (6 tests). Every test verifies clean exit codes and no Python
+  tracebacks.'
+metadata: null
+role: dev
+signal: done
+signal_id: cc29d9d6
+workflow_id: mission-73116471-cycle-1-execute-negative-path-cli-tests

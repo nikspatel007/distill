@@ -1,18 +1,17 @@
 agents:
   general:
     learnings:
-    - "Dev agent delivered high-quality, well-structured code with 20 comprehensive\
-      \ tests covering edge cases (truncation, empty sessions, disabled conversation\
-      \ flag) \u2014 demonstrating strong implementation capability when requirements\
-      \ are specific and measurable (KPI target)."
-    - "QA agent (codex) correctly identified the initial empty branch state and later\
-      \ validated all requirements against the task description, but did not catch\
-      \ that the code would not be merged to main \u2014 QA scope is limited to code\
-      \ correctness, not deployment pipeline verification."
-    - "Watcher agent generated the largest trace (353KB, 159 lines) but its contribution\
-      \ to the outcome is unclear \u2014 the workflow succeeded based on dev-QA signaling\
-      \ alone, suggesting watcher may add overhead without proportional value for\
-      \ focused implementation tasks."
+    - "Dev agent was productive (770+ LOC written) but failed at the delivery step\
+      \ \u2014 the work was done in a worktree and never committed to main, making\
+      \ it invisible to QA and the git history. Capability is not the bottleneck;\
+      \ commit discipline is."
+    - QA agent performed thorough requirements-based review, correctly identifying
+      6+ missing test scenarios and the environment-dependent Path.home() issue. The
+      QA signal was well-structured with specific file references and actionable feedback.
+    - "The dev agent likely signaled 'done' without running the pre-signal-check.sh\
+      \ script, or the script failed to detect the uncommitted worktree state \u2014\
+      \ either way, the workflow's safety net did not catch the problem before QA\
+      \ had to reject."
     strengths: []
     weaknesses: []
     best_practices: []

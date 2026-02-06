@@ -1,31 +1,30 @@
 patterns:
 - pattern: architecture/*
   insights:
-  - 'Each measurer follows a consistent pattern: define a checklist of expected fields/behaviors,
-    run the system under test, score presence/quality of each checklist item, and
-    output JSON with kpi name, measured value, target, and details. The three measurers
-    (cli_runs_clean with 12 CLI scenarios, note_content_richness with field checklist
-    scoring, vermas_task_visibility with metadata field checking) collectively provide
-    automated regression detection for output quality. This pattern is reusable for
-    any quality measurement task.'
+  - "This workflow's failure (code in worktree, not on main) is a variant of the recurring\
+    \ merge-drops-source pattern that has occurred 9 times in this project. The proven\
+    \ solution is direct-to-main commits \u2014 all 8 successful deliveries in this\
+    \ project used direct-to-main, while 0 of 9 branch merges succeeded. Working in\
+    \ worktrees or branches adds a merge step that has a 100% failure rate in this\
+    \ project's workflow."
   revision_rate: null
-  success_rate: 1.0
+  success_rate: 0.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - architecture
-  - technical
+  - process
   sample_count: 1
 - pattern: git-workflow/*
   insights:
-  - When dev agents work in git worktrees on feature branches, the workflow completion
-    commit to main captures only workflow artifacts (.vermas/ state, traces, MISSION.md)
-    but omits the actual source and test changes. This is the 9th occurrence of merge-drops-source
-    in this project. The root cause is that the workflow's commit step runs on the
-    main worktree which doesn't have the branch's src/tests changes, and no merge
-    or cherry-pick step exists in the workflow.
+  - 'This is the 1st ''uncommitted-completion'' failure added to 9 prior ''merge-drops-source''
+    failures, totaling 10 code-loss incidents. The project has proven that direct-to-main
+    commits succeed 6/6 times while branch/worktree workflows fail 10/10 times. Worktrees
+    add an additional failure mode: code may never be committed at all, not just lost
+    during merge. The pre-signal-check.sh script should be enhanced to detect uncommitted
+    worktree changes.'
   revision_rate: null
-  success_rate: 1.0
+  success_rate: 0.0
   avg_duration: null
   recommended_workflow: null
   tags:
@@ -49,19 +48,19 @@ patterns:
   sample_count: 1
 - pattern: testing/*
   insights:
-  - 'The test file organizes 20 new tests into three domain-focused classes: TestVermasFormatting
-    (signals elapsed time, timestamps, quality assessment), TestEnrichedConversation
-    (user questions, tool usage, decisions, accomplishments, edge cases), and TestFormatTimedelta
-    (unit tests for helper). This domain-based grouping produces highly readable test
-    suites where each class maps to a user-facing feature area rather than an implementation
-    class or method.'
+  - The task specification listed 5 specific categories of negative-path tests (malformed
+    input, missing dirs, permission errors, empty files, edge cases) but the implementation
+    missed several required scenarios from each category. When a task specification
+    enumerates specific test categories, create a checklist mapping each specified
+    scenario to a test function before starting implementation, and verify completeness
+    before signaling done.
   revision_rate: null
-  success_rate: 1.0
+  success_rate: 0.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - testing
-  - technical
+  - process
   sample_count: 1
 - pattern: code-recovery/*
   insights:
@@ -139,13 +138,11 @@ patterns:
   sample_count: 1
 - pattern: code-review/*
   insights:
-  - 'The QA agent identified that dev''s initial implementation measured the wrong
-    thing (in-memory model fields instead of generated output files). Two revision
-    rounds progressively aligned implementation with requirements: round 1 switched
-    to CLI-subprocess-based testing, round 2 fixed semantic correctness (non-empty
-    vs present) and environment portability. This iterative dev-QA signal loop (done
-    -> needs_revision -> done -> needs_revision -> done -> approved) produced significantly
-    better code than the initial attempt.'
+  - 'QA approved within 112 seconds of dev signaling done by running targeted pytest
+    commands against the specific commit (9d5584b). Rather than reviewing all code
+    manually, QA verified: (1) commit exists on main, (2) targeted test suite passes,
+    (3) requirements checklist met. This commit-level verification approach enables
+    rapid QA cycles without sacrificing rigor.'
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -343,15 +340,14 @@ patterns:
   sample_count: 1
 - pattern: workflow-coordination/*
   insights:
-  - 'The workflow used three agents (dev=claude, watcher=claude, qa=codex) with signal-based
-    coordination. Timeline: QA reviewed empty branch at T+0, dev implemented at T+~6min,
-    QA approved at T+~11min, workflow complete at T+~11min. The fast turnaround shows
-    that when the task is well-scoped (enhance existing formatter) and requirements
-    are clear (specific KPI target), the multi-agent pipeline can deliver substantial
-    code (+487 LOC) efficiently. However, the benefit is nullified if code doesn''t
-    land on main.'
+  - 'The workflow failed because ''agents died'' after QA signaled ''needs_revision''.
+    The dev agent did not survive long enough to receive, acknowledge, and act on
+    the QA feedback. In a dev-QA revision loop, the dev agent must remain alive and
+    responsive (via heartbeats) throughout the full review cycle, not just until its
+    first ''done'' signal. The error ''DSL workflow failed: agents died'' indicates
+    the tmux session ended prematurely.'
   revision_rate: null
-  success_rate: 1.0
+  success_rate: 0.0
   avg_duration: null
   recommended_workflow: null
   tags:
@@ -374,14 +370,13 @@ patterns:
   sample_count: 1
 - pattern: workflow/*
   insights:
-  - "This workflow followed a consistent pattern: commit 1 delivers the bulk implementation\
-    \ (1403 LOC, 38 tests), commit 2 addresses structural QA feedback (513 insertions/406\
-    \ deletions \u2014 major refactor), commit 3 addresses semantic precision issues\
-    \ (94 insertions/110 deletions \u2014 targeted fixes). Each round gets smaller\
-    \ and more focused, converging on correctness. The 1659s total duration (27 min)\
-    \ for 3 commits with 2 QA rounds is efficient."
+  - When a dev agent receives a 'needs_revision' signal from QA, the agent must address
+    the feedback and re-attempt. In this workflow, the dev agent died (tmux session
+    ended) after QA rejection, leaving 770 LOC stranded in a worktree with no commit.
+    Workflows should implement a retry mechanism or at minimum auto-commit work-in-progress
+    before agent termination to prevent total loss.
   revision_rate: null
-  success_rate: 1.0
+  success_rate: 0.0
   avg_duration: null
   recommended_workflow: null
   tags:
@@ -475,14 +470,15 @@ patterns:
   sample_count: 1
 - pattern: process/*
   insights:
-  - 'Despite explicit tracking in MEMORY.md and review meetings mandating ''agenda
-    item #1: status of prior action items'', critical fixes like act-71835fc6 (fix
-    merge process) and act-1231eb07 (recover branch code) remain unexecuted for 3+
-    cycles. The merge-drops-source bug keeps recurring because the fix action item
-    never gets scheduled as an actual task. The planning phase creates new tasks instead
-    of drawing from the action item backlog.'
+  - "The pre-signal-check.sh script (which validates deliverables before signaling\
+    \ done) did not catch the uncommitted-completion failure mode where work exists\
+    \ in a worktree but isn't committed. This represents a gap in the verification\
+    \ pipeline \u2014 the script checks git status on the main branch but doesn't\
+    \ detect code sitting in worktrees. Pre-signal validation should verify that all\
+    \ deliverable files are tracked in git on the current branch, not just that the\
+    \ working tree is clean."
   revision_rate: null
-  success_rate: 1.0
+  success_rate: 0.0
   avg_duration: null
   recommended_workflow: null
   tags:
