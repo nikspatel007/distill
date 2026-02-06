@@ -1,14 +1,13 @@
 agents:
   general:
     learnings:
-    - "Dev agent correctly applied Gate 0 thinking \u2014 investigated whether the\
-      \ bug actually existed before writing fix code, discovering the logic was already\
-      \ correct and only tests were needed."
-    - QA agent (codex model) provided fast, specific feedback identifying missing
-      deliverables and a tooling issue (pytest-cov plugin missing), enabling a focused
-      revision cycle.
-    - The 3-minute turnaround between QA needs_revision and dev done signal shows
-      efficient agent responsiveness in the multi-agent workflow.
+    - "Dev agent (Claude) produced clean, minimal implementation that followed existing\
+      \ patterns (generate_project_notes \u2192 generate_weekly_notes) \u2014 pattern\
+      \ mimicry reduces design risk."
+    - QA agent (Codex) provided validation within the same workflow execution, enabling
+      the fast 244-second turnaround without sacrificing review quality.
+    - Watcher agent monitored the collaboration, adding observability to the multi-agent
+      workflow without interfering with execution.
     strengths: []
     weaknesses: []
     best_practices: []

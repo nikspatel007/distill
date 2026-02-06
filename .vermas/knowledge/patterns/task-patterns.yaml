@@ -1,18 +1,19 @@
 patterns:
 - pattern: architecture/*
   insights:
-  - Instead of each parser directly assigning narrative = summary (duplicated logic
-    in claude.py and codex.py), route all parsers through a single enrich_narrative()
-    function. This centralizes quality filtering, fallback chains, and resynthesis
-    logic in one place, reducing code duplication from 13 lines across 2 files to
-    2 lines calling the shared function.
+  - "This task was scoped to exactly one thing: wire an existing formatter into an\
+    \ existing pipeline. At +44 LOC across 3 files and 244 seconds total, it completed\
+    \ cleanly because all components already existed. The task avoided scope creep\
+    \ by not adding new tests, new formatters, or new features \u2014 just the integration\
+    \ glue. Decomposing work into implementation-then-wiring stages enables reliable\
+    \ delivery."
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - architecture
-  - technical
+  - process
   sample_count: 1
 - pattern: git-workflow/*
   insights:
@@ -46,10 +47,11 @@ patterns:
   sample_count: 1
 - pattern: testing/*
   insights:
-  - The dev agent ran the specific test file first (pytest tests/parsers/test_project_derivation.py
-    -x -q) to verify the new tests passed, then confirmed 461 total tests passing.
-    This two-stage verification approach catches test-specific issues quickly while
-    still ensuring no regressions across the full suite.
+  - "The only test change was updating an import statement in test_full_pipeline.py\
+    \ to include generate_weekly_notes. This minimal test touch is appropriate for\
+    \ wiring tasks where the underlying components are already tested \u2014 it ensures\
+    \ the new function is importable and available without duplicating existing unit\
+    \ test coverage of WeeklyDigestFormatter and group_sessions_by_week."
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -134,11 +136,11 @@ patterns:
   sample_count: 1
 - pattern: code-review/*
   insights:
-  - QA's initial needs_revision signal (no code changes present, missing required
-    test) gave the dev agent specific, actionable feedback. The dev responded within
-    3 minutes with targeted test additions. This tight QA-dev feedback loop completed
-    the full workflow in under 7 minutes, demonstrating that early QA review catches
-    missing deliverables before the dev signals completion.
+  - The workflow used a dev agent (Claude) for implementation and a QA agent (Codex)
+    for validation within the same 244-second execution. Both agents co-signed the
+    commit message 'Task completed by dev-qa collaboration'. Having QA integrated
+    into the delivery workflow rather than as a separate post-hoc review step reduces
+    cycle time while maintaining quality gates.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -365,11 +367,11 @@ patterns:
   sample_count: 1
 - pattern: workflow/*
   insights:
-  - This workflow committed directly to main (e499495a) rather than creating a feature
-    branch and merging. Given the project's history of 11 merge-drops-source failures
-    and 0 successful branch merges, the direct-to-main approach reliably delivered
-    code. The commit was clean (+23 LOC, 1 file) and all 461 tests passed, confirming
-    the pattern's effectiveness.
+  - The watcher agent confirmed QA's needs_revision signal was correct ('no implementation
+    yet') and noted dev was actively creating the verification script. This three-agent
+    coordination (dev-qa-watcher) with the watcher providing progress confirmation
+    helped maintain workflow momentum. The full cycle completed in ~5 minutes after
+    the revision request.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -467,12 +469,11 @@ patterns:
   sample_count: 1
 - pattern: process/*
   insights:
-  - 'QA agent reviewed existing code within 25 seconds and issued a needs_revision
-    signal identifying exactly what was wrong: raw passthrough without filtering,
-    no XML detection, tests not updated. This early, specific feedback gave the dev
-    agent a clear implementation checklist. The entire fix was completed in under
-    7 minutes after QA''s signal, demonstrating that precise QA feedback accelerates
-    dev work.'
+  - This workflow committed code directly to main (c29c088c) rather than creating
+    a feature branch and merging. This is the 11th consecutive successful direct-to-main
+    delivery in this project, compared to 0/11 branch merges succeeding. For small,
+    focused wiring tasks especially, direct-to-main eliminates the merge-drops-source
+    failure mode entirely.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
