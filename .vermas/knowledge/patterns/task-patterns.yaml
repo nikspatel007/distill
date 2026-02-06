@@ -1,19 +1,18 @@
 patterns:
 - pattern: architecture/*
   insights:
-  - 'The project detection module uses a two-layer design: detect_project_from_cwd()
-    handles single paths with edge case filtering (home dirs, worktrees, generic names),
-    while detect_project_from_cwds() uses Counter-based frequency analysis for sessions
-    with multiple working directories. This pattern of single-input-pure-function
-    + multi-input-aggregator is reusable for any metadata extraction where sessions
-    may have variable-length inputs.'
+  - The meeting identified that code completed in worktrees is lost when orchestration
+    fails because agents don't commit before signaling completion. An action item
+    was created to consider WIP commits before signaling as a workflow step. This
+    addresses the recurring 'uncommitted-completion' failure mode where work is done
+    but never persisted.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - architecture
-  - technical
+  - process
   sample_count: 1
 - pattern: git-workflow/*
   insights:
@@ -47,11 +46,12 @@ patterns:
   sample_count: 1
 - pattern: testing/*
   insights:
-  - 'Rather than only unit testing with synthetic data, the project_detection measurer
-    samples 60+ actual session files from insights/sessions/ and validates both presence
-    and plausibility of extracted project names. This ''measurer pattern'' serves
-    dual purpose: it''s both a KPI reporting tool and a high-fidelity integration
-    test against real production data, catching issues that synthetic unit tests miss.'
+  - The watcher agent tested the claude parser against 16,522 real session files,
+    revealing that 3,505 were empty (0 bytes) and 449 had content but no messages
+    (summary-only entries). This real-data validation exposed that the 95% KPI target
+    was already met (100% parse success, 0 exceptions) while the raw success-with-messages
+    rate of 76.1% was misleading without understanding data quality. Always distinguish
+    parser correctness from data quality issues when measuring KPIs.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -223,17 +223,19 @@ patterns:
   sample_count: 1
 - pattern: debugging/*
   insights:
-  - QA's initial test run failed because pytest-cov was not installed in the environment.
-    The dev resolved this by adding pytest-cov to pyproject.toml dev dependencies.
-    Workflow environments should validate tool dependencies before execution starts,
-    not discover them during QA review.
+  - When a workflow is marked failed, the first step should be distinguishing orchestration
+    failures (agent spawn, MCP connectivity, signal delivery) from actual code failures.
+    In this workflow, the dev agent discovered that implement-claude-parser was marked
+    failed due to agents never registering (Connection refused errors), but the actual
+    implementation was completed successfully in a worktree. This pattern prevents
+    wasted effort reimplementing working code.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - debugging
-  - technical
+  - process
   sample_count: 1
 - pattern: integration/*
   insights:
@@ -470,11 +472,12 @@ patterns:
   sample_count: 1
 - pattern: process/*
   insights:
-  - The total workflow completed in 442 seconds (~7.4 minutes) including QA review,
-    needs_revision signal, dev revision, and final done signal. The QA review at T+~270s
-    and dev completion at T+~430s shows the revision round added only ~160 seconds.
-    Codex as QA agent provided fast automated review, enabling tight feedback loops
-    that would take much longer with human review.
+  - Two Cycle 3 adaptations (engineer agent guidance and workflow changes) were rolled
+    back after success rate dropped from 55% to 0%. The adaptations added detailed
+    prescriptive instructions about automated measurers, project detection edge cases,
+    CLI decomposition, and measurer-validation gates. The Cycle 2 adaptation with
+    broader guidance (measurement-first, task decomposition) succeeded. This suggests
+    adaptations should be directional rather than prescriptive.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null

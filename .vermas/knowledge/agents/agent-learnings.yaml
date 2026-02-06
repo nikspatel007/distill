@@ -1,15 +1,16 @@
 agents:
   general:
     learnings:
-    - "Dev agent was highly productive \u2014 540 LOC across 8 files with 39 tests\
-      \ in ~8 minutes \u2014 but failed to follow the direct-to-main commit mandate,\
-      \ resulting in code stranded on a branch for the 12th time."
-    - Watcher agent provided a single progress signal at the start but did not detect
-      or flag that the dev's commit went to a branch instead of main, missing its
-      monitoring purpose.
-    - QA agent (Codex) was configured but appears to have had minimal interaction
-      window given the fast dev completion; the workflow concluded before meaningful
-      QA review could occur.
+    - 'The dev agent (collaboration role) effectively ran a debug meeting solo when
+      no other participants joined (broadcast_count: 0), investigating artifacts,
+      identifying root cause, and creating 3 action items within ~2 minutes of investigation.'
+    - The watcher agent (dev role) performed thorough real-data validation by running
+      the parser against 16,522 sessions, correctly distinguishing data quality issues
+      (empty files, summary-only sessions) from parser failures, and providing precise
+      three-tier KPI measurements.
+    - Both agents operated in meeting context with different meeting IDs (mtg-7c15df84
+      for debug, mtg-61ba1b5b for planning), showing the workflow effectively parallelized
+      investigation and execution across concurrent meetings.
     strengths: []
     weaknesses: []
     best_practices: []
