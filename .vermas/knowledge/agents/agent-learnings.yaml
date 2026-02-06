@@ -1,17 +1,15 @@
 agents:
   general:
     learnings:
-    - Dev agent (Claude) delivered 492 LOC implementation in ~6 minutes with proper
-      direct-to-main commit (97e5f081), following the established mandate and avoiding
-      the merge-drops-source failure pattern that has occurred 9+ times previously.
-    - QA agent (Codex) provided genuinely valuable feedback catching real requirement
-      gaps (core.py pipeline wiring, missing formatter sections, coverage calculation
-      logic) rather than stylistic or trivial issues, demonstrating QA adds value
-      beyond verification.
-    - "The early QA review before dev signaled done (08:15:04 vs dev done at 08:18:50)\
-      \ created unnecessary noise but also demonstrated QA's proactive monitoring\
-      \ \u2014 the workflow should gate QA on dev's done signal to eliminate this\
-      \ waste."
+    - "Dev agent successfully responded to QA revision within 8 minutes, implementing\
+      \ 620+ LOC across measurer, formatter, and tests \u2014 demonstrating effective\
+      \ revision response when given specific feedback"
+    - QA agent (codex) provided actionable feedback identifying exactly what was missing
+      (no measurer implementation, missing required sections) rather than vague complaints,
+      enabling targeted fixes
+    - "Watcher agent generated 159 lines of trace data but the workflow still resulted\
+      \ in code on branch rather than main \u2014 the watcher role does not prevent\
+      \ the recurring merge-drops-source failure"
     strengths: []
     weaknesses: []
     best_practices: []

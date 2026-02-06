@@ -1,0 +1,25 @@
+id: adapt-mission-42d76466-c1-session-insights-bootstrap-v2
+date: '2026-02-06T02:41:17.172640'
+type: workflow_change
+target: workflow/session-insights-bootstrap-v2
+change: "The workflow instructions are stuck in construction-phase priorities (build\
+  \ measurers, fix blocking tests). Evidence shows measurers are built and tests are\
+  \ passing (0 failures). The consistent pattern of deferring validation work means\
+  \ the workflow must explicitly front-load running measurers against real data. Additionally,\
+  \ the 100% KPI targets for project_notes and weekly_digests are untested and high-risk\
+  \ \u2014 the workflow should force early stress-testing of these. Finally, the 5\
+  \ pending + 1 in-progress tasks from the previous cycle should be treated as the\
+  \ starting backlog rather than regenerating tasks."
+before_metrics:
+  revision_rate: null
+  avg_duration: null
+  success_rate: 0.35
+  token_usage: null
+after_metrics:
+  revision_rate: null
+  avg_duration: null
+  success_rate: null
+  token_usage: null
+validated: false
+impact: null
+notes: null

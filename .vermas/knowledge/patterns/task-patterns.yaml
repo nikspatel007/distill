@@ -1,12 +1,12 @@
 patterns:
 - pattern: architecture/*
   insights:
-  - Creating derive_project_from_cwd() in a shared project_utils.py module allowed
-    claude.py, codex.py, and vermas.py parsers to all use identical project detection
-    logic, replacing three separate naive Path(cwd).name implementations. This pattern
-    of extracting shared utilities from duplicated parser logic reduces inconsistencies
-    and makes edge case fixes (like home directory rejection) apply uniformly across
-    all parsers.
+  - "The WeeklyDigestFormatter ensures all required sections (What Got Done, Projects\
+    \ Touched, Tools Most Used, Challenges Faced) are always present in output, even\
+    \ when underlying data is empty. It uses a cascading fallback: narratives \u2192\
+    \ summaries \u2192 placeholder text. This design ensures downstream validators\
+    \ (like the KPI measurer) always find expected structure, preventing false negatives\
+    \ in quality measurement."
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -47,12 +47,11 @@ patterns:
   sample_count: 1
 - pattern: testing/*
   insights:
-  - The test_measure_from_output_mixed_validity test creates a directory with both
-    valid and invalid project notes, verifying the measurer scores 50% rather than
-    100%. This pattern catches the specific QA-identified bug where the measurer counted
-    total notes instead of enforcing per-project coverage. Edge case tests (no directory,
-    empty directory, mixed validity) provide higher bug-detection value than happy-path
-    tests alone.
+  - The measurer validates generated weekly digests by checking for required section
+    headings ('## What Got Done', '## Projects Touched', '## Tools Most Used') as
+    string presence checks. This simple approach is effective for ensuring formatter
+    output meets structural requirements. The formatter guarantees all sections appear
+    even with zero data (graceful fallback with italicized 'No X recorded' messages).
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -137,12 +136,11 @@ patterns:
   sample_count: 1
 - pattern: code-review/*
   insights:
-  - QA identified that derive_project_from_cwd() incorrectly returned usernames for
-    home directory paths like /Users/dev and /home/user, contradicting the function's
-    own docstring. The dev fixed this within 3 minutes by adding _is_home_directory()
-    and 3 targeted tests. This pattern shows QA adds genuine value by testing boundary
-    conditions the original developer overlooked, and rapid turnaround is possible
-    when the fix scope is clearly specified.
+  - QA agent (codex) flagged that no weekly_digests measurer implementation or tests
+    existed, and weekly digest output was missing required sections. The dev agent
+    responded within 8 minutes, implementing the full measurer (257 LOC), updating
+    the formatter (76 LOC changes), and adding 291 LOC of tests. QA revision signals
+    with specific gap descriptions enable targeted, fast remediation.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -696,12 +694,12 @@ patterns:
   sample_count: 1
 - pattern: deployment/*
   insights:
-  - Despite successful implementation (496+ LOC), QA approval, and 468 passing tests,
-    the 'Complete task' commit (a08504fa) on main contains only workflow artifacts
-    (signals, session logs, .coverage files) with zero changes to src/ or tests/ directories.
-    The actual source code exists only on the task branch (commits e0489822, fb46d9a0).
-    This is the 10th occurrence of the merge-drops-source pattern, proving the worktree/branch
-    merge workflow systematically fails to get source code onto main.
+  - Despite the workflow signaling 'complete' and 'done', the actual source code (weekly_digests.py,
+    test_weekly_digests.py) exists only on the task branch (b3bf4ab8), not on main.
+    Main received an artifact-only commit (91dac419) containing signals, traces, and
+    insight files but no source changes. This is the 10th occurrence of the merge-drops-source
+    pattern in this project, confirming that worktree-based workflows consistently
+    fail to merge implementation code to main.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
