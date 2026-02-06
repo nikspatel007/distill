@@ -1,16 +1,14 @@
 agents:
   general:
     learnings:
-    - Dev agent completed the full implementation (+262/-18 LOC across 4 files with
-      26 new tests) in approximately 6 minutes after receiving QA feedback, demonstrating
-      efficient focused execution when given clear requirements.
-    - QA agent identified the root cause (raw prompt passthrough without filtering)
-      within 25 seconds of starting review, enabling the needs_revision signal before
-      dev had begun implementation. Early QA involvement prevented wasted effort on
-      wrong approaches.
-    - Watcher agent provided a single progress update confirming all agents were registered
-      and working, then stayed out of the way. Minimal watcher overhead is appropriate
-      for short-duration workflows.
+    - "Dev agent correctly applied Gate 0 thinking \u2014 investigated whether the\
+      \ bug actually existed before writing fix code, discovering the logic was already\
+      \ correct and only tests were needed."
+    - QA agent (codex model) provided fast, specific feedback identifying missing
+      deliverables and a tooling issue (pytest-cov plugin missing), enabling a focused
+      revision cycle.
+    - The 3-minute turnaround between QA needs_revision and dev done signal shows
+      efficient agent responsiveness in the multi-agent workflow.
     strengths: []
     weaknesses: []
     best_practices: []

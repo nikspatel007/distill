@@ -46,11 +46,10 @@ patterns:
   sample_count: 1
 - pattern: testing/*
   insights:
-  - 'Structure tests as separate classes for each validation layer: TestNeedsResynthesis
-    for the gate, TestXmlDetection for tag detection, TestShortTextDetection for length
-    checks, TestNarrativeResynthesis for regeneration. This isolates failures to specific
-    layers and makes it clear which validation step broke. The workflow added 24 tests
-    organized across 5 classes, achieving comprehensive coverage of all edge cases.'
+  - The dev agent ran the specific test file first (pytest tests/parsers/test_project_derivation.py
+    -x -q) to verify the new tests passed, then confirmed 461 total tests passing.
+    This two-stage verification approach catches test-specific issues quickly while
+    still ensuring no regressions across the full suite.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -135,12 +134,11 @@ patterns:
   sample_count: 1
 - pattern: code-review/*
   insights:
-  - The QA agent (Codex) identified that the initial formatter output used old section
-    names (Overview/Accomplishments) instead of the mission-spec sections (What Got
-    Done/Challenges/etc.) and that no CLI/core path wrote weekly/ outputs. This single
-    needs_revision round with specific, actionable feedback enabled the dev to fix
-    all issues in under 5 minutes. Concrete QA feedback that names exact spec mismatches
-    is more effective than generic 'doesn't match spec' feedback.
+  - QA's initial needs_revision signal (no code changes present, missing required
+    test) gave the dev agent specific, actionable feedback. The dev responded within
+    3 minutes with targeted test additions. This tight QA-dev feedback loop completed
+    the full workflow in under 7 minutes, demonstrating that early QA review catches
+    missing deliverables before the dev signals completion.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -222,19 +220,18 @@ patterns:
   sample_count: 1
 - pattern: debugging/*
   insights:
-  - When a workflow is marked failed, the first step should be distinguishing orchestration
-    failures (agent spawn, MCP connectivity, signal delivery) from actual code failures.
-    In this workflow, the dev agent discovered that implement-claude-parser was marked
-    failed due to agents never registering (Connection refused errors), but the actual
-    implementation was completed successfully in a worktree. This pattern prevents
-    wasted effort reimplementing working code.
+  - The dev agent investigated the existing implementation before writing a fix and
+    discovered the logic was already correct (Path(cwd).name). Instead of blindly
+    rewriting code, the agent confirmed the task only needed test coverage for specific
+    real-world paths. This saved time and avoided introducing regressions from unnecessary
+    code changes.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - debugging
-  - process
+  - technical
   sample_count: 1
 - pattern: integration/*
   insights:
@@ -368,11 +365,11 @@ patterns:
   sample_count: 1
 - pattern: workflow/*
   insights:
-  - The workflow produced real source changes (+17 lines project.py, +132 lines test_project.py)
-    on the worktree branch (c0f916c4), but the main branch commit (e1c5b4f0) contains
-    only workflow artifacts and insight files (0 src/ or tests/ changes). This continues
-    the merge-drops-source pattern (now 12th occurrence). The direct-to-main mandate
-    exists but wasn't enforced by this workflow's merge mechanism.
+  - This workflow committed directly to main (e499495a) rather than creating a feature
+    branch and merging. Given the project's history of 11 merge-drops-source failures
+    and 0 successful branch merges, the direct-to-main approach reliably delivered
+    code. The commit was clean (+23 LOC, 1 file) and all 461 tests passed, confirming
+    the pattern's effectiveness.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
