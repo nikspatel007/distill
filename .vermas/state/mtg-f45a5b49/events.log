@@ -1,0 +1,1 @@
+{"type": "signal", "timestamp": "2026-02-06T16:46:51.310366", "signal_id": "3005a65c", "workflow_id": "mtg-f45a5b49", "agent_id": "a322200e", "role": "dev", "signal": "progress", "message": "Planning complete. 5 action items created. Starting execution with Task 0: Fix editable install + register 3 measurers.", "metadata": null, "created_at": "2026-02-06T16:46:51.310366"}

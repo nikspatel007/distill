@@ -1,148 +1,72 @@
-# Mission: Project-Based Narrative Insights
+# Mission: Fix Remaining Session-Insights Quality Issues
 
-The session-insights tool generates raw session notes (13k+ files). These are data dumps - useful for search but not human-readable narratives. Transform them into meaningful project-based insights that tell the story of what was built.
+Previous mission completed 5 cycles and implemented the core features. However, several quality issues remain that prevent the tool from producing genuinely useful output.
 
 ## Current State
 
-Raw session notes contain:
-- Session ID, timestamp, duration
-- Tools used (Bash: 54, Read: 27, Edit: 13...)
-- Outcomes (Modified 15 files, Ran 54 commands)
-- Auto-tags (#debugging, #feature, #testing)
-- Summary (first user prompt, often cryptic)
+The tool runs (`uv run python -m session_insights analyze --dir <project> --global --output insights/`) and produces:
+- 11,714 sessions parsed
+- 1,912 project notes in `projects/`
+- Daily summaries in `daily/`
+- Session notes in `sessions/`
+- 459 tests passing
 
-Missing:
-- **Project context** - which repo/project was this session working on?
-- **Narrative summary** - what was actually accomplished in human terms?
-- **Cross-session story** - how do multiple sessions connect into a coherent project history?
-- **Key decisions** - what architectural choices were made and why?
+## Remaining Issues (Must Fix)
 
-## Target Output
+### 1. Project Names Are Numeric IDs
+Project notes have names like `project-11.md`, `project-103.md` instead of real project names like `project-vermas.md`, `project-session-insights.md`. The project detection extracts numeric IDs instead of the actual directory name from `cwd`.
 
-### 1. Project Notes (new)
+**Fix**: Parse the cwd path to extract the last meaningful directory component as the project name. For example:
+- `/Users/nikpatel/Documents/GitHub/vermas` → `vermas`
+- `/Users/nikpatel/Documents/GitHub/vermas-experiments/session-insights` → `session-insights`
 
-One note per project (detected from `cwd` in session metadata):
+### 2. Session Summaries Show Raw Prompts
+Many session notes show the raw first user prompt as the summary (e.g., `<command-message>init</command-message>` or `analyze home`). The narrative field should contain a human-readable description of what was accomplished.
 
-```markdown
-# Project: vermas
+**Fix**: Generate narratives from session data - tools used, outcomes, tags, duration. Skip raw prompts. Example: "45-minute session in vermas using Bash, Read, Edit. Modified 15 files across the workflow engine."
 
-## Overview
-Multi-agent task orchestration system with Temporal workflows.
+### 3. Weekly Digests Not Generated
+The `weekly/` folder is not created when running the analyze command. The weekly digest formatter may exist but isn't wired into the CLI pipeline.
 
-## Timeline
-- **Started:** 2026-01-06
-- **Sessions:** 847
-- **Total Time:** 142 hours
+**Fix**: Wire the weekly digest formatter into the analyze pipeline in `core.py` / `cli.py`. Ensure `weekly/` folder is created with one file per ISO week.
 
-## Major Milestones
-- Jan 6-10: Initial Temporal workflow setup
-- Jan 15-18: Agent router HTTP API
-- Jan 20-25: Meeting system for collaborative reviews
-- Jan 28-Feb 5: Mission workflow with KPI evaluation
+### 4. Two Failing Tests
+`tests/parsers/test_project_derivation.py::TestClaudeProjectDerivation::test_narrative_populated` and the Codex variant are failing.
 
-## Key Decisions
-- Chose Temporal over Celery for workflow orchestration
-- PostgreSQL for event sourcing instead of Redis
-- tmux-based agent isolation
+**Fix**: Fix the narrative population logic so these tests pass.
 
-## Related Sessions
-- [[session-2026-01-06-0101-521eaf47]]: PR merge and workflow setup
-- [[session-2026-01-15-1421-abc123]]: Agent router implementation
-...
-```
+### 5. Coverage Dropped to 88%
+New code was added without sufficient test coverage, dropping from 94% to 88%.
 
-### 2. Weekly Digest (new)
-
-Human-readable weekly summary:
-
-```markdown
-# Week of 2026-01-27
-
-## What Got Done
-- Implemented meeting trigger system for post-workflow reviews
-- Fixed timezone bugs in session-insights parser
-- Added cleanup trigger for tmux/worktree resources
-
-## Challenges Faced
-- Agent command execution timing issues (needed Enter key nudges)
-- Signal ordering bugs in state machine
-
-## Tools Most Used
-Bash (2,340), Read (890), Edit (456)
-
-## Projects Touched
-- vermas (78 sessions)
-- session-insights (23 sessions)
-```
-
-### 3. Enhanced Session Notes (improve existing)
-
-Add project detection and narrative summary:
-
-```markdown
----
-project: vermas  # NEW - detected from cwd
-narrative: "Fixed the cleanup trigger to remove orphaned tmux sessions after workflow completion"  # NEW
----
-```
-
-## Implementation Approach
-
-### Phase 1: Project Detection
-- Parse `cwd` from session metadata to identify project
-- Group sessions by project
-- Extract project name from path (last directory component)
-
-### Phase 2: Narrative Generation
-- Use session summary + outcomes + tools to generate human-readable narrative
-- For VerMAS sessions: use task_name + signals + outcome
-- Keep it concise (1-2 sentences)
-
-### Phase 3: Project Aggregation
-- Create `projects/` folder with one note per project
-- Aggregate sessions, calculate totals
-- Extract milestones from session dates + summaries
-- Link back to individual sessions
-
-### Phase 4: Weekly Digests
-- Create `weekly/` folder
-- Group sessions by ISO week
-- Summarize accomplishments, challenges, tools
-
-## Key Files to Modify
-
-| File | Change |
-|------|--------|
-| `parsers/claude.py` | Extract `cwd` from session metadata |
-| `parsers/models.py` | Add `project` and `narrative` fields to BaseSession |
-| `formatters/obsidian.py` | Add project field to frontmatter |
-| `formatters/project.py` | **Create** - Project note formatter |
-| `formatters/weekly.py` | **Create** - Weekly digest formatter |
-| `cli.py` | Add project and weekly generation to analyze command |
-| `core.py` | Add project grouping and aggregation logic |
+**Fix**: Add tests for uncovered code paths, especially in new measurers and formatters. Target 90%+.
 
 ## Success Criteria
 
 | KPI | Target | Measurement |
 |-----|--------|-------------|
-| Project Detection | 95% | Sessions with non-empty `project` field |
-| Narrative Quality | 80% | Sessions with narrative != summary (improved) |
-| Project Notes | 100% | Every detected project has a note |
-| Weekly Digests | 100% | Every week with sessions has a digest |
-| Tests Pass | 90%+ | `uv run pytest tests/ --cov-fail-under=90` |
+| Project Names | 95% | Projects have real names (not numeric IDs) when `cwd` is available |
+| Narrative Quality | 80% | Sessions have narratives that are NOT raw prompts (> 10 words, no XML tags) |
+| Weekly Digests | 100% | `weekly/` folder exists with files after running analyze |
+| Tests Pass | 100% | All tests pass (`uv run pytest tests/ -q`) |
+| Coverage | 90%+ | `uv run pytest tests/ --cov=session_insights --cov-fail-under=90` |
+
+## Key Files
+
+| File | Issue |
+|------|-------|
+| `parsers/claude.py` | Project detection from cwd - fix to return directory name not numeric ID |
+| `parsers/codex.py` | Same project detection fix |
+| `parsers/vermas.py` | Same project detection fix |
+| `parsers/models.py` | `project` field derivation logic |
+| `formatters/obsidian.py` | May need to use improved project name |
+| `core.py` | Wire weekly digest generation into pipeline |
+| `cli.py` | Ensure weekly output path is passed through |
+| `tests/parsers/test_project_derivation.py` | Fix 2 failing tests |
 
 ## Constraints
 
-- Don't break existing session note format (additive changes only)
-- No external API calls (offline-only analysis)
-- Python 3.11+, minimal dependencies
+- Don't break existing session note format
+- No external API calls
+- Python 3.11+
 - Obsidian-compatible markdown
-
-## Definition of Done
-
-- [ ] Sessions have `project` field in frontmatter
-- [ ] Sessions have `narrative` field (improved summary)
-- [ ] `projects/` folder with aggregated project notes
-- [ ] `weekly/` folder with digest notes
-- [ ] All tests pass with 90%+ coverage
-- [ ] Run on real data, output is genuinely useful for humans
+- All changes must have tests
