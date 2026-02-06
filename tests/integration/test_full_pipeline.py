@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from session_insights.core import analyze, discover_sessions, parse_session_file
+from session_insights.core import analyze, discover_sessions, generate_weekly_notes, parse_session_file
 from session_insights.formatters.obsidian import ObsidianFormatter
 from session_insights.parsers.claude import ClaudeParser
 from session_insights.parsers.models import BaseSession

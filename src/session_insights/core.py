@@ -11,6 +11,10 @@ from session_insights.formatters.project import (
     ProjectFormatter,
     group_sessions_by_project,
 )
+from session_insights.formatters.weekly import (
+    WeeklyDigestFormatter,
+    group_sessions_by_week,
+)
 from session_insights.parsers import ClaudeParser, CodexParser, VermasParser
 from session_insights.parsers.models import BaseSession
 
@@ -234,6 +238,39 @@ def generate_project_notes(
         note_name = formatter.note_name(project_name)
         note_path = projects_dir / f"{note_name}.md"
         note_path.write_text(note_content, encoding="utf-8")
+        written.append(note_path)
+
+    return written
+
+
+def generate_weekly_notes(
+    sessions: list[BaseSession],
+    output_dir: Path,
+) -> list[Path]:
+    """Generate per-week digest notes from analyzed sessions.
+
+    Groups sessions by ISO week, generates a markdown digest for each
+    week, and writes them to output_dir/weekly/.
+
+    Args:
+        sessions: All parsed sessions.
+        output_dir: Root output directory. Notes go in output_dir/weekly/.
+
+    Returns:
+        List of written weekly digest file paths.
+    """
+    weekly_dir = output_dir / "weekly"
+    weekly_dir.mkdir(parents=True, exist_ok=True)
+
+    groups = group_sessions_by_week(sessions)
+    formatter = WeeklyDigestFormatter()
+    written: list[Path] = []
+
+    for (iso_year, iso_week), week_sessions in groups.items():
+        content = formatter.format_weekly_digest(iso_year, iso_week, week_sessions)
+        name = formatter.note_name(iso_year, iso_week)
+        note_path = weekly_dir / f"{name}.md"
+        note_path.write_text(content, encoding="utf-8")
         written.append(note_path)
 
     return written

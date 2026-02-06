@@ -17,6 +17,7 @@ from session_insights.core import (
     compute_richness_score,
     discover_sessions,
     generate_project_notes,
+    generate_weekly_notes,
     parse_session_file,
 )
 from session_insights.formatters.obsidian import ObsidianFormatter
@@ -472,6 +473,10 @@ def analyze_cmd(
     project_note_files = generate_project_notes(all_sessions, output)
     project_count = len(project_note_files)
 
+    # Write weekly digest notes via core pipeline
+    weekly_note_files = generate_weekly_notes(all_sessions, output)
+    weekly_count = len(weekly_note_files)
+
     # Write index.md linking all sessions
     index_content = _generate_index(all_sessions, daily_sessions, result)
     index_path = output / "index.md"
@@ -482,6 +487,7 @@ def analyze_cmd(
     console.print("[bold green]Analysis complete![/bold green]")
     console.print(f"  Sessions: {written_count}")
     console.print(f"  Daily summaries: {len(daily_sessions)}")
+    console.print(f"  Weekly digests: {weekly_count}")
     console.print(f"  Project notes: {project_count}")
     console.print(f"  Output: {output}")
 
