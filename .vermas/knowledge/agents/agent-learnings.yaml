@@ -1,15 +1,17 @@
 agents:
   general:
     learnings:
-    - Dev agent completed implementation in ~6 minutes (07:59 to 08:06) including
-      5 new/modified source files and 25 tests, showing efficient execution of well-scoped
-      tasks.
-    - "QA agent provided actionable, specific feedback \u2014 identifying the exact\
-      \ function, the contradicting docstring, and requesting 3 specific test cases\
-      \ \u2014 enabling a 3-minute fix turnaround rather than vague revision requests."
-    - "The dev-QA signal-based interaction completed the full cycle (initial review\
-      \ \u2192 revision \u2192 re-review \u2192 approval) in under 15 minutes with\
-      \ 2 revision rounds, demonstrating efficient async coordination."
+    - Dev agent (Claude) delivered 492 LOC implementation in ~6 minutes with proper
+      direct-to-main commit (97e5f081), following the established mandate and avoiding
+      the merge-drops-source failure pattern that has occurred 9+ times previously.
+    - QA agent (Codex) provided genuinely valuable feedback catching real requirement
+      gaps (core.py pipeline wiring, missing formatter sections, coverage calculation
+      logic) rather than stylistic or trivial issues, demonstrating QA adds value
+      beyond verification.
+    - "The early QA review before dev signaled done (08:15:04 vs dev done at 08:18:50)\
+      \ created unnecessary noise but also demonstrated QA's proactive monitoring\
+      \ \u2014 the workflow should gate QA on dev's done signal to eliminate this\
+      \ waste."
     strengths: []
     weaknesses: []
     best_practices: []

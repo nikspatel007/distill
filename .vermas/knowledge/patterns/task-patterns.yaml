@@ -47,12 +47,12 @@ patterns:
   sample_count: 1
 - pattern: testing/*
   insights:
-  - 'The project_utils.py test suite demonstrates a thorough approach to path-based
-    functionality testing: known parent directories (github, projects, repos), case
-    insensitivity, trailing slashes, nested paths, and invalid paths (root, home dirs,
-    system dirs like /tmp, /var). Testing 18 distinct path patterns caught the home
-    directory bug before release. This pattern of exhaustive path normalization testing
-    should be applied to any filesystem-path-dependent logic.'
+  - The test_measure_from_output_mixed_validity test creates a directory with both
+    valid and invalid project notes, verifying the measurer scores 50% rather than
+    100%. This pattern catches the specific QA-identified bug where the measurer counted
+    total notes instead of enforcing per-project coverage. Edge case tests (no directory,
+    empty directory, mixed validity) provide higher bug-detection value than happy-path
+    tests alone.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -342,13 +342,13 @@ patterns:
   sample_count: 1
 - pattern: workflow-coordination/*
   insights:
-  - "QA agent reviewed the base commit state before dev had finished implementing,\
-    \ correctly finding no source changes and signaling needs_revision. The watcher\
-    \ correctly identified this as normal (dev still working). However, this early\
-    \ needs_revision signal is noise \u2014 the workflow should gate QA review on\
-    \ dev's done signal rather than allowing QA to review intermediate states."
+  - "QA agent reviewed the worktree before dev had started implementing (signal 6a92353d\
+    \ at 08:15:04), correctly finding 'No implementation found' and signaling needs_revision.\
+    \ Dev then implemented and committed by 08:18:50. This early QA review is technically\
+    \ correct but wasteful \u2014 gating QA review on dev's 'done' signal would eliminate\
+    \ the noisy first revision cycle and reduce wall-clock time."
   revision_rate: null
-  success_rate: 0.0
+  success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
@@ -504,10 +504,12 @@ patterns:
   sample_count: 1
 - pattern: qa-feedback/*
   insights:
-  - 'QA provided specific, actionable feedback in each needs_revision signal: exact
-    file paths, exact issue (ruff F401), and exact requirement reference. This specificity
-    enabled dev to address issues in under 2 minutes per cycle rather than requiring
-    clarification rounds.'
+  - "QA agent (Codex) provided two rounds of actionable feedback citing exact missing\
+    \ requirements: core.py pipeline wiring, formatter sections (Major Milestones,\
+    \ Key Decisions, Related Sessions), and per-project coverage enforcement. This\
+    \ specificity enabled dev to address all issues without clarification rounds.\
+    \ The full cycle (initial review \u2192 revision \u2192 re-review \u2192 revision\
+    \ \u2192 approval) completed in under 15 minutes."
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -518,10 +520,12 @@ patterns:
   sample_count: 1
 - pattern: workflow-efficiency/*
   insights:
-  - The 636-second total duration included initial implementation plus two QA feedback
-    cycles. Signal-based communication (done, needs_revision, done, needs_revision,
-    done, approved, complete) kept context clear and transitions fast without synchronous
-    meetings.
+  - The dev-QA interaction used workflow signals (done, needs_revision, done, needs_revision,
+    done, approved) without synchronous meetings, completing the full implementation-review-revision
+    cycle in 669 seconds. The signal messages contained enough context (commit hashes,
+    specific issues, file paths) to eliminate the need for back-and-forth clarification.
+    This async pattern is more efficient than meeting-based coordination for well-defined
+    tasks.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -723,12 +727,12 @@ patterns:
   sample_count: 1
 - pattern: implementation/*
   insights:
-  - The dev agent produced a well-structured analyze subcommand with compute_richness_score(),
-    compute_field_coverage(), --stats-only flag for JSON output, and comprehensive
-    tests (+327 LOC tests across 3 files). The implementation follows established
-    patterns (Typer + Rich) and properly handles edge cases (UTC normalization, file
-    vs directory input, unparseable sessions). This quality of work is wasted when
-    it doesn't reach main.
+  - 'The task had clear acceptance criteria: create a ProjectNotesMeasurer class,
+    generate per-project Obsidian notes with specific sections, wire into the analyze
+    pipeline, and add tests. Dev delivered 492 LOC across 5 files (measurer, formatter,
+    CLI wiring, 2 init exports) plus 172 LOC tests in approximately 6 minutes. Atomic
+    task scoping with explicit section requirements (timeline, milestones, key decisions,
+    related sessions) removes ambiguity and accelerates implementation.'
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
