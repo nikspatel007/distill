@@ -1,19 +1,18 @@
 patterns:
 - pattern: architecture/*
   insights:
-  - "The WeeklyDigestFormatter ensures all required sections (What Got Done, Projects\
-    \ Touched, Tools Most Used, Challenges Faced) are always present in output, even\
-    \ when underlying data is empty. It uses a cascading fallback: narratives \u2192\
-    \ summaries \u2192 placeholder text. This design ensures downstream validators\
-    \ (like the KPI measurer) always find expected structure, preventing false negatives\
-    \ in quality measurement."
+  - 'While the task''s code deliverables were lost, the workflow did produce a genuine
+    process improvement: updating the workflow YAML to shift priorities from ''build
+    measurers'' to ''validate against real data''. The improvement file (adapt-mission-42d76466-c1)
+    correctly diagnosed that 35% KPI despite 57/57 task completion indicates a validation
+    gap. This meta-level adaptation was the only durable output on main.'
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - architecture
-  - technical
+  - process
   sample_count: 1
 - pattern: git-workflow/*
   insights:
@@ -47,11 +46,12 @@ patterns:
   sample_count: 1
 - pattern: testing/*
   insights:
-  - The measurer validates generated weekly digests by checking for required section
-    headings ('## What Got Done', '## Projects Touched', '## Tools Most Used') as
-    string presence checks. This simple approach is effective for ensuring formatter
-    output meets structural requirements. The formatter guarantees all sections appear
-    even with zero data (graceful fallback with italicized 'No X recorded' messages).
+  - "The pre-signal-check.sh script has 4 validation steps but none verify that the\
+    \ target branch (main) actually received source code changes from the task branch.\
+    \ A simple check like 'git diff HEAD~1..HEAD --stat -- src/ tests/ | grep -q .'\
+    \ after the merge commit would catch artifact-only merges before signaling done.\
+    \ This is the root cause of 12 repeated failures \u2014 the gate exists but validates\
+    \ the wrong thing."
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -136,11 +136,12 @@ patterns:
   sample_count: 1
 - pattern: code-review/*
   insights:
-  - QA agent (codex) flagged that no weekly_digests measurer implementation or tests
-    existed, and weekly digest output was missing required sections. The dev agent
-    responded within 8 minutes, implementing the full measurer (257 LOC), updating
-    the formatter (76 LOC changes), and adding 291 LOC of tests. QA revision signals
-    with specific gap descriptions enable targeted, fast remediation.
+  - The QA agent correctly identified the failure at 08:50:57 UTC, signaling 'needs_revision'
+    with message 'No code or test changes on this branch (diff vs main is empty).
+    Requirements cannot be verified; nothing to QA.' Despite this explicit rejection,
+    the workflow still completed with status 'success' and committed artifact-only
+    changes to main. The QA gate exists but its rejection signal does not block the
+    completion pathway.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -222,13 +223,12 @@ patterns:
   sample_count: 1
 - pattern: debugging/*
   insights:
-  - "For the 8th consecutive time, the merge from task branch to main dropped all\
-    \ src/ and tests/ changes, producing an artifact-only commit (c41a3a3) containing\
-    \ only .vermas/ state files, .coverage, and .worktrees/ entries. The branch (5590645)\
-    \ retains the +849 LOC. The root cause appears to be in the automated merge/commit\
-    \ process that constructs the main commit \u2014 it selectively stages .vermas/\
-    \ artifacts but not source code. This is now the project's #1 systemic issue with\
-    \ ~2,041 LOC stranded across 4 branches."
+  - 'The 9-minute workflow consumed 3 agent sessions (dev, QA, watcher) and produced
+    578KB of trace data, 25+ artifact files, but 0 lines of source code on main. The
+    actual code (200 LOC: weekly formatter redesign, parser fallback, test updates)
+    exists on branch e7659080 and is recoverable via selective checkout. The ratio
+    of workflow overhead to useful output indicates the orchestration layer is the
+    bottleneck, not the dev capability.'
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -694,12 +694,13 @@ patterns:
   sample_count: 1
 - pattern: deployment/*
   insights:
-  - Despite the workflow signaling 'complete' and 'done', the actual source code (weekly_digests.py,
-    test_weekly_digests.py) exists only on the task branch (b3bf4ab8), not on main.
-    Main received an artifact-only commit (91dac419) containing signals, traces, and
-    insight files but no source changes. This is the 10th occurrence of the merge-drops-source
-    pattern in this project, confirming that worktree-based workflows consistently
-    fail to merge implementation code to main.
+  - "This is the 12th occurrence of a pattern where code committed to a task branch\
+    \ (e7659080: +72 insertions across 4 src/test files) is not included when the\
+    \ 'Complete task' commit lands on main. The main commit (a3e2ac48) contains only\
+    \ workflow metadata, insights, and .vermas artifacts \u2014 zero src/ or tests/\
+    \ changes. Direct-to-main commits have a 10/10 success rate while branch merges\
+    \ have 0/12. Any workflow using branch-based development in this project must\
+    \ validate that src/ diffs exist on main after merge."
   revision_rate: null
   success_rate: 1.0
   avg_duration: null

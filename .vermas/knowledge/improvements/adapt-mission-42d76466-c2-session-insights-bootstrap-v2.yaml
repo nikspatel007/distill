@@ -1,0 +1,25 @@
+id: adapt-mission-42d76466-c2-session-insights-bootstrap-v2
+date: '2026-02-06T03:05:07.017441'
+type: workflow_change
+target: workflow/session-insights-bootstrap-v2
+change: 'The engineering state instructions are truncated and lack critical guidance
+  identified across multiple cycles: (1) agents must run automated KPI measurers before
+  and after work to provide measured data instead of estimates, (2) tests_pass must
+  be prioritized as the first KPI target, (3) tasks must be decomposed into KPI-specific
+  subtasks rather than monolithic remediation blocks. The reviewing state needs explicit
+  instructions to verify measured KPI data is included in cycle reports. Adding a
+  circuit-breaker timeout that escalates after 2 more cycles without reaching 60%
+  KPI progress, per the learning from cycle-4-7.'
+before_metrics:
+  revision_rate: null
+  avg_duration: null
+  success_rate: 0.4
+  token_usage: null
+after_metrics:
+  revision_rate: null
+  avg_duration: null
+  success_rate: null
+  token_usage: null
+validated: false
+impact: null
+notes: null

@@ -18,8 +18,8 @@ before_metrics:
 after_metrics:
   revision_rate: null
   avg_duration: null
-  success_rate: null
+  success_rate: 0.38
   token_usage: null
-validated: false
-impact: null
+validated: true
+impact: "positive: 35% \u2192 38%"
 notes: null

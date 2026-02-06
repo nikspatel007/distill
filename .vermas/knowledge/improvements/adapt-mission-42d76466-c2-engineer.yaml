@@ -1,0 +1,23 @@
+id: adapt-mission-42d76466-c2-engineer
+date: '2026-02-06T03:05:07.018618'
+type: other
+target: agent/engineer
+change: 'The engineer agent definition is too generic - it mentions TDD and clean
+  code but provides no guidance on KPI-targeted work, measurement-first approaches,
+  or the specific failure patterns observed (CLI skeleton blocking, monolithic tasks,
+  estimation instead of measurement). Adding explicit measurement workflow and task
+  decomposition guidance directly addresses the top failure modes: (1) building without
+  validating, (2) working on too-broad tasks, (3) reporting estimates instead of measurements.'
+before_metrics:
+  revision_rate: null
+  avg_duration: null
+  success_rate: 0.4
+  token_usage: null
+after_metrics:
+  revision_rate: null
+  avg_duration: null
+  success_rate: null
+  token_usage: null
+validated: false
+impact: null
+notes: null

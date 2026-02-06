@@ -1,15 +1,18 @@
 agents:
   general:
     learnings:
-    - "Dev agent successfully responded to QA revision within 8 minutes, implementing\
-      \ 620+ LOC across measurer, formatter, and tests \u2014 demonstrating effective\
-      \ revision response when given specific feedback"
-    - QA agent (codex) provided actionable feedback identifying exactly what was missing
-      (no measurer implementation, missing required sections) rather than vague complaints,
-      enabling targeted fixes
-    - "Watcher agent generated 159 lines of trace data but the workflow still resulted\
-      \ in code on branch rather than main \u2014 the watcher role does not prevent\
-      \ the recurring merge-drops-source failure"
+    - "The dev agent successfully wrote meaningful code (200 LOC across 4 files: weekly\
+      \ formatter sections, parser project-name fallback, updated tests) but failed\
+      \ at the merge-to-main step \u2014 the same failure mode seen in 11 prior cycles.\
+      \ The coding capability is not the issue; the git workflow is."
+    - "The QA agent performed correctly: it detected 'no code or test changes on this\
+      \ branch' and issued a needs_revision signal at 08:50:57. However, the signal\
+      \ was not actionable \u2014 the workflow completed anyway with artifact-only\
+      \ commit a3e2ac48, indicating the QA gate is advisory, not blocking."
+    - The watcher agent produced a 354KB trace (larger than the dev agent's 224KB
+      trace) but did not intervene to prevent the artifact-only merge. A watcher that
+      validates 'git diff HEAD~1..HEAD -- src/ tests/' before allowing completion
+      would have caught this.
     strengths: []
     weaknesses: []
     best_practices: []

@@ -13,39 +13,75 @@ states:
 
       PHASE AWARENESS - YOU ARE IN VALIDATION MODE:
       The construction phase is complete. Measurers and pipelines exist but have
-      NOT been validated against real data. Your priorities reflect this phase.
+      NOT been fully validated against real data. Your priorities reflect this phase.
 
-      PRIORITY ZERO - RUN MEASURERS AGAINST REAL DATA:
-      Before building anything new, run ALL existing KPI measurers against real
-      session data and capture actual values. If a measurer fails on real data,
-      fix it. If it produces unexpected results, investigate and document why.
-      You cannot improve what you haven't validated. Do not proceed to new
-      feature work until measurers produce trustworthy numbers on real inputs.
+      MANDATORY FIRST STEP - MEASURE BEFORE BUILDING:
+      Before writing ANY new code, run the existing KPI measurers against real data:
+        uv run pytest tests/ -x -q
+        uv run python -m session_insights analyze --dir . --global
+      Capture and record the ACTUAL measured values for each KPI.
+      If a measurer fails on real data, fixing it IS your task.
+      Do NOT proceed to new features until measurers produce real numbers.
 
-      PRIORITY ONE - STRESS-TEST HIGH-RISK KPIs:
-      project_notes (target 100%) and weekly_digests (target 100%) have NEVER
-      been validated against real data. These aggressive targets are the highest
-      risk of stalling the mission. Run them first, identify failure modes early,
-      and document any gaps between actual and target values.
+      KPI PRIORITY ORDER:
+      1. tests_pass - Run the full test suite. Fix failures. This validates everything else.
+      2. project_detection - Run detection against known projects, measure accuracy.
+      3. Remaining KPIs - Only after 1 and 2 are green.
 
-      PRIORITY TWO - CLOSE THE FEEDBACK LOOP:
-      Exercise the full pipeline end-to-end: generate -> measure -> report.
-      Integration-level validation matters more than unit tests at this stage.
-      For narrative_quality (target 80%), ensure the measurer produces actionable
-      feedback with explicit rubric criteria. For project_detection (target 95%),
-      benchmark against a labeled test dataset of known projects.
+      TASK DECOMPOSITION REQUIREMENT:
+      Do NOT work on monolithic "fix everything" tasks. Each task must target
+      exactly ONE KPI with a clear acceptance criterion, e.g.:
+        - "Make tests_pass reach 100% by fixing test_cli_skeleton"
+        - "Improve project_detection accuracy to 70% on sample data"
+      If your assigned task is too broad, decompose it before starting.
 
-      PRIORITY THREE - FIX BLOCKING TEST FAILURES:
-      Run `uv run pytest tests/ -x -q`. If there are failing tests, fix them
-      before starting new feature work. A passing test suite is the foundation.
+      MANDATORY LAST STEP - MEASURE AFTER BUILDING:
+      After completing work, re-run all measurers and include a MEASURED DATA
+      section in your done signal with before/after values for each KPI.
+      Format: KPI_NAME: before_value -> after_value (measured, not estimated)
 
-      BACKLOG AWARENESS:
-      There are carry-over tasks from the previous cycle (5 pending + 1 in-progress).
-      Prioritize completing these before generating new tasks. Do not duplicate
-      work that was already started.
+      Signal "done" only when:
+      - All tests pass (uv run pytest tests/ -x -q)
+      - You have measured KPI values (not estimates) to report
+    on_signal:
+      done:
+        from: engineer
+        next: reviewing
+    timeout:
+      duration: 30m
+      action: nudge
+  reviewing:
+    instructions: |
+      Review the implementation for correctness and KPI impact.
 
-      FAILURE RATE EXPECTATION:
-      Integration and measurement tasks have a higher failure rate than construction
-      tasks. If a validation task fails, investigate the root cause thoroughly
-      before retrying. Do not enter a retry loop — if a task fails twice with the
-      same error, flag it for decomposition or scope reduction.
+      MANDATORY VERIFICATION:
+      1. Run the full test suite: uv run pytest tests/ -x -q --cov=session_insights
+      2. Verify the engineer included MEASURED KPI data (not estimates) in their
+         done signal. If they did not, signal needs_revision immediately.
+      3. Verify the claimed KPI improvements by re-running the relevant measurers.
+      4. Check that the task targeted a specific KPI, not a vague remediation.
+
+      REJECT if:
+      - Tests fail
+      - No measured KPI data provided
+      - KPI values are estimates rather than measured outputs
+      - Task was too broad ("fix multiple things") without clear KPI targeting
+
+      Signal "approved" if measured KPI data confirms improvement.
+      Signal "needs_revision" with specific feedback if changes needed.
+
+      Include a git diff summary and measured KPI values in your signal message.
+    on_signal:
+      approved:
+        from: reviewer
+        next: finalize
+      needs_revision:
+        from: reviewer
+        next: engineering
+    timeout:
+      duration: 15m
+      action: nudge
+  finalize:
+    type: terminal
+    on_entry:
+    - action: commit
