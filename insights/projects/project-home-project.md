@@ -1,5 +1,5 @@
 ---
-project: test
+project: home-project
 type: project-note
 total_sessions: 1
 total_duration_minutes: 0.0
@@ -10,7 +10,7 @@ tags:
   - "#project-note"
 created: 2026-02-06T11:59:58
 ---
-# Project: test
+# Project: home-project
 
 ## Overview
 
@@ -21,19 +21,19 @@ created: 2026-02-06T11:59:58
 
 ## Project Narrative
 
-**2026-02-06:** hello
+**2026-02-06:** analyze home
 
 ## Session Timeline
 
 | Date | Time | Duration | Summary | Link |
 |------|------|----------|---------|------|
-| 2026-02-06 | 11:59 | 0 seconds | hello | [[session-2026-02-06-1159-good]] |
+| 2026-02-06 | 11:59 | 0 seconds | analyze home | [[session-2026-02-06-1159-session]] |
 
 ## Major Milestones
 
 ### 2026-W05 (2026-02-06 - 2026-02-06)
 
-- hello
+- analyze home
 
 ## Key Decisions
 
@@ -41,4 +41,4 @@ created: 2026-02-06T11:59:58
 
 ## Related Sessions
 
-- 2026-02-06 11:59: [[session-2026-02-06-1159-good|hello]]
+- 2026-02-06 11:59: [[session-2026-02-06-1159-session|analyze home]]
