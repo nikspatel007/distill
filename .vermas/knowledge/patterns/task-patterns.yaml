@@ -47,14 +47,13 @@ patterns:
   sample_count: 1
 - pattern: testing/*
   insights:
-  - Organizing negative-path tests into 6 clear categories (malformed input, missing
-    resources, permission errors, empty files, edge cases, flag behavior) with specific
-    subcategories produced comprehensive coverage of 39 tests. Each test verified
-    both the correct exit code and absence of Python tracebacks, ensuring the CLI
-    handles all failure modes gracefully. This categorization approach is reusable
-    for any CLI tool's negative-path testing.
+  - Include a reusable _assert_no_traceback(result) helper that scans both stdout
+    and stderr for Python traceback patterns. This is critical for CLI tools where
+    user-facing error messages should never expose raw Python tracebacks. Combine
+    this with subprocess-based E2E tests that capture actual process output, since
+    CliRunner unit tests may swallow tracebacks that real invocations would surface.
   revision_rate: null
-  success_rate: 0.0
+  success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
@@ -371,13 +370,13 @@ patterns:
   sample_count: 1
 - pattern: workflow/*
   insights:
-  - When a dev agent receives a 'needs_revision' signal from QA, the agent must address
-    the feedback and re-attempt. In this workflow, the dev agent died (tmux session
-    ended) after QA rejection, leaving 770 LOC stranded in a worktree with no commit.
-    Workflows should implement a retry mechanism or at minimum auto-commit work-in-progress
-    before agent termination to prevent total loss.
+  - 'After 9 occurrences of branch merges creating artifact-only commits (code on
+    branch lost during merge), the project mandated direct-to-main commits. This workflow
+    followed that mandate: recovery commit 636affe went directly to main, tests were
+    validated, and no code was lost. The 8/8 success rate for direct-to-main vs 0/9
+    for branch merges is now a proven pattern, not a hypothesis.'
   revision_rate: null
-  success_rate: 0.0
+  success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
@@ -415,17 +414,18 @@ patterns:
   sample_count: 1
 - pattern: recovery/*
   insights:
-  - Even when workflow orchestration fails, code written in git worktrees is preserved
-    and can be recovered. The investigation found a complete implementation with passing
-    tests in .worktrees/implement-claude-parser/ that just needed to be committed.
-    Always check worktrees before re-implementing failed tasks.
+  - When code exists in worktrees or branches but was never merged to main, use selective
+    file recovery (git checkout or file copy) rather than reimplementing from scratch.
+    This workflow recovered 716 LOC of tests from an untracked worktree in one commit,
+    avoiding the multi-cycle reimplementation attempts that had previously failed.
+    Recovery preserves battle-tested code that was already written and reviewed.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
   - recovery
-  - technical
+  - process
   sample_count: 1
 - pattern: observability/*
   insights:

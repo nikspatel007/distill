@@ -1,15 +1,15 @@
 agents:
   general:
     learnings:
-    - "Dev agent was highly productive \u2014 created 716 LOC (39 tests across 6 categories)\
-      \ and committed within a few minutes, with comprehensive signal metadata describing\
-      \ all test coverage areas."
-    - QA agent performed thorough verification (reviewed code, ran tests, confirmed
-      requirements coverage) in only 3 minutes, though was initially blocked by missing
-      dev dependencies in its environment.
-    - Watcher agent correctly assessed the workflow as successful despite the eventual
-      DSL-level failure classification, indicating good observational judgment but
-      inability to prevent the tmux session death.
+    - Dev agent successfully executed recovery strategy (worktree file checkout to
+      main) rather than reimplementation, breaking a 5+ cycle failure pattern on this
+      specific task.
+    - QA agent performed rapid independent verification (~30 seconds) by running the
+      specific test file in isolation before checking full suite, demonstrating efficient
+      focused validation.
+    - "The watcher agent correctly finalized the workflow within 25 seconds of QA\
+      \ approval, showing tight coordination between the three-agent pipeline (dev\
+      \ \u2192 qa \u2192 watcher)."
     strengths: []
     weaknesses: []
     best_practices: []
