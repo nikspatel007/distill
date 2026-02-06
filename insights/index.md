@@ -1,6 +1,6 @@
 ---
 type: index
-created: 2026-02-06T00:27:19
+created: 2026-02-06T01:06:06
 total_sessions: 1
 ---
 
@@ -16,4 +16,4 @@ total_sessions: 1
 
 ### [[daily/daily-2026-02-06|2026-02-06]]
 
-- 00:27 - [[sessions/session-2026-02-06-0027-session]]: analyze home
+- 01:06 - [[sessions/session-2026-02-06-0106-session]]: analyze home

@@ -1,13 +1,13 @@
 patterns:
 - pattern: architecture/*
   insights:
-  - New project.py and weekly.py formatters followed the established pattern in formatters/
-    directory (alongside existing obsidian.py and templates.py). Each formatter is
-    self-contained with its own test file. The grouping functions (group_by_project,
-    group_by_week) were added to core.py as utilities. This plugin-style architecture
-    enables clean feature additions.
+  - The dev agent correctly decomposed the task into three independent modules (narrative.py,
+    formatters/project.py, formatters/weekly.py) with CLI integration and parser updates.
+    Each module had corresponding tests (159, 184, 200, 126 LOC respectively). This
+    separation of concerns enabled clean testing and review. The architecture pattern
+    of one formatter per output type with a grouping utility function is reusable.
   revision_rate: null
-  success_rate: 0.0
+  success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
@@ -46,12 +46,13 @@ patterns:
   sample_count: 1
 - pattern: testing/*
   insights:
-  - Dev delivered 35 new tests alongside 894 LOC of implementation, growing the suite
-    from 291 to 430 tests. All tests passed including pre-existing ones, indicating
-    the new features integrated cleanly with existing code. Writing tests alongside
-    implementation (not as a separate task) consistently produces better outcomes.
+  - The dev delivered 50 new tests across 4 test files that all passed alongside the
+    existing 395 tests, demonstrating zero regressions. Test files mirrored source
+    file structure (test_narrative.py, test_project.py, test_weekly.py, test_project_derivation.py).
+    This test-per-module pattern ensures each component is independently verifiable
+    and regression-safe.
   revision_rate: null
-  success_rate: 0.0
+  success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:
@@ -134,11 +135,11 @@ patterns:
   sample_count: 1
 - pattern: code-review/*
   insights:
-  - 'QA approved within 112 seconds of dev signaling done by running targeted pytest
-    commands against the specific commit (9d5584b). Rather than reviewing all code
-    manually, QA verified: (1) commit exists on main, (2) targeted test suite passes,
-    (3) requirements checklist met. This commit-level verification approach enables
-    rapid QA cycles without sacrificing rigor.'
+  - QA approved the implementation by reviewing the dev's branch work and running
+    tests in the worktree, but the workflow signaled 'complete' without verifying
+    that source code actually reached main. A post-merge Gate 2 check (git diff main
+    -- src/ tests/ confirms non-zero additions) would have caught this. The pre-signal-check.sh
+    script needs to verify code presence on main, not just in the working tree.
   revision_rate: null
   success_rate: 1.0
   avg_duration: null
@@ -687,14 +688,13 @@ patterns:
   sample_count: 1
 - pattern: deployment/*
   insights:
-  - This is the 10th occurrence of a workflow where dev agents successfully implement
-    and commit code to a task branch, QA approves it, but the merge/promotion to main
-    only captures workflow artifacts (.vermas/, .worktrees/, insights/) while dropping
-    all src/ and tests/ changes. The DSL workflow's merge step is fundamentally broken.
-    Direct-to-main commits have a 100% success rate (8/8) while branch merges have
-    a 0% success rate (0/10).
+  - All 8 successful code deliveries in this project used direct-to-main commits,
+    while all 10 branch-merge attempts lost source code. The workflow orchestration
+    layer that merges task branches to main has a systematic bug that stages only
+    .vermas/ artifacts and drops src/tests changes. Until the merge process is fixed,
+    all task delivery must commit directly to main.
   revision_rate: null
-  success_rate: 0.0
+  success_rate: 1.0
   avg_duration: null
   recommended_workflow: null
   tags:

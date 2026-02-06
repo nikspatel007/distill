@@ -1,0 +1,28 @@
+id: adapt-mission-ed66aa37-c1-session-insights-bootstrap-v2
+date: '2026-02-06T00:57:52.571380'
+type: workflow_change
+target: workflow/session-insights-bootstrap-v2
+change: "The workflow's engineering state instructions were truncated and lack critical\
+  \ guardrails identified across 5+ cycles of failures. Key changes: (1) Add explicit\
+  \ KPI-awareness \u2014 every task must map to a KPI before implementation begins,\
+  \ addressing the 96% task completion / 35% KPI progress gap. (2) Add a 'build measurers\
+  \ first' priority since 4/5 KPIs have no automated measurers. (3) Add CLI-specific\
+  \ decomposition guidance since CLI was flagged as high-risk in cycle-4-6. (4) Add\
+  \ a circuit-breaker rule: if the engineer cannot make progress after 2 attempts,\
+  \ signal 'blocked' instead of retrying indefinitely (addressing cycles 4-7, 1-2,\
+  \ 1-5 escalation pattern). (5) Add the quick test fix as a first-action priority\
+  \ to unblock tests_pass KPI. (6) Reviewing state now requires the reviewer to verify\
+  \ KPI linkage, not just code quality."
+before_metrics:
+  revision_rate: null
+  avg_duration: null
+  success_rate: 0.35
+  token_usage: null
+after_metrics:
+  revision_rate: null
+  avg_duration: null
+  success_rate: null
+  token_usage: null
+validated: false
+impact: null
+notes: null

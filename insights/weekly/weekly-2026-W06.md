@@ -2,37 +2,29 @@
 type: weekly-digest
 week: 2026-W06
 week_start: 2026-02-02
+week_end: 2026-02-08
 total_sessions: 1
 total_duration_minutes: 0.0
 tags:
-  - "#weekly-digest"
   - "#ai-session"
-created: 2026-02-06T00:27:19
+  - "#weekly-digest"
+created: 2026-02-06T00:49:28
 ---
-# Week of 2026-02-02
+# Weekly Digest: 2026-W06 (2026-02-02 to 2026-02-08)
 
-## What Got Done
+## Overview
 
-- analyze home
-
-## Challenges Faced
-
-_No notable challenges._
-
-## Tools Most Used
-
-_No tools recorded._
-
-## Projects Touched
-
-- (unknown) (1 session)
-
-## Stats
-
-- **Total Sessions:** 1
+- **Sessions:** 1
 - **Total Time:** 0 seconds
-- **Sources:** claude-code (1)
+- **Projects:** 0
+- **Days Active:** 1/7
 
-## Sessions
+## Accomplishments
 
-- Fri 02-06 00:27 - [[sessions/session-2026-02-06-0027-session]]: analyze home
+- **2026-02-06** analyze home This was a brief interaction.
+
+## Daily Breakdown
+
+| Day | Sessions | Duration | Top Activity |
+|-----|----------|----------|-------------|
+| [[daily/daily-2026-02-06|Fri 02/06]] | 1 | 0 seconds | - |

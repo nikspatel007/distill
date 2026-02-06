@@ -1,5 +1,5 @@
 workflow: session-insights-bootstrap-v2
-description: Development workflow for session-insights CLI tool (v2 - with decomposition and guardrails)
+description: Development workflow for session-insights CLI tool (v2 - with decomposition, KPI alignment, and circuit breakers)
 agents:
 - role: engineer
 - role: reviewer
@@ -11,31 +11,61 @@ states:
     instructions: |
       Implement the assigned task for the session-insights CLI tool.
 
-      CRITICAL - TASK DECOMPOSITION RULE:
+      PRIORITY ZERO - KPI MEASURER CHECK:
+      Before ANY coding, check if the KPIs for this mission have automated measurers.
+      If any KPI lacks a measurer, your FIRST task is to build that measurer.
+      You cannot improve what you cannot measure. Do not proceed to feature work
+      until all KPIs are measurable.
+
+      PRIORITY ONE - FIX BLOCKING TEST FAILURES:
+      Run `uv run pytest tests/ -x -q` immediately. If there are failing tests
+      (especially test_verify_agent_setup_emits_agent_failed_on_crash), fix them
+      BEFORE starting any new feature work. A passing test suite is the foundation.
+
+      KPI-FIRST TASK ALIGNMENT:
+      Before writing any code, identify which specific KPI(s) your task advances.
+      If you cannot map your task to at least one KPI, STOP and signal "blocked"
+      with the message: "Task does not map to any mission KPI. Need task reassignment."
+      Do not implement tasks that are orthogonal to mission KPIs.
+
+      TASK DECOMPOSITION RULE:
       If the task description contains more than one distinct feature or component,
       you MUST decompose it before coding. Pick the smallest independently-completable
       subtask and implement ONLY that. Signal "done" for the subtask, not the whole feature.
       A partial, working, tested increment is always better than an incomplete monolith.
 
+      CLI-SPECIFIC DECOMPOSITION (if task involves CLI):
+      CLI tasks are high-risk. Always decompose into three layers:
+      1. Argument parsing (Click decorators, option definitions)
+      2. Dispatch logic (connecting CLI to domain services)
+      3. Business logic (pure functions, testable without CLI)
+      Implement and test each layer independently before integrating.
+
       DIAGNOSTIC-FIRST STRATEGY:
       Before writing any code, spend 5 minutes understanding the current state:
       1. Run `uv run pytest tests/ -x -q` to see what passes now
       2. Read existing source files to understand what's already implemented
-      3. Identify the smallest change that moves KPIs forward
+      3. Check for any TODO comments or incomplete implementations
+      4. Verify the project structure matches expectations
 
-      Follow Python best practices:
+      IMPLEMENTATION STANDARDS:
       - Use Pydantic v2 for models
       - Click for CLI commands
-      - pytest for testing
+      - pytest for testing (90%+ coverage target)
       - Type hints throughout
+      - Keep files under 500 lines
+
+      CIRCUIT BREAKER - DO NOT RETRY INDEFINITELY:
+      If you encounter the same error or blocker twice:
+      1. Document what you tried and what failed
+      2. Signal "blocked" with a detailed description of the blocker
+      3. Do NOT attempt a third retry of the same approach
+      Endless retries waste cycles. Escalation is better than stagnation.
 
       Run tests before signaling done:
       `uv run pytest tests/ -x -q`
 
-      If tests fail, fix them before signaling.
-
       Signal "done" when implementation is complete and tests pass.
-      Signal "blocked" if you encounter infrastructure issues or cannot make progress after 15 minutes.
     on_signal:
       done:
         from: engineer
@@ -48,17 +78,19 @@ states:
       action: nudge
   reviewing:
     instructions: |
-      Review the implementation for correctness and quality.
+      Review the implementation for correctness, quality, AND KPI alignment.
 
-      IMPORTANT - Validate real progress, not just task completion:
-      1. Verify that new code is functional and integrated, not just scaffolding
-      2. Run the full test suite: `uv run pytest tests/ -x -q`
-      3. Confirm tests actually exercise the new code (not just pre-existing tests passing)
+      Verification steps:
+      1. Read all changed files
+      2. Run full test suite: `uv run pytest tests/ -x -q`
+      3. Test CLI manually if applicable
       4. Check for edge cases and error handling
+      5. CRITICAL: Verify the changes advance at least one mission KPI.
+         If the work does not contribute to measurable KPI progress,
+         signal "needs_revision" with guidance on how to align the work.
 
-      Signal "approved" if quality is acceptable AND the change delivers functional value.
-      Signal "needs_revision" with specific, actionable feedback if changes needed.
-      Keep revision feedback to 3 or fewer concrete items to avoid overwhelming the engineer.
+      Signal "approved" if quality is acceptable AND work advances KPIs.
+      Signal "needs_revision" with specific feedback if changes needed.
     on_signal:
       approved:
         from: reviewer
@@ -70,11 +102,14 @@ states:
       duration: 15m
       action: nudge
   blocked:
-    on_entry:
-    - action: log
-      message: Workflow blocked - engineer cannot make progress. Requires human review or scope reduction.
+    instructions: |
+      The engineer has signaled that this task is blocked.
+      This task requires manual intervention or scope adjustment.
+      Review the blocker description and escalate to the mission planner.
     type: terminal
+    on_entry:
+    - action: escalate
   finalize:
+    type: terminal
     on_entry:
     - action: commit
-    type: terminal

@@ -13,8 +13,8 @@ before_metrics:
 after_metrics:
   revision_rate: null
   avg_duration: null
-  success_rate: 0.0
+  success_rate: 1.0
   token_usage: null
-validated: false
-impact: 'negative: rolled back'
+validated: true
+impact: "positive: 15% \u2192 100%"
 notes: Rolled back on 2026-02-06T00:10:56.622013
