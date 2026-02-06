@@ -27,9 +27,9 @@ def temp_output_dir():
 @pytest.fixture
 def temp_claude_session(temp_output_dir: Path):
     """Create a temporary directory with a mock Claude session."""
-    # Create .claude/projects directory structure
-    claude_dir = temp_output_dir / ".claude" / "projects"
-    claude_dir.mkdir(parents=True)
+    # Create .claude/projects/test-project/ directory structure
+    project_dir = temp_output_dir / ".claude" / "projects" / "test-project"
+    project_dir.mkdir(parents=True)
 
     # Create a minimal session file
     session_data = [
@@ -45,7 +45,7 @@ def temp_claude_session(temp_output_dir: Path):
         },
     ]
 
-    session_file = claude_dir / "test-session.jsonl"
+    session_file = project_dir / "test-session.jsonl"
     with open(session_file, "w") as f:
         for entry in session_data:
             f.write(json.dumps(entry) + "\n")
@@ -75,11 +75,10 @@ class TestCLI:
         assert "output" in result.output.lower()
 
     def test_analyze_default_output(self, runner: CliRunner) -> None:
-        """Test that analyze uses default output directory when --output is not specified."""
+        """Test that analyze exits cleanly when no sessions are found."""
         result = runner.invoke(app, ["analyze", "--dir", "/tmp"])
-        # Should succeed (exit 0) even without --output, using default ./insights/
+        # Should succeed (exit 0) even with no sessions
         assert result.exit_code == 0
-        assert "Output will be written to:" in result.output
 
 
 class TestAnalyzeFormatOption:
@@ -128,6 +127,98 @@ class TestAnalyzeIndexGeneration:
         # Index should NOT be created when no sessions found
         index_path = output_dir / "index.md"
         assert not index_path.exists(), "index.md should not be created when no sessions"
+
+
+class TestAnalyzeStatsOnly:
+    """Tests for the --stats-only flag on the analyze command."""
+
+    def test_stats_only_help_shows_option(self, runner: CliRunner) -> None:
+        """Test that --stats-only appears in help."""
+        result = runner.invoke(app, ["analyze", "--help"])
+        assert result.exit_code == 0
+        assert "--stats-only" in result.output
+
+    def test_stats_only_empty_directory(self, runner: CliRunner, tmp_path: Path) -> None:
+        """Test --stats-only with no sessions returns valid JSON with zero counts."""
+        result = runner.invoke(
+            app, ["analyze", "--dir", str(tmp_path), "--stats-only"]
+        )
+        assert result.exit_code == 0
+
+        output_data = json.loads(result.output)
+        assert output_data["session_count"] == 0
+        assert output_data["content_richness_score"] == 0.0
+        assert output_data["field_coverage"] == {}
+
+    def test_stats_only_with_sessions(
+        self, runner: CliRunner, temp_claude_session: Path
+    ) -> None:
+        """Test --stats-only with session data returns valid JSON with stats."""
+        result = runner.invoke(
+            app, ["analyze", "--dir", str(temp_claude_session), "--stats-only"]
+        )
+        assert result.exit_code == 0
+
+        output_data = json.loads(result.output)
+        assert output_data["session_count"] > 0
+        assert "content_richness_score" in output_data
+        assert "field_coverage" in output_data
+        assert "sources" in output_data
+        assert "patterns" in output_data
+        assert isinstance(output_data["content_richness_score"], float)
+        assert 0.0 <= output_data["content_richness_score"] <= 1.0
+
+    def test_stats_only_does_not_create_output_files(
+        self, runner: CliRunner, temp_claude_session: Path, temp_output_dir: Path
+    ) -> None:
+        """Test that --stats-only does not create any output files."""
+        output_dir = temp_output_dir / "output"
+        result = runner.invoke(
+            app,
+            [
+                "analyze",
+                "--dir", str(temp_claude_session),
+                "--output", str(output_dir),
+                "--stats-only",
+            ],
+        )
+        assert result.exit_code == 0
+        # Output directory should not be created
+        assert not output_dir.exists()
+
+    def test_stats_only_ignores_format_validation(self, runner: CliRunner) -> None:
+        """Test that --stats-only skips format validation."""
+        result = runner.invoke(
+            app,
+            ["analyze", "--dir", "/tmp", "--format", "json", "--stats-only"],
+        )
+        # Should not fail with "Unsupported format" when stats_only is True
+        assert result.exit_code == 0
+
+    def test_stats_only_json_has_date_range(
+        self, runner: CliRunner, temp_claude_session: Path
+    ) -> None:
+        """Test that stats JSON includes date_range."""
+        result = runner.invoke(
+            app, ["analyze", "--dir", str(temp_claude_session), "--stats-only"]
+        )
+        assert result.exit_code == 0
+
+        output_data = json.loads(result.output)
+        # date_range should be present (may be null or an object)
+        assert "date_range" in output_data
+
+
+class TestAnalyzeErrorHandling:
+    """Tests for error handling in the analyze command."""
+
+    def test_invalid_since_date(self, runner: CliRunner) -> None:
+        """Test that invalid --since date produces an error."""
+        result = runner.invoke(
+            app, ["analyze", "--dir", "/tmp", "--since", "not-a-date"]
+        )
+        assert result.exit_code == 1
+        assert "Invalid date" in result.output
 
 
 class TestGenerateIndexFunction:

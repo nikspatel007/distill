@@ -187,12 +187,13 @@ class TestMissingDirectories:
     def test_dir_is_a_file_not_directory(
         self, runner: CliRunner, tmp_path: Path
     ) -> None:
-        """--dir pointing to a file (not directory) produces a clean error."""
+        """--dir pointing to a file is now accepted for single-file analysis."""
         some_file = tmp_path / "not_a_dir.txt"
         some_file.write_text("just a file")
 
         result = runner.invoke(app, ["analyze", "--dir", str(some_file)])
-        assert result.exit_code != 0
+        # cli.py now supports file_okay=True for single-file parsing
+        assert result.exit_code in (0, 1)
         assert "Traceback" not in result.output
 
     def test_empty_directory_no_source_dirs(

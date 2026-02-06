@@ -1,5 +1,6 @@
 """CLI interface for session-insights."""
 
+import contextlib
 import json
 from datetime import date, datetime
 from pathlib import Path
@@ -12,6 +13,8 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from session_insights.core import (
     AnalysisResult,
     analyze,
+    compute_field_coverage,
+    compute_richness_score,
     discover_sessions,
     parse_session_file,
 )
@@ -26,6 +29,21 @@ app = typer.Typer(
 )
 
 console = Console()
+_stderr_console = Console(stderr=True)
+
+
+@contextlib.contextmanager
+def _progress_context(quiet: bool = False):
+    """Yield a Progress context or a no-op depending on quiet flag."""
+    if quiet:
+        yield None
+    else:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            yield progress
 
 
 def version_callback(value: bool) -> None:
@@ -116,6 +134,162 @@ def _generate_index(
     return "\n".join(lines)
 
 
+def _empty_stats_json() -> dict:
+    """Return an empty stats JSON structure for when no sessions are found."""
+    return {
+        "session_count": 0,
+        "content_richness_score": 0.0,
+        "field_coverage": {},
+        "sources": {},
+        "total_duration_minutes": 0.0,
+        "date_range": None,
+        "patterns": [],
+    }
+
+
+def _build_stats_json(
+    sessions: list[BaseSession], result: AnalysisResult
+) -> dict:
+    """Build the stats JSON output from analysis results."""
+    date_range = None
+    if result.stats.date_range:
+        start, end = result.stats.date_range
+        date_range = {
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+        }
+
+    return {
+        "session_count": result.stats.total_sessions,
+        "content_richness_score": result.stats.content_richness_score,
+        "field_coverage": {
+            k: round(v, 3) for k, v in result.stats.field_coverage.items()
+        },
+        "sources": result.stats.sources,
+        "total_duration_minutes": round(result.stats.total_duration_minutes, 1),
+        "date_range": date_range,
+        "patterns": [
+            {"name": p.name, "description": p.description, "occurrences": p.occurrences}
+            for p in result.patterns
+        ],
+    }
+
+
+def _infer_source_from_path(path: Path) -> str | None:
+    """Infer the source type from a file/directory path."""
+    for parent in [path] + list(path.parents):
+        if parent.name == ".claude":
+            return "claude"
+        if parent.name == ".codex":
+            return "codex"
+        if parent.name == ".vermas":
+            return "vermas"
+    return None
+
+
+def _parse_single_file(
+    path: Path, source_filter: list[str] | None
+) -> list[BaseSession]:
+    """Parse a single session file using the appropriate parser.
+
+    Uses the parser's single-file method rather than scanning an entire
+    source root, so only the specified file is parsed.
+    """
+    inferred = _infer_source_from_path(path)
+    if source_filter and inferred and inferred not in source_filter:
+        return []
+    src = inferred or "claude"  # default to claude for unknown files
+
+    try:
+        if src == "claude":
+            parser = ClaudeParser()
+            session = parser._parse_session_file(path)
+            if parser.parse_errors:
+                for err in parser.parse_errors:
+                    console.print(f"[yellow]Warning:[/yellow] {err}")
+            return [session] if session is not None else []
+        elif src == "codex":
+            codex_parser = CodexParser()
+            session = codex_parser._parse_session_file(path)
+            if codex_parser.parse_errors:
+                for err in codex_parser.parse_errors:
+                    console.print(f"[yellow]Warning:[/yellow] {err}")
+            return [session] if session is not None else []
+        else:
+            # For vermas or unknown, fall back to directory parsing
+            return parse_session_file(path, src)
+    except Exception as exc:
+        console.print(f"[red]Error:[/red] Failed to parse {path}: {exc}")
+        raise typer.Exit(1)
+
+
+def _discover_and_parse(
+    directory: Path,
+    source: list[str] | None,
+    include_global: bool,
+    since_date: date | None,
+    stats_only: bool,
+) -> list[BaseSession]:
+    """Discover and parse sessions from a directory."""
+    with _progress_context(quiet=stats_only) as progress:
+        if progress:
+            progress.add_task("Discovering session files...", total=None)
+        discovered = discover_sessions(directory, source, include_home=include_global)
+
+    if not discovered:
+        if stats_only:
+            return []
+        console.print("[yellow]No session files found.[/yellow]")
+        console.print(f"Searched in: {directory}")
+        if source:
+            console.print(f"Filtered to sources: {', '.join(source)}")
+        return []
+
+    # Report discovery (skip in stats-only for clean JSON output)
+    total_files = sum(len(files) for files in discovered.values())
+    if not stats_only:
+        console.print(f"[green]Found {total_files} session file(s):[/green]")
+        for src, files in discovered.items():
+            console.print(f"  - {src}: {len(files)} file(s)")
+
+    # Parse sessions with error handling for unparseable files
+    all_sessions: list[BaseSession] = []
+    parse_errors: list[str] = []
+
+    with _progress_context(quiet=stats_only) as progress:
+        if progress:
+            task = progress.add_task("Parsing sessions...", total=total_files)
+        else:
+            task = None
+
+        for src, files in discovered.items():
+            for file_path in files:
+                try:
+                    sessions = parse_session_file(file_path, src)
+                except Exception as exc:
+                    parse_errors.append(f"{file_path}: {exc}")
+                    if progress and task is not None:
+                        progress.advance(task)
+                    continue
+                # Filter by date if specified
+                if since_date:
+                    sessions = [
+                        s for s in sessions if s.start_time.date() >= since_date
+                    ]
+                all_sessions.extend(sessions)
+                if progress and task is not None:
+                    progress.advance(task)
+
+    if parse_errors and not stats_only:
+        console.print(f"[yellow]Warning: {len(parse_errors)} file(s) could not be parsed:[/yellow]")
+        for err in parse_errors[:5]:
+            console.print(f"  - {err}")
+        if len(parse_errors) > 5:
+            console.print(f"  ... and {len(parse_errors) - 5} more")
+
+    return all_sessions
+
+
 @app.command()
 def analyze_cmd(
     directory: Annotated[
@@ -123,9 +297,9 @@ def analyze_cmd(
         typer.Option(
             "--dir",
             "-d",
-            help="Directory to scan for session history.",
+            help="Directory or session file to analyze.",
             exists=True,
-            file_okay=False,
+            file_okay=True,
             dir_okay=True,
             resolve_path=True,
         ),
@@ -175,22 +349,29 @@ def analyze_cmd(
             help="Also scan home directory (~/.claude, ~/.codex) for sessions.",
         ),
     ] = False,
+    stats_only: Annotated[
+        bool,
+        typer.Option(
+            "--stats-only",
+            help="Output statistics as JSON without generating Obsidian notes.",
+        ),
+    ] = False,
 ) -> None:
     """Analyze session history and generate Obsidian notes.
 
-    Scans the specified directory for AI assistant session files and generates
-    Obsidian-compatible markdown notes. Use --global to also include sessions
-    from your home directory.
+    Scans the specified directory (or session file) for AI assistant
+    session data, runs the full parse-model-format pipeline, and outputs
+    statistics including session count, content richness score, and
+    field coverage.
+
+    Use --stats-only for JSON statistics without generating notes.
+    Use --global to also include sessions from your home directory.
     """
-    # Validate format option
-    if output_format != "obsidian":
+    # Validate format option (only relevant when generating notes)
+    if not stats_only and output_format != "obsidian":
         console.print(f"[red]Error:[/red] Unsupported format: {output_format}")
         console.print("Currently only 'obsidian' format is supported.")
         raise typer.Exit(1)
-
-    # Set default output directory if not provided
-    if output is None:
-        output = Path("./insights/")
 
     # Parse since date if provided
     since_date: date | None = None
@@ -202,68 +383,49 @@ def analyze_cmd(
             console.print("Use YYYY-MM-DD format (e.g., 2024-01-15)")
             raise typer.Exit(1)
 
-    # Create output directory if it doesn't exist and confirm
-    output.mkdir(parents=True, exist_ok=True)
-    console.print(f"Output will be written to: {output}")
+    # If a file was passed directly, infer the source and parse it
+    if directory.is_file():
+        all_sessions = _parse_single_file(directory, source)
+    else:
+        all_sessions = _discover_and_parse(
+            directory, source, include_global, since_date, stats_only,
+        )
 
-    # Discover sessions
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        console=console,
-    ) as progress:
-        progress.add_task("Discovering session files...", total=None)
-        discovered = discover_sessions(directory, source, include_home=include_global)
-
-    if not discovered:
-        console.print("[yellow]No session files found.[/yellow]")
-        console.print(f"Searched in: {directory}")
-        if source:
-            console.print(f"Filtered to sources: {', '.join(source)}")
-        raise typer.Exit(0)
-
-    # Report discovery
-    total_files = sum(len(files) for files in discovered.values())
-    console.print(f"[green]Found {total_files} session file(s):[/green]")
-    for src, files in discovered.items():
-        console.print(f"  - {src}: {len(files)} file(s)")
-
-    # Parse sessions
-    all_sessions: list[BaseSession] = []
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        console=console,
-    ) as progress:
-        task = progress.add_task("Parsing sessions...", total=total_files)
-
-        for src, files in discovered.items():
-            for file_path in files:
-                sessions = parse_session_file(file_path, src)
-                # Filter by date if specified
-                if since_date:
-                    sessions = [
-                        s for s in sessions if s.start_time.date() >= since_date
-                    ]
-                all_sessions.extend(sessions)
-                progress.advance(task)
+    # Filter by date if specified (for single-file path too)
+    if since_date and directory.is_file():
+        all_sessions = [s for s in all_sessions if s.start_time.date() >= since_date]
 
     if not all_sessions:
+        if stats_only:
+            print(json.dumps(_empty_stats_json(), indent=2))
+            raise typer.Exit(0)
         console.print("[yellow]No sessions found after parsing.[/yellow]")
         if since_date:
             console.print(f"Date filter: sessions after {since_date}")
         raise typer.Exit(0)
 
-    console.print(f"[green]Parsed {len(all_sessions)} session(s)[/green]")
+    if not stats_only:
+        console.print(f"[green]Parsed {len(all_sessions)} session(s)[/green]")
 
     # Analyze sessions
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        console=console,
-    ) as progress:
-        progress.add_task("Analyzing patterns...", total=None)
+    with _progress_context(quiet=stats_only) as progress:
+        if progress:
+            progress.add_task("Analyzing patterns...", total=None)
         result = analyze(all_sessions)
+
+    # --stats-only: output JSON to stdout and exit
+    if stats_only:
+        stats_json = _build_stats_json(all_sessions, result)
+        print(json.dumps(stats_json, indent=2))
+        raise typer.Exit(0)
+
+    # Set default output directory if not provided
+    if output is None:
+        output = Path("./insights/")
+
+    # Create output directory
+    output.mkdir(parents=True, exist_ok=True)
+    console.print(f"Output will be written to: {output}")
 
     # Create subdirectories
     sessions_dir = output / "sessions"
@@ -321,6 +483,8 @@ def analyze_cmd(
     if result.stats.date_range:
         start, end = result.stats.date_range
         console.print(f"  Date range: {start.date()} to {end.date()}")
+
+    console.print(f"  Content richness: {result.stats.content_richness_score:.1%}")
 
     if result.patterns:
         console.print()

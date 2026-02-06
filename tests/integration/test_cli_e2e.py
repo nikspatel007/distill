@@ -191,3 +191,55 @@ class TestCLIEndToEnd:
 
         assert result.returncode == 1
         assert "Unsupported format" in result.stdout or "Error" in result.stdout
+
+    def test_analyze_stats_only_with_data(
+        self, sample_claude_history: Path, tmp_path: Path
+    ) -> None:
+        """Run analyze --stats-only and verify JSON output."""
+        result = _run_cli(
+            "analyze",
+            "--dir", str(sample_claude_history),
+            "--stats-only",
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0
+
+        data = json.loads(result.stdout)
+        assert "session_count" in data
+        assert "content_richness_score" in data
+        assert "field_coverage" in data
+        assert data["session_count"] > 0
+        assert isinstance(data["content_richness_score"], float)
+        assert isinstance(data["field_coverage"], dict)
+
+    def test_analyze_stats_only_empty_dir(self, tmp_path: Path) -> None:
+        """Run analyze --stats-only on empty dir, verify zero-count JSON."""
+        result = _run_cli(
+            "analyze",
+            "--dir", str(tmp_path),
+            "--stats-only",
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0
+
+        data = json.loads(result.stdout)
+        assert data["session_count"] == 0
+        assert data["content_richness_score"] == 0.0
+
+    def test_analyze_stats_only_no_files_created(
+        self, sample_claude_history: Path, tmp_path: Path
+    ) -> None:
+        """--stats-only should not create any output files."""
+        output_dir = tmp_path / "no_output"
+        result = _run_cli(
+            "analyze",
+            "--dir", str(sample_claude_history),
+            "--output", str(output_dir),
+            "--stats-only",
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0
+        assert not output_dir.exists()

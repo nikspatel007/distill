@@ -19,6 +19,8 @@ class SessionStats(BaseModel):
     sources: dict[str, int] = Field(default_factory=dict)
     tools_used: dict[str, int] = Field(default_factory=dict)
     date_range: tuple[datetime, datetime] | None = None
+    content_richness_score: float = 0.0
+    field_coverage: dict[str, float] = Field(default_factory=dict)
 
 
 class SessionPattern(BaseModel):
@@ -197,6 +199,82 @@ def analyze(sessions: list[BaseSession]) -> AnalysisResult:
     )
 
 
+# Fields checked for content richness / field coverage
+_RICHNESS_FIELDS: list[str] = [
+    "summary",
+    "messages",
+    "tools_used",
+    "outcomes",
+    "tags",
+    "end_time",
+]
+
+
+def compute_richness_score(session: BaseSession) -> float:
+    """Compute a content richness score for a single session.
+
+    The score ranges from 0.0 to 1.0 and measures how many key fields
+    are populated with meaningful data.
+
+    Args:
+        session: The session to score.
+
+    Returns:
+        A float between 0.0 and 1.0.
+    """
+    filled = 0
+    total = len(_RICHNESS_FIELDS)
+
+    for field in _RICHNESS_FIELDS:
+        value = getattr(session, field, None)
+        if value is None:
+            continue
+        # For strings, check non-empty
+        if isinstance(value, str) and value:
+            filled += 1
+        # For lists, check non-empty
+        elif isinstance(value, list) and len(value) > 0:
+            filled += 1
+        # For datetimes (end_time), any non-None value counts
+        elif isinstance(value, datetime):
+            filled += 1
+
+    return filled / total if total > 0 else 0.0
+
+
+def compute_field_coverage(sessions: list[BaseSession]) -> dict[str, float]:
+    """Compute per-field coverage across all sessions.
+
+    For each richness field, returns the fraction of sessions where
+    that field is populated.
+
+    Args:
+        sessions: List of sessions to evaluate.
+
+    Returns:
+        Dictionary mapping field name to coverage fraction (0.0 to 1.0).
+    """
+    if not sessions:
+        return {field: 0.0 for field in _RICHNESS_FIELDS}
+
+    coverage: dict[str, int] = {field: 0 for field in _RICHNESS_FIELDS}
+
+    for session in sessions:
+        for field in _RICHNESS_FIELDS:
+            value = getattr(session, field, None)
+            if value is None:
+                continue
+            if isinstance(value, str) and value:
+                coverage[field] += 1
+            elif isinstance(value, list) and len(value) > 0:
+                coverage[field] += 1
+            elif isinstance(value, datetime):
+                coverage[field] += 1
+
+    n = len(sessions)
+    return {field: count / n for field, count in coverage.items()}
+
+
 def _calculate_stats(sessions: list[BaseSession]) -> SessionStats:
     """Calculate statistics from sessions."""
     total_duration = sum(s.duration_minutes or 0 for s in sessions)
@@ -211,8 +289,13 @@ def _calculate_stats(sessions: list[BaseSession]) -> SessionStats:
             tools[tool.name] += tool.count
 
     # Date range
-    times = [s.start_time for s in sessions if s.start_time is not None]
+    times = [s.start_time for s in sessions]
     date_range = (min(times), max(times)) if times else None
+
+    # Content richness and field coverage
+    richness_scores = [compute_richness_score(s) for s in sessions]
+    avg_richness = sum(richness_scores) / len(richness_scores) if richness_scores else 0.0
+    field_cov = compute_field_coverage(sessions)
 
     return SessionStats(
         total_sessions=len(sessions),
@@ -220,6 +303,8 @@ def _calculate_stats(sessions: list[BaseSession]) -> SessionStats:
         sources=dict(sources),
         tools_used=dict(tools),
         date_range=date_range,
+        content_richness_score=round(avg_richness, 3),
+        field_coverage=field_cov,
     )
 
 
