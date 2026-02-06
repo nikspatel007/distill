@@ -1,7 +1,7 @@
 """Obsidian-compatible markdown formatter."""
 
 from collections import Counter
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from session_insights.formatters.templates import (
     DAILY_BODY,
@@ -14,6 +14,22 @@ from session_insights.formatters.templates import (
     format_yaml_list_item,
 )
 from session_insights.models import BaseSession
+
+
+def _format_timedelta(td: timedelta) -> str:
+    """Format a timedelta as a human-readable elapsed string."""
+    total_seconds = int(td.total_seconds())
+    if total_seconds < 60:
+        return f"{total_seconds}s"
+    minutes = total_seconds // 60
+    seconds = total_seconds % 60
+    if minutes < 60:
+        return f"{minutes}m {seconds}s" if seconds else f"{minutes}m"
+    hours = minutes // 60
+    remaining_minutes = minutes % 60
+    if remaining_minutes:
+        return f"{hours}h {remaining_minutes}m"
+    return f"{hours}h"
 
 
 class ObsidianFormatter:
@@ -154,28 +170,136 @@ class ObsidianFormatter:
         return "\n".join(lines)
 
     def _format_conversation_section(self, session: BaseSession) -> str:
-        """Format the conversation section."""
-        if not self.include_conversation or not session.turns:
+        """Format an enriched conversation section with structured subsections."""
+        if not self.include_conversation:
             return "_Conversation not included._"
 
-        lines = []
+        parts = []
+
+        # User Questions
+        questions = self._extract_user_questions(session)
+        if questions:
+            parts.append("### User Questions\n")
+            for i, q in enumerate(questions, 1):
+                parts.append(f"{i}. {q}")
+            parts.append("")
+
+        # Tool Usage Analysis
+        tool_analysis = self._format_tool_usage_analysis(session)
+        if tool_analysis:
+            parts.append("### Tool Usage\n")
+            parts.append(tool_analysis)
+            parts.append("")
+
+        # Key Decisions
+        decisions = self._extract_key_decisions(session)
+        if decisions:
+            parts.append("### Key Decisions\n")
+            for d in decisions:
+                parts.append(f"- {d}")
+            parts.append("")
+
+        # Accomplishments Summary
+        accomplishments = self._format_accomplishments(session)
+        if accomplishments:
+            parts.append("### Accomplishments\n")
+            parts.append(accomplishments)
+            parts.append("")
+
+        if not parts:
+            return "_No conversation content available._"
+
+        return "\n".join(parts)
+
+    def _extract_user_questions(self, session: BaseSession) -> list[str]:
+        """Extract user questions from conversation turns."""
+        questions = []
         for turn in session.turns:
-            role_icon = "user" if turn.role == "user" else "assistant"
-            timestamp = (
-                turn.timestamp.strftime("%H:%M:%S") if turn.timestamp else ""
-            )
-            header = f"**{role_icon.capitalize()}**"
-            if timestamp:
-                header += f" _{timestamp}_"
+            if turn.role != "user":
+                continue
+            content = turn.content.strip()
+            if not content:
+                continue
+            # Truncate long questions
+            if len(content) > 200:
+                content = content[:200] + "..."
+            questions.append(content)
+        return questions
 
-            # Truncate long content
-            content = turn.content
-            if len(content) > 500:
-                content = content[:500] + "..."
+    def _format_tool_usage_analysis(self, session: BaseSession) -> str:
+        """Format tool usage with counts and context."""
+        if not session.tools_used:
+            return ""
 
-            lines.append(f"> {header}")
-            lines.append(f"> {content}")
-            lines.append("")
+        lines = []
+        lines.append("| Tool | Calls | Context |")
+        lines.append("|------|-------|---------|")
+
+        # Build a map of tool -> arguments used for rationale
+        tool_args: dict[str, list[str]] = {}
+        for tc in session.tool_calls:
+            args_list = tool_args.setdefault(tc.tool_name, [])
+            # Extract key context from arguments
+            for key in ("file_path", "command", "pattern", "query"):
+                if key in tc.arguments:
+                    val = str(tc.arguments[key])
+                    if len(val) > 60:
+                        val = val[:57] + "..."
+                    args_list.append(val)
+
+        for tool in session.tools_used:
+            context_items = tool_args.get(tool.name, [])
+            # Show up to 3 unique targets
+            unique_targets = list(dict.fromkeys(context_items))[:3]
+            context = ", ".join(f"`{t}`" for t in unique_targets) if unique_targets else "-"
+            lines.append(f"| {tool.name} | {tool.count} | {context} |")
+
+        return "\n".join(lines)
+
+    def _extract_key_decisions(self, session: BaseSession) -> list[str]:
+        """Extract key decisions from assistant turns."""
+        decisions = []
+        decision_markers = ["decided to", "chose to", "going to", "will ", "let me", "approach:"]
+
+        for turn in session.turns:
+            if turn.role != "assistant":
+                continue
+            content = turn.content.strip()
+            if not content:
+                continue
+            # Look for sentences that contain decision indicators
+            for sentence in content.replace("\n", " ").split(". "):
+                sentence = sentence.strip()
+                if not sentence:
+                    continue
+                lower = sentence.lower()
+                if any(marker in lower for marker in decision_markers):
+                    truncated = sentence[:150] + "..." if len(sentence) > 150 else sentence
+                    # Ensure it ends cleanly
+                    if not truncated.endswith((".", "...", "!", "?")):
+                        truncated += "."
+                    decisions.append(truncated)
+                    if len(decisions) >= 10:
+                        return decisions
+
+        return decisions
+
+    def _format_accomplishments(self, session: BaseSession) -> str:
+        """Format accomplishments from session outcomes."""
+        if not session.outcomes:
+            return ""
+
+        lines = []
+        success_count = sum(1 for o in session.outcomes if o.success)
+        total = len(session.outcomes)
+        lines.append(f"**{success_count}/{total}** outcomes completed successfully.\n")
+
+        for outcome in session.outcomes:
+            icon = "done" if outcome.success else "pending"
+            lines.append(f"- [{icon}] {outcome.description}")
+            if outcome.files_modified:
+                files_str = ", ".join(f"`{f}`" for f in outcome.files_modified)
+                lines.append(f"  - Files: {files_str}")
 
         return "\n".join(lines)
 
@@ -303,7 +427,7 @@ class ObsidianFormatter:
     # --- VerMAS-specific sections ---
 
     def _format_vermas_sections(self, session: BaseSession) -> str:
-        """Format VerMAS-specific sections (task, signals, learnings)."""
+        """Format VerMAS-specific sections (task, signals, quality, learnings)."""
         sections = []
 
         task_section = self._format_vermas_task_section(session)
@@ -313,6 +437,10 @@ class ObsidianFormatter:
         signals_section = self._format_vermas_signals_section(session)
         if signals_section:
             sections.append(signals_section)
+
+        quality_section = self._format_vermas_quality_section(session)
+        if quality_section:
+            sections.append(quality_section)
 
         learnings_section = self._format_vermas_learnings_section(session)
         if learnings_section:
@@ -337,9 +465,8 @@ class ObsidianFormatter:
         if cycle is not None:
             lines.append(f"- **Cycle:** {cycle}")
         lines.append(f"- **Outcome:** {outcome}")
-        quality_rating = cycle_info.quality_rating if cycle_info else None
-        if quality_rating:
-            lines.append(f"- **Quality:** {quality_rating}")
+        if session.quality_rating:
+            lines.append(f"- **Quality:** {session.quality_rating}")
 
         if session.task_description:
             lines.append("")
@@ -351,23 +478,64 @@ class ObsidianFormatter:
         return "\n".join(lines)
 
     def _format_vermas_signals_section(self, session: BaseSession) -> str:
-        """Format VerMAS agent signals timeline."""
+        """Format VerMAS agent signals timeline with elapsed durations."""
         signals = session.signals
         if not signals:
             return ""
 
-        lines = ["## Agent Signals", ""]
-        lines.append("| Time | Agent | Role | Signal | Message |")
-        lines.append("|------|-------|------|--------|---------|")
+        sorted_signals = sorted(signals, key=lambda s: s.timestamp)
 
-        for signal in sorted(signals, key=lambda s: s.timestamp):
+        lines = ["## Agent Signals", ""]
+        lines.append("| Time | Elapsed | Agent | Role | Signal | Message |")
+        lines.append("|------|---------|-------|------|--------|---------|")
+
+        first_ts = sorted_signals[0].timestamp
+        prev_ts = first_ts
+        for signal in sorted_signals:
             time_str = signal.timestamp.strftime("%H:%M:%S")
+            elapsed = signal.timestamp - first_ts
+            elapsed_str = _format_timedelta(elapsed)
             msg = signal.message[:60] + "..." if len(signal.message) > 60 else signal.message
             lines.append(
-                f"| {time_str} | {signal.agent_id[:12]} | {signal.role} | {signal.signal} | {msg} |"
+                f"| {time_str} | {elapsed_str} | {signal.agent_id[:12]} | {signal.role} "
+                f"| {signal.signal} | {msg} |"
             )
+            prev_ts = signal.timestamp
+
+        # Total workflow duration
+        if len(sorted_signals) >= 2:
+            total = sorted_signals[-1].timestamp - sorted_signals[0].timestamp
+            lines.append("")
+            lines.append(f"**Total workflow time:** {_format_timedelta(total)}")
 
         lines.append("")
+        return "\n".join(lines)
+
+    def _format_vermas_quality_section(self, session: BaseSession) -> str:
+        """Format VerMAS quality assessment section."""
+        qa = session.quality_assessment
+        if qa is None:
+            return ""
+
+        lines = ["## Quality Assessment", ""]
+
+        if qa.score is not None:
+            # Display score as a rating out of 100
+            pct = qa.score * 100
+            lines.append(f"**Overall Score:** {pct:.0f}/100\n")
+
+        if qa.criteria:
+            lines.append("| Criterion | Score |")
+            lines.append("|-----------|-------|")
+            for criterion, score in qa.criteria.items():
+                display_name = criterion.replace("_", " ").title()
+                lines.append(f"| {display_name} | {score * 100:.0f}/100 |")
+            lines.append("")
+
+        if qa.notes:
+            lines.append(f"**Notes:** {qa.notes}")
+            lines.append("")
+
         return "\n".join(lines)
 
     def _format_vermas_learnings_section(self, session: BaseSession) -> str:

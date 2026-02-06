@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta
 import pytest
 import yaml
 
-from session_insights.formatters.obsidian import ObsidianFormatter
+from session_insights.formatters.obsidian import ObsidianFormatter, _format_timedelta
 from session_insights.formatters.templates import (
     format_duration,
     format_obsidian_link,
@@ -18,6 +18,7 @@ from session_insights.models import (
     SessionOutcome,
     ToolUsage,
 )
+from session_insights.parsers.models import ToolCall
 
 
 @pytest.fixture
@@ -509,3 +510,296 @@ class TestVermasFormatting:
         assert "## Task Details" not in output
         assert "## Agent Signals" not in output
         assert "## Learnings" not in output
+
+    def test_vermas_signals_have_elapsed_time(
+        self, vermas_session: BaseSession
+    ) -> None:
+        """Verify signals timeline includes elapsed duration column."""
+        formatter = ObsidianFormatter()
+        output = formatter.format_session(vermas_session)
+
+        assert "Elapsed" in output
+        assert "Total workflow time" in output
+        # First signal should show 0s elapsed
+        assert "0s" in output
+        # Second signal is 5 minutes later
+        assert "5m" in output
+
+    def test_vermas_signals_timestamps_formatted(
+        self, vermas_session: BaseSession
+    ) -> None:
+        """Verify signal timestamps are formatted as HH:MM:SS."""
+        formatter = ObsidianFormatter()
+        output = formatter.format_session(vermas_session)
+
+        assert "14:20:00" in output
+        assert "14:25:00" in output
+
+    def test_vermas_quality_assessment_rendering(self) -> None:
+        """Verify quality assessment section renders score, criteria, and notes."""
+        from session_insights.parsers.models import (
+            AgentSignal,
+            QualityAssessment,
+        )
+        from session_insights.parsers.vermas import VermasSession
+
+        start = datetime(2024, 6, 15, 14, 0, 0)
+        session = VermasSession(
+            session_id="qa-test-001",
+            timestamp=start,
+            start_time=start,
+            end_time=start + timedelta(minutes=30),
+            source="vermas",
+            summary="Test session with quality assessment",
+            task_name="test-task",
+            mission_id="mission-qa",
+            cycle=1,
+            outcome="completed",
+            quality_assessment=QualityAssessment(
+                score=0.92,
+                criteria={
+                    "code_quality": 0.90,
+                    "test_coverage": 0.95,
+                },
+                notes="Excellent implementation with minor doc gaps",
+            ),
+            signals=[
+                AgentSignal(
+                    signal_id="sig-qa",
+                    agent_id="dev-001",
+                    role="dev",
+                    signal="done",
+                    message="Done",
+                    timestamp=start + timedelta(minutes=20),
+                    workflow_id="wf-qa",
+                ),
+            ],
+        )
+
+        formatter = ObsidianFormatter()
+        output = formatter.format_session(session)
+
+        assert "## Quality Assessment" in output
+        assert "92/100" in output
+        assert "Code Quality" in output
+        assert "90/100" in output
+        assert "Test Coverage" in output
+        assert "95/100" in output
+        assert "Excellent implementation" in output
+
+    def test_vermas_no_quality_section_when_absent(
+        self, vermas_session: BaseSession
+    ) -> None:
+        """Verify quality section is omitted when no assessment exists."""
+        formatter = ObsidianFormatter()
+        output = formatter.format_session(vermas_session)
+
+        assert "## Quality Assessment" not in output
+
+
+class TestEnrichedConversation:
+    """Test the enriched conversation section rendering."""
+
+    def test_user_questions_extracted(self) -> None:
+        """Verify user questions are listed in the conversation section."""
+        start = datetime(2024, 1, 15, 10, 0, 0)
+        session = BaseSession(
+            id="conv-test-001",
+            start_time=start,
+            source="claude-code",
+            turns=[
+                ConversationTurn(
+                    role="user",
+                    content="How do I implement authentication?",
+                    timestamp=start,
+                ),
+                ConversationTurn(
+                    role="assistant",
+                    content="I'll help you implement authentication.",
+                    timestamp=start + timedelta(seconds=10),
+                ),
+                ConversationTurn(
+                    role="user",
+                    content="Should we use JWT or session tokens?",
+                    timestamp=start + timedelta(seconds=60),
+                ),
+            ],
+        )
+
+        formatter = ObsidianFormatter()
+        output = formatter.format_session(session)
+
+        assert "### User Questions" in output
+        assert "How do I implement authentication?" in output
+        assert "Should we use JWT or session tokens?" in output
+
+    def test_tool_usage_analysis_table(self) -> None:
+        """Verify tool usage analysis renders with context."""
+        start = datetime(2024, 1, 15, 10, 0, 0)
+        session = BaseSession(
+            id="tool-test-001",
+            start_time=start,
+            source="claude-code",
+            tools_used=[
+                ToolUsage(name="Read", count=3),
+                ToolUsage(name="Edit", count=2),
+            ],
+            tool_calls=[
+                ToolCall(
+                    tool_name="Read",
+                    arguments={"file_path": "src/auth.py"},
+                ),
+                ToolCall(
+                    tool_name="Read",
+                    arguments={"file_path": "src/models.py"},
+                ),
+                ToolCall(
+                    tool_name="Edit",
+                    arguments={"file_path": "src/auth.py"},
+                ),
+            ],
+        )
+
+        formatter = ObsidianFormatter()
+        output = formatter.format_session(session)
+
+        assert "### Tool Usage" in output
+        assert "| Read | 3 |" in output
+        assert "| Edit | 2 |" in output
+        assert "`src/auth.py`" in output
+        assert "`src/models.py`" in output
+
+    def test_key_decisions_extracted(self) -> None:
+        """Verify key decisions are extracted from assistant messages."""
+        start = datetime(2024, 1, 15, 10, 0, 0)
+        session = BaseSession(
+            id="decision-test-001",
+            start_time=start,
+            source="claude-code",
+            turns=[
+                ConversationTurn(
+                    role="user",
+                    content="Fix the login bug",
+                    timestamp=start,
+                ),
+                ConversationTurn(
+                    role="assistant",
+                    content="I decided to refactor the auth module. I will add proper error handling.",
+                    timestamp=start + timedelta(seconds=10),
+                ),
+            ],
+        )
+
+        formatter = ObsidianFormatter()
+        output = formatter.format_session(session)
+
+        assert "### Key Decisions" in output
+        assert "decided to refactor the auth module" in output
+
+    def test_accomplishments_summary(self) -> None:
+        """Verify accomplishments are rendered from session outcomes."""
+        start = datetime(2024, 1, 15, 10, 0, 0)
+        session = BaseSession(
+            id="accomplishment-test-001",
+            start_time=start,
+            source="claude-code",
+            outcomes=[
+                SessionOutcome(
+                    description="Implemented login endpoint",
+                    files_modified=["src/auth.py"],
+                    success=True,
+                ),
+                SessionOutcome(
+                    description="Added test coverage",
+                    files_modified=["tests/test_auth.py"],
+                    success=True,
+                ),
+            ],
+        )
+
+        formatter = ObsidianFormatter()
+        output = formatter.format_session(session)
+
+        assert "### Accomplishments" in output
+        assert "2/2" in output
+        assert "Implemented login endpoint" in output
+        assert "Added test coverage" in output
+        assert "`src/auth.py`" in output
+
+    def test_empty_session_shows_fallback(self) -> None:
+        """Verify session with no conversation data shows fallback message."""
+        start = datetime(2024, 1, 15, 10, 0, 0)
+        session = BaseSession(
+            id="empty-conv-test-001",
+            start_time=start,
+            source="claude-code",
+        )
+
+        formatter = ObsidianFormatter()
+        output = formatter.format_session(session)
+
+        assert "No conversation content available" in output
+
+    def test_long_user_question_truncated(self) -> None:
+        """Verify long user questions are truncated at 200 chars."""
+        start = datetime(2024, 1, 15, 10, 0, 0)
+        long_content = "A" * 300
+        session = BaseSession(
+            id="truncate-test-001",
+            start_time=start,
+            source="claude-code",
+            turns=[
+                ConversationTurn(role="user", content=long_content, timestamp=start),
+            ],
+        )
+
+        formatter = ObsidianFormatter()
+        output = formatter.format_session(session)
+
+        assert "..." in output
+        # Should not have the full 300-char string
+        assert long_content not in output
+
+    def test_include_conversation_false_still_works(self) -> None:
+        """Verify include_conversation=False suppresses conversation section."""
+        start = datetime(2024, 1, 15, 10, 0, 0)
+        session = BaseSession(
+            id="no-conv-test-001",
+            start_time=start,
+            source="claude-code",
+            turns=[
+                ConversationTurn(role="user", content="Hello", timestamp=start),
+            ],
+            outcomes=[
+                SessionOutcome(description="Did something", success=True),
+            ],
+        )
+
+        formatter = ObsidianFormatter(include_conversation=False)
+        output = formatter.format_session(session)
+
+        assert "Conversation not included" in output
+        assert "### User Questions" not in output
+        assert "### Accomplishments" not in output
+
+
+class TestFormatTimedelta:
+    """Test the _format_timedelta helper function."""
+
+    def test_seconds(self) -> None:
+        assert _format_timedelta(timedelta(seconds=30)) == "30s"
+
+    def test_zero_seconds(self) -> None:
+        assert _format_timedelta(timedelta(seconds=0)) == "0s"
+
+    def test_minutes(self) -> None:
+        assert _format_timedelta(timedelta(minutes=5)) == "5m"
+
+    def test_minutes_and_seconds(self) -> None:
+        assert _format_timedelta(timedelta(minutes=5, seconds=30)) == "5m 30s"
+
+    def test_hours(self) -> None:
+        assert _format_timedelta(timedelta(hours=2)) == "2h"
+
+    def test_hours_and_minutes(self) -> None:
+        assert _format_timedelta(timedelta(hours=1, minutes=30)) == "1h 30m"
