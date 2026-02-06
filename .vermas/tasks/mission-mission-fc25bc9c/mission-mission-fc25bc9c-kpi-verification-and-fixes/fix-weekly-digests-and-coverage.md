@@ -1,9 +1,8 @@
 ---
-status: pending
+status: done
 priority: medium
-workflow: 
+workflow: null
 ---
-
 # Wire weekly digests end-to-end and close test coverage to 90%+
 
 Based on `KPI_BASELINE.md` measurements, fix weekly digest generation and coverage gaps.
