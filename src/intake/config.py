@@ -16,6 +16,7 @@ class RSSConfig(BaseModel):
     feeds_file: str = ""
     fetch_timeout: int = 30
     max_items_per_feed: int = 50
+    max_age_days: int = 7
     extract_full_text: bool = False
 
     @property

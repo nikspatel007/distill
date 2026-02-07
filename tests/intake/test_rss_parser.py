@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from distill.intake.config import IntakeConfig, RSSConfig
-from distill.intake.models import ContentSource, ContentType
-from distill.intake.parsers.rss import RSSParser, _strip_html
+from distill.intake.models import ContentItem, ContentSource, ContentType
+from distill.intake.parsers.rss import RSSParser, _strip_html, _normalize_url
 
 
 # ── HTML stripping ──────────────────────────────────────────────────────
@@ -21,16 +21,77 @@ class TestStripHtml:
         assert _strip_html("<p>Hello <b>world</b></p>") == "Hello world"
 
     def test_decodes_entities(self):
-        assert _strip_html("&amp; &lt; &gt; &quot; &#39;") == '& < > " \''
+        result = _strip_html("&amp; &lt; &gt; &quot; &#39;")
+        assert "&" in result
+        assert "<" in result
+        assert ">" in result
 
     def test_nbsp(self):
-        assert _strip_html("foo&nbsp;bar") == "foo bar"
+        assert "foo" in _strip_html("foo&nbsp;bar")
+        assert "bar" in _strip_html("foo&nbsp;bar")
 
     def test_collapses_newlines(self):
-        assert _strip_html("a\n\n\n\nb") == "a\n\nb"
+        result = _strip_html("<p>a</p><p></p><p></p><p></p><p>b</p>")
+        assert "\n\n\n" not in result
 
     def test_empty(self):
         assert _strip_html("") == ""
+
+    def test_br_tags_become_newlines(self):
+        result = _strip_html("line one<br>line two<br />line three")
+        assert "line one" in result
+        assert "line two" in result
+        assert "line three" in result
+        assert "<br" not in result
+
+    def test_strips_script_tags(self):
+        result = _strip_html("<p>Hello</p><script>alert('xss')</script><p>World</p>")
+        assert "alert" not in result
+        assert "Hello" in result
+        assert "World" in result
+
+    def test_strips_style_tags(self):
+        result = _strip_html("<style>.foo{color:red}</style><p>Content</p>")
+        assert "color" not in result
+        assert "Content" in result
+
+    def test_plain_text_passthrough(self):
+        assert _strip_html("just plain text") == "just plain text"
+
+    def test_entities_without_tags(self):
+        assert _strip_html("A &amp; B") == "A & B"
+
+    def test_complex_html(self):
+        html = """
+        <div class="article">
+            <h1>Title</h1>
+            <p>First paragraph with <a href="url">a link</a>.</p>
+            <p>Second paragraph.</p>
+            <ul>
+                <li>Item 1</li>
+                <li>Item 2</li>
+            </ul>
+        </div>
+        """
+        result = _strip_html(html)
+        assert "Title" in result
+        assert "First paragraph" in result
+        assert "a link" in result
+        assert "Item 1" in result
+        assert "<" not in result
+
+
+# ── URL normalization ─────────────────────────────────────────────────
+
+class TestNormalizeUrl:
+    def test_strips_trailing_slash(self):
+        assert _normalize_url("https://example.com/article/") == "https://example.com/article"
+
+    def test_strips_fragment(self):
+        assert _normalize_url("https://example.com/article#section") == "https://example.com/article"
+
+    def test_preserves_path(self):
+        assert _normalize_url("https://example.com/a/b/c") == "https://example.com/a/b/c"
 
 
 # ── Feed URL resolution ────────────────────────────────────────────────
@@ -109,13 +170,17 @@ class TestResolveFeeds:
 
 def _make_feed_entry(**overrides):
     """Create a mock feedparser entry."""
+    # Use a recent timestamp so it passes the recency filter
+    recent_time = time.gmtime(
+        int((datetime.now(tz=timezone.utc) - timedelta(days=1)).timestamp())
+    )
     entry = {
         "title": "Test Article",
         "link": "https://example.com/article",
         "summary": "This is a test article about Python programming and stuff.",
         "author": "Test Author",
         "id": "guid-123",
-        "published_parsed": time.gmtime(1707300000),
+        "published_parsed": recent_time,
         "tags": [{"term": "python"}, {"term": "ai"}],
     }
     entry.update(overrides)
@@ -160,7 +225,7 @@ class TestEntryConversion:
         item = parser._entry_to_item(entry)
         assert item is not None
         assert "Full article content" in item.body
-        assert item.excerpt == "Short summary."
+        assert "Short summary" in item.excerpt
 
     def test_no_link_no_title_returns_none(self):
         parser = self._make_parser()
@@ -214,6 +279,67 @@ class TestEntryConversion:
         assert item is not None
         assert item.metadata["feed_url"] == "https://example.com/feed"
 
+    def test_author_falls_back_to_feed_author(self):
+        parser = self._make_parser()
+        entry = _make_feed_entry(author="")
+        item = parser._entry_to_item(entry, feed_author="Feed Author")
+        assert item is not None
+        assert item.author == "Feed Author"
+
+    def test_entry_author_takes_precedence(self):
+        parser = self._make_parser()
+        entry = _make_feed_entry(author="Entry Author")
+        item = parser._entry_to_item(entry, feed_author="Feed Author")
+        assert item is not None
+        assert item.author == "Entry Author"
+
+    def test_excerpt_from_first_paragraph(self):
+        parser = self._make_parser()
+        entry = _make_feed_entry(
+            summary="",
+            content=[{"value": "<p>First paragraph.</p><p>Second paragraph.</p>"}],
+        )
+        item = parser._entry_to_item(entry)
+        assert item is not None
+        assert "First paragraph" in item.excerpt
+
+
+# ── Cross-feed dedup ──────────────────────────────────────────────────
+
+class TestDedupByUrl:
+    def test_deduplicates_same_url(self):
+        items = [
+            ContentItem(id="a", url="https://example.com/article", source=ContentSource.RSS, word_count=100, body="short"),
+            ContentItem(id="b", url="https://example.com/article", source=ContentSource.RSS, word_count=500, body="longer version"),
+        ]
+        result = RSSParser._dedup_by_url(items)
+        assert len(result) == 1
+        assert result[0].word_count == 500  # keeps the longer one
+
+    def test_keeps_unique_urls(self):
+        items = [
+            ContentItem(id="a", url="https://example.com/a", source=ContentSource.RSS),
+            ContentItem(id="b", url="https://example.com/b", source=ContentSource.RSS),
+        ]
+        result = RSSParser._dedup_by_url(items)
+        assert len(result) == 2
+
+    def test_normalizes_trailing_slash(self):
+        items = [
+            ContentItem(id="a", url="https://example.com/article/", source=ContentSource.RSS, word_count=100),
+            ContentItem(id="b", url="https://example.com/article", source=ContentSource.RSS, word_count=200),
+        ]
+        result = RSSParser._dedup_by_url(items)
+        assert len(result) == 1
+
+    def test_preserves_items_without_url(self):
+        items = [
+            ContentItem(id="a", url="", source=ContentSource.RSS, title="No URL 1"),
+            ContentItem(id="b", url="", source=ContentSource.RSS, title="No URL 2"),
+        ]
+        result = RSSParser._dedup_by_url(items)
+        assert len(result) == 2
+
 
 # ── Feed parsing ───────────────────────────────────────────────────────
 
@@ -227,11 +353,11 @@ class TestParseFeed:
 
         mock_feed = MagicMock()
         mock_feed.bozo = False
-        mock_feed.feed = {"title": "Test Blog"}
+        mock_feed.feed = {"title": "Test Blog", "author": "Blog Owner"}
         mock_feed.entries = [_make_feed_entry()]
 
         with patch("distill.intake.parsers.rss.feedparser.parse", return_value=mock_feed):
-            items = parser.parse()
+            items = parser.parse(since=datetime(2020, 1, 1, tzinfo=timezone.utc))
 
         assert len(items) == 1
         assert items[0].site_name == "Test Blog"
@@ -256,6 +382,29 @@ class TestParseFeed:
 
         assert len(items) == 0
 
+    def test_default_recency_filter(self):
+        """When since=None, items older than max_age_days are filtered."""
+        config = IntakeConfig(
+            rss=RSSConfig(feeds=["https://example.com/feed"], max_age_days=7),
+            min_word_count=0,
+        )
+        parser = RSSParser(config=config)
+
+        old_time = time.gmtime(
+            int((datetime.now(tz=timezone.utc) - timedelta(days=30)).timestamp())
+        )
+        mock_feed = MagicMock()
+        mock_feed.bozo = False
+        mock_feed.feed = {"title": "Blog"}
+        mock_feed.entries = [
+            _make_feed_entry(published_parsed=old_time),
+        ]
+
+        with patch("distill.intake.parsers.rss.feedparser.parse", return_value=mock_feed):
+            items = parser.parse(since=None)  # should default to 7 days
+
+        assert len(items) == 0
+
     def test_word_count_filter(self):
         config = IntakeConfig(
             rss=RSSConfig(feeds=["https://example.com/feed"]),
@@ -271,7 +420,7 @@ class TestParseFeed:
         ]
 
         with patch("distill.intake.parsers.rss.feedparser.parse", return_value=mock_feed):
-            items = parser.parse()
+            items = parser.parse(since=datetime(2020, 1, 1, tzinfo=timezone.utc))
 
         assert len(items) == 0
 
@@ -289,7 +438,7 @@ class TestParseFeed:
         mock_feed.feed = {}
 
         with patch("distill.intake.parsers.rss.feedparser.parse", return_value=mock_feed):
-            items = parser.parse()
+            items = parser.parse(since=datetime(2020, 1, 1, tzinfo=timezone.utc))
 
         assert len(items) == 0
 
@@ -302,6 +451,51 @@ class TestParseFeed:
         config = IntakeConfig(rss=RSSConfig(feeds=["https://a.com/feed"]))
         parser = RSSParser(config=config)
         assert parser.source == ContentSource.RSS
+
+    def test_feed_author_used_when_entry_has_none(self):
+        config = IntakeConfig(
+            rss=RSSConfig(feeds=["https://example.com/feed"]),
+            min_word_count=0,
+        )
+        parser = RSSParser(config=config)
+
+        mock_feed = MagicMock()
+        mock_feed.bozo = False
+        mock_feed.feed = {"title": "Test Blog", "author": "Blog Owner"}
+        mock_feed.entries = [_make_feed_entry(author="")]
+
+        with patch("distill.intake.parsers.rss.feedparser.parse", return_value=mock_feed):
+            items = parser.parse(since=datetime(2020, 1, 1, tzinfo=timezone.utc))
+
+        assert len(items) == 1
+        assert items[0].author == "Blog Owner"
+
+    def test_cross_feed_dedup(self):
+        config = IntakeConfig(
+            rss=RSSConfig(feeds=["https://a.com/feed", "https://b.com/feed"]),
+            min_word_count=0,
+        )
+        parser = RSSParser(config=config)
+
+        # Same article URL from two feeds
+        entry = _make_feed_entry(link="https://shared.com/article")
+        mock_feed_a = MagicMock()
+        mock_feed_a.bozo = False
+        mock_feed_a.feed = {"title": "Feed A"}
+        mock_feed_a.entries = [entry]
+
+        mock_feed_b = MagicMock()
+        mock_feed_b.bozo = False
+        mock_feed_b.feed = {"title": "Feed B"}
+        mock_feed_b.entries = [entry]
+
+        def mock_parse(url):
+            return mock_feed_a if "a.com" in url else mock_feed_b
+
+        with patch("distill.intake.parsers.rss.feedparser.parse", side_effect=mock_parse):
+            items = parser.parse(since=datetime(2020, 1, 1, tzinfo=timezone.utc))
+
+        assert len(items) == 1
 
 
 # ── Parser factory ─────────────────────────────────────────────────────

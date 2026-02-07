@@ -2,7 +2,7 @@
 
 import logging
 from collections import Counter
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -859,7 +859,9 @@ def generate_intake(
             logger.info("Skipping %s (not configured)", source.value)
             continue
 
-        items = parser.parse(since=state.last_run if not force else None)
+        # When forcing, use epoch to bypass recency filter entirely
+        since = state.last_run if not force else datetime(2000, 1, 1, tzinfo=timezone.utc)
+        items = parser.parse(since=since)
         # Filter already-processed items
         new_items = [i for i in items if not state.is_processed(i.id)]
         all_items.extend(new_items)
