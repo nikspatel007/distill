@@ -1,11 +1,11 @@
 # Distill
 
-Content pipeline that transforms raw AI coding sessions into publishable content across multiple platforms. Previously named "session-insights".
+Content pipeline that transforms raw AI coding sessions into publishable content across multiple platforms.
 
 ## Project Structure
 
 ```
-src/session_insights/         # Python package (still named session_insights internally)
+src/distill/
   analyzers/                  # Pattern detection from session data
   blog/                       # Blog synthesis pipeline
     config.py                 # BlogConfig, post types
@@ -49,15 +49,15 @@ uv run pytest tests/ -x -q
 uv run pytest tests/blog/test_formatter.py -x -q
 
 # Type checking
-uv run mypy src/session_insights/ --no-error-summary
+uv run mypy src/distill/ --no-error-summary
 
 # Lint and format
 uv run ruff check src/ && uv run ruff format src/
 
 # Run the CLI
-uv run python -m session_insights analyze --dir . --output ./insights
-uv run python -m session_insights journal --dir . --output ./insights --global
-uv run python -m session_insights blog --output ./insights --type all
+uv run python -m distill analyze --dir . --output ./insights
+uv run python -m distill journal --dir . --output ./insights --global
+uv run python -m distill blog --output ./insights --type all
 ```
 
 ## Key Architecture
@@ -65,11 +65,11 @@ uv run python -m session_insights blog --output ./insights --type all
 ### Pipeline Flow
 ```
 Raw sessions (.claude/, .codex/, .vermas/)
-    → Parsers (claude.py, codex.py, vermas.py) → BaseSession models
-    → Analyzers (pattern detection, statistics)
-    → Formatters (Obsidian notes, project notes, weekly digests)
-    → Journal synthesizer (LLM: sessions → daily journal entries)
-    → Blog synthesizer (LLM: journal entries → weekly/thematic blog posts)
+    -> Parsers (claude.py, codex.py, vermas.py) -> BaseSession models
+    -> Analyzers (pattern detection, statistics)
+    -> Formatters (Obsidian notes, project notes, weekly digests)
+    -> Journal synthesizer (LLM: sessions -> daily journal entries)
+    -> Blog synthesizer (LLM: journal entries -> weekly/thematic blog posts)
 ```
 
 ### LLM Integration
@@ -94,11 +94,9 @@ Raw sessions (.claude/, .codex/, .vermas/)
 - **Typer** for CLI (app instance in `cli.py`)
 - **Strict mypy** type checking
 - **ruff** for linting and formatting (line length 100)
-- Test files mirror source structure: `src/.../foo.py` → `tests/.../test_foo.py`
+- Test files mirror source structure: `src/.../foo.py` -> `tests/.../test_foo.py`
 - Coverage target: 90%+
 
 ## Known Issues
 
-- Internal package name is still `session_insights` (rename to `distill` is pending)
 - `test_verify_all_kpis.py` depends on local data files and may fail in clean clones
-- `pyproject.toml` project name and script entry point still reference `session-insights`

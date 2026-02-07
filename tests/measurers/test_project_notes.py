@@ -6,13 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from session_insights.formatters.project import ProjectFormatter
-from session_insights.measurers.base import KPIResult
-from session_insights.measurers.project_notes import (
+from distill.formatters.project import ProjectFormatter
+from distill.measurers.base import KPIResult
+from distill.measurers.project_notes import (
     ProjectNotesMeasurer,
     score_project_note,
 )
-from session_insights.parsers.models import (
+from distill.parsers.models import (
     BaseSession,
     SessionOutcome,
     ToolUsageSummary,

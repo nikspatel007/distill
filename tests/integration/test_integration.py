@@ -10,15 +10,15 @@ from typing import Any
 
 import pytest
 
-from session_insights.core import (
+from distill.core import (
     AnalysisResult,
     analyze,
     discover_sessions,
     parse_session_file,
 )
-from session_insights.formatters.obsidian import ObsidianFormatter
-from session_insights.models import ToolUsage
-from session_insights.parsers.models import BaseSession  # Use parser's BaseSession
+from distill.formatters.obsidian import ObsidianFormatter
+from distill.models import ToolUsage
+from distill.parsers.models import BaseSession  # Use parser's BaseSession
 
 
 @pytest.fixture
@@ -231,7 +231,7 @@ class TestAnalyze:
 
     def test_analyze_multiple_sessions(self) -> None:
         """Test analyzing multiple sessions."""
-        from session_insights.parsers.models import ToolUsage as ParserToolUsage
+        from distill.parsers.models import ToolUsage as ParserToolUsage
 
         sessions = [
             BaseSession(
@@ -251,7 +251,7 @@ class TestAnalyze:
 
     def test_analyze_detects_patterns(self) -> None:
         """Test that analysis detects patterns."""
-        from session_insights.parsers.models import ToolUsage as ParserToolUsage
+        from distill.parsers.models import ToolUsage as ParserToolUsage
 
         sessions = [
             BaseSession(
@@ -335,12 +335,12 @@ class TestCLIExitCodes:
     @pytest.fixture
     def cli_path(self) -> Path:
         """Get path to CLI module."""
-        return Path(__file__).parents[2] / "src" / "session_insights" / "cli.py"
+        return Path(__file__).parents[2] / "src" / "distill" / "cli.py"
 
     def test_cli_version(self, cli_path: Path) -> None:
         """Test CLI version flag."""
         result = subprocess.run(
-            [sys.executable, "-m", "session_insights.cli", "--version"],
+            [sys.executable, "-m", "distill.cli", "--version"],
             capture_output=True,
             text=True,
             cwd=cli_path.parents[2],
@@ -357,7 +357,7 @@ class TestCLIExitCodes:
             [
                 sys.executable,
                 "-m",
-                "session_insights.cli",
+                "distill.cli",
                 "analyze",
                 "--dir",
                 str(tmp_path),
@@ -378,7 +378,7 @@ class TestCLIExitCodes:
             [
                 sys.executable,
                 "-m",
-                "session_insights.cli",
+                "distill.cli",
                 "analyze",
                 "--dir",
                 str(tmp_path),

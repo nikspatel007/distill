@@ -4,12 +4,12 @@ from datetime import datetime
 
 import pytest
 
-from session_insights.core import (
+from distill.core import (
     analyze,
     compute_field_coverage,
     compute_richness_score,
 )
-from session_insights.parsers.models import (
+from distill.parsers.models import (
     BaseSession,
     Message,
     SessionOutcome,
@@ -126,7 +126,7 @@ class TestComputeFieldCoverage:
 
     def test_coverage_returns_all_richness_fields(self) -> None:
         """Coverage dict should contain all tracked fields."""
-        from session_insights.core import _RICHNESS_FIELDS
+        from distill.core import _RICHNESS_FIELDS
 
         session = BaseSession(
             session_id="test",

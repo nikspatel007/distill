@@ -4,18 +4,18 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from session_insights.measurers.narrative_quality import (
+from distill.measurers.narrative_quality import (
     NarrativeQualityMeasurer,
     score_narrative,
 )
-from session_insights.narrative import (
+from distill.narrative import (
     _is_low_quality_summary,
     _generate_metadata_narrative,
     _sanitize_text,
     enrich_narrative,
     generate_narrative,
 )
-from session_insights.parsers.models import (
+from distill.parsers.models import (
     BaseSession,
     CycleInfo,
     SessionOutcome,

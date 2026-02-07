@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from session_insights.measurers.base import KPIResult
-from session_insights.measurers.note_content_richness import (
+from distill.measurers.base import KPIResult
+from distill.measurers.note_content_richness import (
     NoteContentRichnessMeasurer,
     score_note_file,
 )

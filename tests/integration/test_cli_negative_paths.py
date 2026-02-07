@@ -19,7 +19,7 @@ from unittest.mock import patch
 import pytest
 from typer.testing import CliRunner
 
-from session_insights.cli import app
+from distill.cli import app
 
 # Derive PYTHONPATH for subprocess tests
 SRC_DIR = str(Path(__file__).parents[1] / "src")
@@ -34,7 +34,7 @@ def runner() -> CliRunner:
 def _run_cli(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
     """Run the CLI as a subprocess (for E2E traceback checks)."""
     return subprocess.run(
-        [sys.executable, "-m", "session_insights", *args],
+        [sys.executable, "-m", "distill", *args],
         capture_output=True,
         text=True,
         cwd=cwd,
@@ -575,7 +575,7 @@ class TestGlobalFlagDiscovery:
         scan_dir = tmp_path / "project"
         scan_dir.mkdir()
 
-        with patch("session_insights.cli.Path.home", return_value=fake_home):
+        with patch("distill.cli.Path.home", return_value=fake_home):
             result = runner.invoke(
                 app, ["sessions", "--dir", str(scan_dir), "--global"]
             )
@@ -601,7 +601,7 @@ class TestGlobalFlagDiscovery:
         scan_dir = tmp_path / "project"
         scan_dir.mkdir()
 
-        with patch("session_insights.cli.Path.home", return_value=fake_home):
+        with patch("distill.cli.Path.home", return_value=fake_home):
             result = runner.invoke(
                 app, ["sessions", "--dir", str(scan_dir), "--global"]
             )
@@ -620,7 +620,7 @@ class TestGlobalFlagDiscovery:
         scan_dir = tmp_path / "project"
         scan_dir.mkdir()
 
-        with patch("session_insights.cli.Path.home", return_value=fake_home):
+        with patch("distill.cli.Path.home", return_value=fake_home):
             result = runner.invoke(
                 app, ["sessions", "--dir", str(scan_dir), "--global"]
             )
@@ -681,7 +681,7 @@ class TestGlobalFlagDiscovery:
             + json.dumps({"type": "assistant", "message": {"content": "ok"}, "timestamp": now.isoformat()}) + "\n"
         )
 
-        with patch("session_insights.cli.Path.home", return_value=fake_home):
+        with patch("distill.cli.Path.home", return_value=fake_home):
             result = runner.invoke(
                 app, ["sessions", "--dir", str(local_dir), "--global"]
             )
@@ -707,7 +707,7 @@ class TestGlobalFlagDiscovery:
         scan_dir = tmp_path / "empty_project"
         scan_dir.mkdir()
 
-        with patch("session_insights.cli.Path.home", return_value=fake_home):
+        with patch("distill.cli.Path.home", return_value=fake_home):
             result = runner.invoke(
                 app, ["sessions", "--dir", str(scan_dir)]
             )

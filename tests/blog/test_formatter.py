@@ -3,10 +3,10 @@
 from datetime import date
 from pathlib import Path
 
-from session_insights.blog.context import ThematicBlogContext, WeeklyBlogContext
-from session_insights.blog.formatter import BlogFormatter
-from session_insights.blog.reader import JournalEntry
-from session_insights.blog.themes import ThemeDefinition
+from distill.blog.context import ThematicBlogContext, WeeklyBlogContext
+from distill.blog.formatter import BlogFormatter
+from distill.blog.reader import JournalEntry
+from distill.blog.themes import ThemeDefinition
 
 
 def _make_weekly_context(**kwargs) -> WeeklyBlogContext:

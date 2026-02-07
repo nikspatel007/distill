@@ -6,19 +6,19 @@ from datetime import date, datetime, timedelta
 import pytest
 import yaml
 
-from session_insights.formatters.obsidian import ObsidianFormatter, _format_timedelta
-from session_insights.formatters.templates import (
+from distill.formatters.obsidian import ObsidianFormatter, _format_timedelta
+from distill.formatters.templates import (
     format_duration,
     format_obsidian_link,
     format_tag,
 )
-from session_insights.models import (
+from distill.models import (
     BaseSession,
     ConversationTurn,
     SessionOutcome,
     ToolUsage,
 )
-from session_insights.parsers.models import ToolCall
+from distill.parsers.models import ToolCall
 
 
 @pytest.fixture
@@ -379,12 +379,12 @@ class TestVermasFormatting:
     @pytest.fixture
     def vermas_session(self) -> BaseSession:
         """Create a VerMAS-like session using duck typing fields."""
-        from session_insights.parsers.models import (
+        from distill.parsers.models import (
             AgentLearning,
             AgentSignal,
             KnowledgeImprovement,
         )
-        from session_insights.parsers.vermas import VermasSession
+        from distill.parsers.vermas import VermasSession
 
         start = datetime(2024, 6, 15, 14, 0, 0)
         end = datetime(2024, 6, 15, 14, 30, 0)
@@ -537,11 +537,11 @@ class TestVermasFormatting:
 
     def test_vermas_quality_assessment_rendering(self) -> None:
         """Verify quality assessment section renders score, criteria, and notes."""
-        from session_insights.parsers.models import (
+        from distill.parsers.models import (
             AgentSignal,
             QualityAssessment,
         )
-        from session_insights.parsers.vermas import VermasSession
+        from distill.parsers.vermas import VermasSession
 
         start = datetime(2024, 6, 15, 14, 0, 0)
         session = VermasSession(

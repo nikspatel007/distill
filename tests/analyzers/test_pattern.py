@@ -4,15 +4,15 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from session_insights.analyzers.pattern import (
+from distill.analyzers.pattern import (
     BaseAnalyzer,
     CrossSessionCorrelator,
     SuccessFailureAnalyzer,
     TimelineAnalyzer,
     run_all_analyzers,
 )
-from session_insights.models import BaseSession, SessionOutcome, ToolUsage
-from session_insights.models.insight import (
+from distill.models import BaseSession, SessionOutcome, ToolUsage
+from distill.models.insight import (
     Insight,
     InsightCollection,
     InsightSeverity,

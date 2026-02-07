@@ -4,8 +4,8 @@ import json
 from datetime import date
 from pathlib import Path
 
-from session_insights.journal.cache import JournalCache
-from session_insights.journal.config import JournalStyle
+from distill.journal.cache import JournalCache
+from distill.journal.config import JournalStyle
 
 
 class TestJournalCache:

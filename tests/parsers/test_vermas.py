@@ -8,12 +8,12 @@ from pathlib import Path
 import pytest
 import yaml
 
-from session_insights.parsers.models import (
+from distill.parsers.models import (
     AgentLearning,
     AgentSignal,
     KnowledgeImprovement,
 )
-from session_insights.parsers.vermas import (
+from distill.parsers.vermas import (
     MissionInfo,
     RecapFile,
     VermasParser,

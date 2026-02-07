@@ -6,9 +6,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from session_insights.journal.config import JournalConfig, JournalStyle
-from session_insights.journal.context import DailyContext
-from session_insights.journal.synthesizer import JournalSynthesizer, SynthesisError
+from distill.journal.config import JournalConfig, JournalStyle
+from distill.journal.context import DailyContext
+from distill.journal.synthesizer import JournalSynthesizer, SynthesisError
 
 
 def _make_context() -> DailyContext:
@@ -23,7 +23,7 @@ def _make_context() -> DailyContext:
 class TestSynthesizer:
     """Tests for JournalSynthesizer."""
 
-    @patch("session_insights.journal.synthesizer.subprocess.run")
+    @patch("distill.journal.synthesizer.subprocess.run")
     def test_successful_synthesis(self, mock_run):
         mock_run.return_value = MagicMock(
             returncode=0,
@@ -43,7 +43,7 @@ class TestSynthesizer:
         assert cmd[0] == "claude"
         assert cmd[1] == "-p"
 
-    @patch("session_insights.journal.synthesizer.subprocess.run")
+    @patch("distill.journal.synthesizer.subprocess.run")
     def test_passes_model_flag(self, mock_run):
         mock_run.return_value = MagicMock(
             returncode=0, stdout="Some prose", stderr=""
@@ -56,7 +56,7 @@ class TestSynthesizer:
         assert "--model" in cmd
         assert "claude-haiku-4-5-20251001" in cmd
 
-    @patch("session_insights.journal.synthesizer.subprocess.run")
+    @patch("distill.journal.synthesizer.subprocess.run")
     def test_no_model_flag_by_default(self, mock_run):
         mock_run.return_value = MagicMock(
             returncode=0, stdout="Some prose", stderr=""
@@ -68,7 +68,7 @@ class TestSynthesizer:
         cmd = mock_run.call_args[0][0]
         assert "--model" not in cmd
 
-    @patch("session_insights.journal.synthesizer.subprocess.run")
+    @patch("distill.journal.synthesizer.subprocess.run")
     def test_cli_not_found(self, mock_run):
         mock_run.side_effect = FileNotFoundError()
         config = JournalConfig()
@@ -77,7 +77,7 @@ class TestSynthesizer:
         with pytest.raises(SynthesisError, match="not found"):
             synthesizer.synthesize(_make_context())
 
-    @patch("session_insights.journal.synthesizer.subprocess.run")
+    @patch("distill.journal.synthesizer.subprocess.run")
     def test_cli_timeout(self, mock_run):
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="claude", timeout=120)
         config = JournalConfig()
@@ -86,7 +86,7 @@ class TestSynthesizer:
         with pytest.raises(SynthesisError, match="timed out"):
             synthesizer.synthesize(_make_context())
 
-    @patch("session_insights.journal.synthesizer.subprocess.run")
+    @patch("distill.journal.synthesizer.subprocess.run")
     def test_cli_nonzero_exit(self, mock_run):
         mock_run.return_value = MagicMock(
             returncode=1,
@@ -99,7 +99,7 @@ class TestSynthesizer:
         with pytest.raises(SynthesisError, match="exited 1"):
             synthesizer.synthesize(_make_context())
 
-    @patch("session_insights.journal.synthesizer.subprocess.run")
+    @patch("distill.journal.synthesizer.subprocess.run")
     def test_os_error(self, mock_run):
         mock_run.side_effect = OSError("Permission denied")
         config = JournalConfig()
@@ -108,7 +108,7 @@ class TestSynthesizer:
         with pytest.raises(SynthesisError, match="Failed to run"):
             synthesizer.synthesize(_make_context())
 
-    @patch("session_insights.journal.synthesizer.subprocess.run")
+    @patch("distill.journal.synthesizer.subprocess.run")
     def test_strips_output(self, mock_run):
         mock_run.return_value = MagicMock(
             returncode=0,
@@ -121,7 +121,7 @@ class TestSynthesizer:
 
         assert result == "Some prose with whitespace"
 
-    @patch("session_insights.journal.synthesizer.subprocess.run")
+    @patch("distill.journal.synthesizer.subprocess.run")
     def test_uses_configured_timeout(self, mock_run):
         mock_run.return_value = MagicMock(
             returncode=0, stdout="prose", stderr=""

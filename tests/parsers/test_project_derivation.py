@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from session_insights.parsers.claude import ClaudeParser
-from session_insights.parsers.codex import CodexParser
+from distill.parsers.claude import ClaudeParser
+from distill.parsers.codex import CodexParser
 
 
 def _write_claude_session(tmpdir: Path, session_id: str, cwd: str) -> Path:

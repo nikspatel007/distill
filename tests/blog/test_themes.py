@@ -2,9 +2,9 @@
 
 from datetime import date
 
-from session_insights.blog.reader import JournalEntry
-from session_insights.blog.state import BlogState
-from session_insights.blog.themes import (
+from distill.blog.reader import JournalEntry
+from distill.blog.state import BlogState
+from distill.blog.themes import (
     ThemeDefinition,
     gather_evidence,
     get_ready_themes,
@@ -96,7 +96,7 @@ class TestGetReadyThemes:
             _make_entry(day=5, prose="Normal work."),
         ]
         # Monkey-patch THEMES for this test
-        import session_insights.blog.themes as themes_mod
+        import distill.blog.themes as themes_mod
         original = themes_mod.THEMES
         themes_mod.THEMES = [theme]
         try:
@@ -119,7 +119,7 @@ class TestGetReadyThemes:
 
         from datetime import datetime
 
-        from session_insights.blog.state import BlogPostRecord
+        from distill.blog.state import BlogPostRecord
 
         state = BlogState()
         state.mark_generated(
@@ -130,7 +130,7 @@ class TestGetReadyThemes:
             )
         )
 
-        import session_insights.blog.themes as themes_mod
+        import distill.blog.themes as themes_mod
         original = themes_mod.THEMES
         themes_mod.THEMES = [theme]
         try:
@@ -151,7 +151,7 @@ class TestGetReadyThemes:
             _make_entry(day=3, prose="special-keyword found"),
             _make_entry(day=4, prose="special-keyword again"),
         ]
-        import session_insights.blog.themes as themes_mod
+        import distill.blog.themes as themes_mod
         original = themes_mod.THEMES
         themes_mod.THEMES = [theme]
         try:

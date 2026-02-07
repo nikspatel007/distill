@@ -1,6 +1,6 @@
 """Tests for Mermaid diagram extraction and validation."""
 
-from session_insights.blog.diagrams import (
+from distill.blog.diagrams import (
     clean_diagrams,
     extract_mermaid_blocks,
     validate_mermaid,

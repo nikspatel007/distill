@@ -6,11 +6,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from session_insights.blog.config import BlogConfig
-from session_insights.blog.context import ThematicBlogContext, WeeklyBlogContext
-from session_insights.blog.reader import JournalEntry
-from session_insights.blog.synthesizer import BlogSynthesisError, BlogSynthesizer
-from session_insights.blog.themes import ThemeDefinition
+from distill.blog.config import BlogConfig
+from distill.blog.context import ThematicBlogContext, WeeklyBlogContext
+from distill.blog.reader import JournalEntry
+from distill.blog.synthesizer import BlogSynthesisError, BlogSynthesizer
+from distill.blog.themes import ThemeDefinition
 
 
 def _make_weekly_context() -> WeeklyBlogContext:
@@ -48,7 +48,7 @@ def _make_thematic_context() -> ThematicBlogContext:
 
 
 class TestBlogSynthesizer:
-    @patch("session_insights.blog.synthesizer.subprocess.run")
+    @patch("distill.blog.synthesizer.subprocess.run")
     def test_weekly_synthesis(self, mock_run: MagicMock):
         mock_run.return_value = MagicMock(
             returncode=0,
@@ -65,7 +65,7 @@ class TestBlogSynthesizer:
         assert cmd[0] == "claude"
         assert cmd[1] == "-p"
 
-    @patch("session_insights.blog.synthesizer.subprocess.run")
+    @patch("distill.blog.synthesizer.subprocess.run")
     def test_thematic_synthesis(self, mock_run: MagicMock):
         mock_run.return_value = MagicMock(
             returncode=0,
@@ -79,7 +79,7 @@ class TestBlogSynthesizer:
         assert "Deep Dive" in result
         mock_run.assert_called_once()
 
-    @patch("session_insights.blog.synthesizer.subprocess.run")
+    @patch("distill.blog.synthesizer.subprocess.run")
     def test_passes_model_flag(self, mock_run: MagicMock):
         mock_run.return_value = MagicMock(
             returncode=0, stdout="Prose", stderr=""
@@ -92,7 +92,7 @@ class TestBlogSynthesizer:
         assert "--model" in cmd
         assert "claude-sonnet-4-5-20250929" in cmd
 
-    @patch("session_insights.blog.synthesizer.subprocess.run")
+    @patch("distill.blog.synthesizer.subprocess.run")
     def test_no_model_flag_by_default(self, mock_run: MagicMock):
         mock_run.return_value = MagicMock(
             returncode=0, stdout="Prose", stderr=""
@@ -104,7 +104,7 @@ class TestBlogSynthesizer:
         cmd = mock_run.call_args[0][0]
         assert "--model" not in cmd
 
-    @patch("session_insights.blog.synthesizer.subprocess.run")
+    @patch("distill.blog.synthesizer.subprocess.run")
     def test_cli_not_found(self, mock_run: MagicMock):
         mock_run.side_effect = FileNotFoundError()
         config = BlogConfig()
@@ -113,7 +113,7 @@ class TestBlogSynthesizer:
         with pytest.raises(BlogSynthesisError, match="not found"):
             synthesizer.synthesize_weekly(_make_weekly_context())
 
-    @patch("session_insights.blog.synthesizer.subprocess.run")
+    @patch("distill.blog.synthesizer.subprocess.run")
     def test_cli_timeout(self, mock_run: MagicMock):
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="claude", timeout=180)
         config = BlogConfig()
@@ -122,7 +122,7 @@ class TestBlogSynthesizer:
         with pytest.raises(BlogSynthesisError, match="timed out"):
             synthesizer.synthesize_weekly(_make_weekly_context())
 
-    @patch("session_insights.blog.synthesizer.subprocess.run")
+    @patch("distill.blog.synthesizer.subprocess.run")
     def test_cli_nonzero_exit(self, mock_run: MagicMock):
         mock_run.return_value = MagicMock(
             returncode=1, stdout="", stderr="API error"
@@ -133,7 +133,7 @@ class TestBlogSynthesizer:
         with pytest.raises(BlogSynthesisError, match="exited 1"):
             synthesizer.synthesize_thematic(_make_thematic_context())
 
-    @patch("session_insights.blog.synthesizer.subprocess.run")
+    @patch("distill.blog.synthesizer.subprocess.run")
     def test_uses_configured_timeout(self, mock_run: MagicMock):
         mock_run.return_value = MagicMock(
             returncode=0, stdout="prose", stderr=""

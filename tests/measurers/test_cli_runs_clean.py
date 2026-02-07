@@ -8,8 +8,8 @@ from unittest.mock import patch
 
 import pytest
 
-from session_insights.measurers.base import KPIResult
-from session_insights.measurers.cli_runs_clean import (
+from distill.measurers.base import KPIResult
+from distill.measurers.cli_runs_clean import (
     CLIRunsCleanMeasurer,
     _build_test_matrix,
     _create_malformed_claude_dir,
@@ -146,7 +146,7 @@ class TestMeasurerWithMockedSubprocess:
                 mock_results.append(mock_result)
 
             with patch(
-                "session_insights.measurers.cli_runs_clean._run_cli",
+                "distill.measurers.cli_runs_clean._run_cli",
                 side_effect=mock_results,
             ):
                 result = measurer._run_matrix(matrix, base)
@@ -163,7 +163,7 @@ class TestMeasurerWithMockedSubprocess:
         ]
 
         with patch(
-            "session_insights.measurers.cli_runs_clean._run_cli",
+            "distill.measurers.cli_runs_clean._run_cli",
             side_effect=subprocess.TimeoutExpired(cmd="test", timeout=30),
         ):
             with tempfile.TemporaryDirectory() as tmpdir:

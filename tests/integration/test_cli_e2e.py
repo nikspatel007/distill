@@ -29,7 +29,7 @@ def _run_cli(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
         CompletedProcess with captured stdout/stderr.
     """
     return subprocess.run(
-        [sys.executable, "-m", "session_insights", *args],
+        [sys.executable, "-m", "distill", *args],
         capture_output=True,
         text=True,
         cwd=cwd,

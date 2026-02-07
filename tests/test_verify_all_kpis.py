@@ -227,7 +227,7 @@ class TestKPI5CoverageTarget:
             [
                 "uv", "run", "pytest", "tests/", "-q",
                 f"--ignore={__file__}",
-                "--cov=session_insights",
+                "--cov=distill",
                 "--cov-report=term-missing",
             ],
             capture_output=True,

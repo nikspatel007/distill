@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from session_insights.cli import app
-from session_insights.parsers.claude import ClaudeParser
-from session_insights.parsers.codex import CodexParser
+from distill.cli import app
+from distill.parsers.claude import ClaudeParser
+from distill.parsers.codex import CodexParser
 
 
 @pytest.fixture

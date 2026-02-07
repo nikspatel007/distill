@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from session_insights.parsers.codex import CodexParser, CodexSession
+from distill.parsers.codex import CodexParser, CodexSession
 
 
 class TestCodexSession:

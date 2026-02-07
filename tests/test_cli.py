@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from session_insights.cli import app
+from distill.cli import app
 
 
 @pytest.fixture
@@ -227,9 +227,9 @@ class TestGenerateIndexFunction:
     def test_generate_index_creates_valid_markdown(self) -> None:
         """Test that _generate_index creates valid markdown."""
         from datetime import datetime
-        from session_insights.cli import _generate_index
-        from session_insights.core import AnalysisResult, SessionStats
-        from session_insights.parsers.models import BaseSession
+        from distill.cli import _generate_index
+        from distill.core import AnalysisResult, SessionStats
+        from distill.parsers.models import BaseSession
 
         # Create minimal test data with correct field names
         session = BaseSession(
@@ -265,9 +265,9 @@ class TestGenerateIndexFunction:
     def test_generate_index_includes_session_links(self) -> None:
         """Test that index contains links to sessions."""
         from datetime import datetime
-        from session_insights.cli import _generate_index
-        from session_insights.core import AnalysisResult, SessionStats
-        from session_insights.parsers.models import BaseSession
+        from distill.cli import _generate_index
+        from distill.core import AnalysisResult, SessionStats
+        from distill.parsers.models import BaseSession
 
         session = BaseSession(
             session_id="test-session-abc",

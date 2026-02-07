@@ -6,9 +6,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from session_insights.journal.config import JournalConfig
-from session_insights.journal.context import DailyContext
-from session_insights.journal.memory import (
+from distill.journal.config import JournalConfig
+from distill.journal.context import DailyContext
+from distill.journal.memory import (
     MEMORY_FILENAME,
     DailyMemoryEntry,
     MemoryThread,
@@ -16,7 +16,7 @@ from session_insights.journal.memory import (
     load_memory,
     save_memory,
 )
-from session_insights.journal.synthesizer import JournalSynthesizer, SynthesisError
+from distill.journal.synthesizer import JournalSynthesizer, SynthesisError
 
 
 def _make_entry(day: int = 5, **kwargs) -> DailyMemoryEntry:
@@ -271,7 +271,7 @@ class TestContextInjection:
 class TestExtractMemory:
     """Tests for JournalSynthesizer.extract_memory()."""
 
-    @patch("session_insights.journal.synthesizer.subprocess.run")
+    @patch("distill.journal.synthesizer.subprocess.run")
     def test_extracts_valid_memory(self, mock_run):
         mock_run.return_value = MagicMock(
             returncode=0,
@@ -304,7 +304,7 @@ class TestExtractMemory:
         assert threads[0].name == "merge-issue"
         assert threads[0].first_mentioned == date(2026, 2, 5)
 
-    @patch("session_insights.journal.synthesizer.subprocess.run")
+    @patch("distill.journal.synthesizer.subprocess.run")
     def test_strips_markdown_fences(self, mock_run):
         fenced = '```json\n{"themes": ["test"], "key_insights": [], "decisions_made": [], "open_questions": [], "tomorrow_intentions": [], "threads": []}\n```'
         mock_run.return_value = MagicMock(
@@ -315,7 +315,7 @@ class TestExtractMemory:
         entry, threads = synthesizer.extract_memory("prose", date(2026, 2, 5))
         assert entry.themes == ["test"]
 
-    @patch("session_insights.journal.synthesizer.subprocess.run")
+    @patch("distill.journal.synthesizer.subprocess.run")
     def test_invalid_json_raises(self, mock_run):
         mock_run.return_value = MagicMock(
             returncode=0, stdout="not json at all", stderr=""
@@ -325,7 +325,7 @@ class TestExtractMemory:
         with pytest.raises(SynthesisError, match="invalid JSON"):
             synthesizer.extract_memory("prose", date(2026, 2, 5))
 
-    @patch("session_insights.journal.synthesizer.subprocess.run")
+    @patch("distill.journal.synthesizer.subprocess.run")
     def test_cli_failure_raises(self, mock_run):
         mock_run.return_value = MagicMock(
             returncode=1, stdout="", stderr="error"
@@ -335,7 +335,7 @@ class TestExtractMemory:
         with pytest.raises(SynthesisError, match="exited 1"):
             synthesizer.extract_memory("prose", date(2026, 2, 5))
 
-    @patch("session_insights.journal.synthesizer.subprocess.run")
+    @patch("distill.journal.synthesizer.subprocess.run")
     def test_empty_threads(self, mock_run):
         mock_run.return_value = MagicMock(
             returncode=0,
@@ -355,7 +355,7 @@ class TestExtractMemory:
         assert entry.themes == ["testing"]
         assert threads == []
 
-    @patch("session_insights.journal.synthesizer.subprocess.run")
+    @patch("distill.journal.synthesizer.subprocess.run")
     def test_passes_model_flag(self, mock_run):
         mock_run.return_value = MagicMock(
             returncode=0,

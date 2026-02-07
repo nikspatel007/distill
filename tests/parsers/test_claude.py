@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from session_insights.parsers.claude import ClaudeParser, ClaudeSession
-from session_insights.parsers.models import BaseSession, Message, ToolUsage
+from distill.parsers.claude import ClaudeParser, ClaudeSession
+from distill.parsers.models import BaseSession, Message, ToolUsage
 
 
 class TestModels:

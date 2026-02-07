@@ -18,11 +18,11 @@ from pathlib import Path
 import pytest
 import yaml
 
-from session_insights.core import analyze, discover_sessions, generate_weekly_notes, parse_session_file
-from session_insights.formatters.obsidian import ObsidianFormatter
-from session_insights.parsers.claude import ClaudeParser
-from session_insights.parsers.models import BaseSession
-from session_insights.parsers.vermas import VermasParser
+from distill.core import analyze, discover_sessions, generate_weekly_notes, parse_session_file
+from distill.formatters.obsidian import ObsidianFormatter
+from distill.parsers.claude import ClaudeParser
+from distill.parsers.models import BaseSession
+from distill.parsers.vermas import VermasParser
 
 
 # ---------------------------------------------------------------------------
@@ -35,7 +35,7 @@ SRC_DIR = str(Path(__file__).parents[2] / "src")
 def _run_cli(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
     """Run the session-insights CLI as a subprocess."""
     return subprocess.run(
-        [sys.executable, "-m", "session_insights", *args],
+        [sys.executable, "-m", "distill", *args],
         capture_output=True,
         text=True,
         cwd=cwd,

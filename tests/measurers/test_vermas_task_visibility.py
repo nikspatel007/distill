@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from session_insights.measurers.base import KPIResult
-from session_insights.measurers.vermas_task_visibility import (
+from distill.measurers.base import KPIResult
+from distill.measurers.vermas_task_visibility import (
     VERMAS_NOTE_SECTIONS,
     VermasTaskVisibilityMeasurer,
     score_vermas_note,

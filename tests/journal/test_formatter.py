@@ -3,9 +3,9 @@
 from datetime import date
 from pathlib import Path
 
-from session_insights.journal.config import JournalConfig, JournalStyle
-from session_insights.journal.context import DailyContext
-from session_insights.journal.formatter import JournalFormatter
+from distill.journal.config import JournalConfig, JournalStyle
+from distill.journal.context import DailyContext
+from distill.journal.formatter import JournalFormatter
 
 
 def _make_context(**kwargs) -> DailyContext:

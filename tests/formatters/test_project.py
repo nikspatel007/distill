@@ -4,11 +4,11 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from session_insights.formatters.project import (
+from distill.formatters.project import (
     ProjectFormatter,
     group_sessions_by_project,
 )
-from session_insights.parsers.models import (
+from distill.parsers.models import (
     BaseSession,
     SessionOutcome,
     ToolUsageSummary,

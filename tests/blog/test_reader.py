@@ -3,7 +3,7 @@
 from datetime import date
 from pathlib import Path
 
-from session_insights.blog.reader import (
+from distill.blog.reader import (
     JournalReader,
     _extract_prose,
     _parse_frontmatter,

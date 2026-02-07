@@ -38,6 +38,7 @@ htmlcov/
 
 # Generated output
 insights/
+docs/
 
 # Task / workflow markers
 TASK.md

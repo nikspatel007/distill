@@ -1,7 +1,7 @@
 """Tests for blog prompt template generation."""
 
-from session_insights.blog.config import BlogPostType
-from session_insights.blog.prompts import BLOG_SYSTEM_PROMPTS, get_blog_prompt
+from distill.blog.config import BlogPostType
+from distill.blog.prompts import BLOG_SYSTEM_PROMPTS, get_blog_prompt
 
 
 class TestBlogPrompts:

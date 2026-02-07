@@ -44,7 +44,7 @@ distill sessions --dir /path/to/project --global
 ## Project Structure
 
 ```
-src/session_insights/
+src/distill/
   analyzers/       # Pattern detection
   blog/            # Blog synthesis pipeline (config, context, prompts, themes, diagrams)
   formatters/      # Output formatters (Obsidian, project notes, weekly digests)
@@ -65,7 +65,7 @@ tests/             # Unit + integration tests (645+ tests)
 uv run pytest tests/ -x -q
 
 # Type checking
-uv run mypy src/session_insights/ --no-error-summary
+uv run mypy src/distill/ --no-error-summary
 
 # Lint
 uv run ruff check src/ && uv run ruff format src/

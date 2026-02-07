@@ -2,13 +2,13 @@
 
 from datetime import date, datetime, timezone
 
-from session_insights.journal.config import JournalConfig
-from session_insights.journal.context import (
+from distill.journal.config import JournalConfig
+from distill.journal.context import (
     DailyContext,
     SessionSummaryForLLM,
     prepare_daily_context,
 )
-from session_insights.parsers.models import (
+from distill.parsers.models import (
     BaseSession,
     ConversationTurn,
     CycleInfo,

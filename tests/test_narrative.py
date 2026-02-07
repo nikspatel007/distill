@@ -4,8 +4,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from session_insights.narrative import enrich_narrative, generate_narrative
-from session_insights.parsers.models import (
+from distill.narrative import enrich_narrative, generate_narrative
+from distill.parsers.models import (
     BaseSession,
     CycleInfo,
     SessionOutcome,

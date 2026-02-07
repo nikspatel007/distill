@@ -14,14 +14,14 @@ from pathlib import Path
 import pytest
 import yaml
 
-from session_insights.formatters.obsidian import ObsidianFormatter
-from session_insights.parsers.models import (
+from distill.formatters.obsidian import ObsidianFormatter
+from distill.parsers.models import (
     AgentLearning,
     AgentSignal,
     CycleInfo,
     KnowledgeImprovement,
 )
-from session_insights.parsers.vermas import (
+from distill.parsers.vermas import (
     VermasParser,
     VermasSession,
 )
@@ -707,7 +707,7 @@ class TestKPIMeasurerCompatibility:
 
     def test_full_session_scores_100_percent(self, parser: VermasParser) -> None:
         """Full session has all 4 KPI sections present."""
-        from session_insights.measurers.vermas_task_visibility import score_vermas_note
+        from distill.measurers.vermas_task_visibility import score_vermas_note
 
         with tempfile.TemporaryDirectory() as tmpdir:
             vermas_dir = _create_full_vermas_dir(Path(tmpdir))
@@ -723,7 +723,7 @@ class TestKPIMeasurerCompatibility:
 
     def test_fallback_session_scores_100_percent(self, parser: VermasParser) -> None:
         """Session using fallback task_description still has all 4 KPI sections."""
-        from session_insights.measurers.vermas_task_visibility import score_vermas_note
+        from distill.measurers.vermas_task_visibility import score_vermas_note
 
         with tempfile.TemporaryDirectory() as tmpdir:
             vermas_dir = Path(tmpdir) / ".vermas"

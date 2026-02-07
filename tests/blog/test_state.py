@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from pathlib import Path
 
-from session_insights.blog.state import (
+from distill.blog.state import (
     BlogPostRecord,
     BlogState,
     load_blog_state,

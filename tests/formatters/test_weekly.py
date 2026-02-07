@@ -4,12 +4,12 @@ from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
-from session_insights.formatters.weekly import (
+from distill.formatters.weekly import (
     WeeklyDigestFormatter,
     group_sessions_by_week,
     week_start_date,
 )
-from session_insights.parsers.models import (
+from distill.parsers.models import (
     BaseSession,
     SessionOutcome,
     ToolUsageSummary,

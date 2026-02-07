@@ -2,13 +2,13 @@
 
 from datetime import date
 
-from session_insights.blog.context import (
+from distill.blog.context import (
     prepare_thematic_context,
     prepare_weekly_context,
 )
-from session_insights.blog.reader import JournalEntry
-from session_insights.blog.themes import ThemeDefinition
-from session_insights.journal.memory import MemoryThread, WorkingMemory
+from distill.blog.reader import JournalEntry
+from distill.blog.themes import ThemeDefinition
+from distill.journal.memory import MemoryThread, WorkingMemory
 
 
 def _make_entry(
