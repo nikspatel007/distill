@@ -932,8 +932,6 @@ def generate_intake(
             logger.warning("Failed to publish intake to %s", pub_name, exc_info=True)
 
     # Mark items as processed and save state
-    from datetime import datetime as dt
-
     for item in all_items:
         state.mark_processed(
             IntakeRecord(
@@ -943,7 +941,7 @@ def generate_intake(
                 source=item.source.value,
             )
         )
-    state.last_run = dt.now()
+    state.last_run = datetime.now(tz=timezone.utc)
     state.prune(keep_days=30)
     save_intake_state(state, output_dir)
 

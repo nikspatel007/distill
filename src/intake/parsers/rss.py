@@ -56,6 +56,9 @@ class RSSParser(ContentParser):
             since = datetime.now(tz=timezone.utc) - timedelta(
                 days=self._config.rss.max_age_days
             )
+        elif since.tzinfo is None:
+            # Ensure timezone-aware for comparison with feed dates
+            since = since.replace(tzinfo=timezone.utc)
 
         items: list[ContentItem] = []
         for url in feed_urls:
