@@ -1,9 +1,0 @@
-agent_id: ea65686e
-created_at: '2026-02-05T14:43:43.619526'
-message: 'Fixed version output: now exactly ''session-insights v0.1.0'' using click.version_option(message=''session-insights
-  v%(version)s''). Test updated to assert exact output. All requirements met.'
-metadata: null
-role: dev
-signal: done
-signal_id: e275e4d1
-workflow_id: mission-f68b8b88-cycle-5-execute-create-minimal-cli-entrypoint

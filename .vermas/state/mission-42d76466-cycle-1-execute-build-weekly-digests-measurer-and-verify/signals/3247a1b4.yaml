@@ -1,9 +1,0 @@
-agent_id: 11c0fb35
-created_at: '2026-02-06T08:26:47.717873'
-message: 'QA review: no weekly_digests measurer implementation or tests found; weekly
-  digest output missing required sections. See notes.'
-metadata: null
-role: qa
-signal: needs_revision
-signal_id: 3247a1b4
-workflow_id: mission-42d76466-cycle-1-execute-build-weekly-digests-measurer-and-verify

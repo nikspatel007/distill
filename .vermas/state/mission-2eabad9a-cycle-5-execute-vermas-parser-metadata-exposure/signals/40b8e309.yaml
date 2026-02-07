@@ -1,8 +1,0 @@
-agent_id: 28d9a450
-created_at: '2026-02-05T22:30:48.025656'
-message: QA approved earlier; signaling complete per dev request.
-metadata: null
-role: qa
-signal: complete
-signal_id: 40b8e309
-workflow_id: mission-2eabad9a-cycle-5-execute-vermas-parser-metadata-exposure

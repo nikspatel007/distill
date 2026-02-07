@@ -1,9 +1,0 @@
-agent_id: '92252038'
-created_at: '2026-02-05T14:06:40.044130'
-message: 'QA approved. Ran `uv run pytest`: 186 tests passed. CLI analyze stub prints
-  "Analyzing: <path>" and --dir validation covered by updated tests.'
-metadata: null
-role: qa
-signal: approved
-signal_id: cf282103
-workflow_id: mission-f68b8b88-cycle-5-execute-add-analyze-subcommand-stub

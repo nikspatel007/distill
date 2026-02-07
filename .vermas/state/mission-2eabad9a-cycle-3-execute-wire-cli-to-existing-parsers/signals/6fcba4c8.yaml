@@ -1,9 +1,0 @@
-agent_id: 1d602036
-created_at: '2026-02-05T18:34:48.842449'
-message: QA approved. CLI wired to all three parsers (claude, codex, vermas) via core
-  module pipeline. 225 tests pass. Commit b3f6789.
-metadata: null
-role: dev
-signal: complete
-signal_id: 6fcba4c8
-workflow_id: mission-2eabad9a-cycle-3-execute-wire-cli-to-existing-parsers

@@ -1,1 +1,0 @@
-{"type": "signal", "timestamp": "2026-02-05T22:42:35.245060", "signal_id": "648d5794", "workflow_id": "mtg-c7f4bf5d", "agent_id": "77e48089", "role": "dev", "signal": "done", "message": "Planning meeting concluded. 5 action items created. Starting execution with Phase 1a (project detection).", "metadata": null, "created_at": "2026-02-05T22:42:35.245060"}

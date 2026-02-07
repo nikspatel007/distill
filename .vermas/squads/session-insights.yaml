@@ -1,7 +1,0 @@
-agents:
-- cli: claude
-  role: engineer
-- cli: codex
-  role: reviewer
-name: session-insights
-workflow: ''

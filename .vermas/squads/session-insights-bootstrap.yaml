@@ -1,9 +1,0 @@
-agents:
-- cli: claude
-  role: diagnostician
-- cli: claude
-  role: engineer
-- cli: codex
-  role: validator
-name: session-insights-bootstrap
-workflow: ''

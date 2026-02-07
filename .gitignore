@@ -1,12 +1,42 @@
-# Python bytecode
+# Python
 __pycache__/
 *.pyc
 *.pyo
+*.egg-info/
+dist/
+build/
 
-# VerMAS workflow marker files - DO NOT COMMIT
+# Virtual environments
+.venv/
+
+# Coverage
+.coverage
+htmlcov/
+
+# Type checking / linting caches
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# VerMAS workflow artifacts (legacy)
+.vermas/
+.worktrees/
+.vermas-merge-lock
+.agent-*.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+
+# Claude Code
+.claude/
+
+# Task / workflow markers
 TASK.md
 AGENTS.md
-CLAUDE.md
-.agent-*.json
-.claude/
-.vermas-merge-lock
+MISSION.md
