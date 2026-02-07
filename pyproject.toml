@@ -32,8 +32,8 @@ addopts = "-v --cov=distill --cov-report=term-missing"
 
 [tool.coverage.run]
 omit = [
-    "src/distill/cli.py",
-    "src/distill/__main__.py",
+    "distill/cli.py",
+    "distill/__main__.py",
 ]
 
 [tool.mypy]

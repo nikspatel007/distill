@@ -5,7 +5,7 @@ Content pipeline that transforms raw AI coding sessions into publishable content
 ## Project Structure
 
 ```
-src/distill/
+distill/
   analyzers/                  # Pattern detection from session data
   blog/                       # Blog synthesis pipeline
     config.py                 # BlogConfig, post types
@@ -49,10 +49,10 @@ uv run pytest tests/ -x -q
 uv run pytest tests/blog/test_formatter.py -x -q
 
 # Type checking
-uv run mypy src/distill/ --no-error-summary
+uv run mypy distill/ --no-error-summary
 
 # Lint and format
-uv run ruff check src/ && uv run ruff format src/
+uv run ruff check distill/ && uv run ruff format distill/
 
 # Run the CLI
 uv run python -m distill analyze --dir . --output ./insights
