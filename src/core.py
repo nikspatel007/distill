@@ -317,13 +317,13 @@ def compute_richness_score(session: BaseSession) -> float:
         if value is None:
             continue
         # For strings, check non-empty
-        if isinstance(value, str) and value:
-            filled += 1
-        # For lists, check non-empty
-        elif isinstance(value, list) and len(value) > 0:
-            filled += 1
-        # For datetimes (end_time), any non-None value counts
-        elif isinstance(value, datetime):
+        if (
+            isinstance(value, str)
+            and value
+            or isinstance(value, list)
+            and len(value) > 0
+            or isinstance(value, datetime)
+        ):
             filled += 1
 
     return filled / total if total > 0 else 0.0
@@ -342,20 +342,22 @@ def compute_field_coverage(sessions: list[BaseSession]) -> dict[str, float]:
         Dictionary mapping field name to coverage fraction (0.0 to 1.0).
     """
     if not sessions:
-        return {field: 0.0 for field in _RICHNESS_FIELDS}
+        return dict.fromkeys(_RICHNESS_FIELDS, 0.0)
 
-    coverage: dict[str, int] = {field: 0 for field in _RICHNESS_FIELDS}
+    coverage: dict[str, int] = dict.fromkeys(_RICHNESS_FIELDS, 0)
 
     for session in sessions:
         for field in _RICHNESS_FIELDS:
             value = getattr(session, field, None)
             if value is None:
                 continue
-            if isinstance(value, str) and value:
-                coverage[field] += 1
-            elif isinstance(value, list) and len(value) > 0:
-                coverage[field] += 1
-            elif isinstance(value, datetime):
+            if (
+                isinstance(value, str)
+                and value
+                or isinstance(value, list)
+                and len(value) > 0
+                or isinstance(value, datetime)
+            ):
                 coverage[field] += 1
 
     n = len(sessions)
@@ -556,6 +558,8 @@ def generate_blog_posts(
     include_diagrams: bool = True,
     model: str | None = None,
     target_word_count: int = 1200,
+    platforms: list[str] | None = None,
+    ghost_config: Any | None = None,
 ) -> list[Path]:
     """Generate blog posts from existing journal entries.
 
@@ -572,12 +576,15 @@ def generate_blog_posts(
         include_diagrams: Whether to include Mermaid diagrams.
         model: Optional Claude model override.
         target_word_count: Target word count for posts.
+        platforms: List of platform names to publish to. Defaults to ["obsidian"].
+        ghost_config: Optional GhostConfig for live Ghost CMS publishing.
 
     Returns:
         List of written blog post file paths.
     """
-    from distill.blog.config import BlogConfig
-    from distill.blog.formatter import BlogFormatter
+    from distill.blog.blog_memory import load_blog_memory, save_blog_memory
+    from distill.blog.config import BlogConfig, Platform
+    from distill.blog.publishers import create_publisher
     from distill.blog.reader import JournalReader
     from distill.blog.state import (
         BlogState,
@@ -587,6 +594,9 @@ def generate_blog_posts(
     from distill.blog.synthesizer import BlogSynthesizer
     from distill.journal.memory import load_memory
 
+    if platforms is None:
+        platforms = ["obsidian"]
+
     config = BlogConfig(
         target_word_count=target_word_count,
         include_diagrams=include_diagrams,
@@ -594,7 +604,6 @@ def generate_blog_posts(
     )
     reader = JournalReader()
     synthesizer = BlogSynthesizer(config)
-    formatter = BlogFormatter()
 
     # 1. Read all journal entries
     journal_dir = output_dir / "journal"
@@ -602,9 +611,10 @@ def generate_blog_posts(
     if not entries:
         return []
 
-    # 2. Load working memory and blog state
+    # 2. Load working memory, blog state, and blog memory
     memory = load_memory(output_dir)
     state = load_blog_state(output_dir) if not force else BlogState()
+    blog_memory = load_blog_memory(output_dir)
 
     written: list[Path] = []
 
@@ -617,11 +627,13 @@ def generate_blog_posts(
                 state=state,
                 config=config,
                 synthesizer=synthesizer,
-                formatter=formatter,
                 output_dir=output_dir,
                 target_week=target_week,
                 force=force,
                 dry_run=dry_run,
+                platforms=platforms,
+                blog_memory=blog_memory,
+                ghost_config=ghost_config,
             )
         )
 
@@ -634,18 +646,35 @@ def generate_blog_posts(
                 state=state,
                 config=config,
                 synthesizer=synthesizer,
-                formatter=formatter,
                 output_dir=output_dir,
                 target_theme=target_theme,
                 force=force,
                 dry_run=dry_run,
+                platforms=platforms,
+                blog_memory=blog_memory,
+                ghost_config=ghost_config,
             )
         )
 
-    # 5. Save state and regenerate index
+    # 5. Save state, blog memory, and regenerate indexes
     if not dry_run:
         save_blog_state(state, output_dir)
-        _generate_blog_index(output_dir, state)
+        save_blog_memory(blog_memory, output_dir)
+        # Generate index for each file publisher
+        for platform_name in platforms:
+            try:
+                p = Platform(platform_name)
+                publisher = create_publisher(
+                    p, synthesizer=synthesizer, ghost_config=ghost_config
+                )
+                if not publisher.requires_llm:
+                    idx_content = publisher.format_index(output_dir, state)
+                    if idx_content:
+                        idx_path = publisher.index_path(output_dir)
+                        idx_path.parent.mkdir(parents=True, exist_ok=True)
+                        idx_path.write_text(idx_content, encoding="utf-8")
+            except (ValueError, Exception):
+                pass
 
     return written
 
@@ -657,15 +686,19 @@ def _generate_weekly_posts(
     state: Any,
     config: Any,
     synthesizer: Any,
-    formatter: Any,
     output_dir: Path,
     target_week: str | None,
     force: bool,
     dry_run: bool,
+    platforms: list[str],
+    blog_memory: Any,
+    ghost_config: Any | None = None,
 ) -> list[Path]:
     """Generate weekly synthesis blog posts."""
+    from distill.blog.config import Platform
     from distill.blog.context import prepare_weekly_context
     from distill.blog.diagrams import clean_diagrams
+    from distill.blog.publishers import create_publisher
     from distill.blog.state import BlogPostRecord
 
     written: list[Path] = []
@@ -683,9 +716,7 @@ def _generate_weekly_posts(
         if len(parts) == 2:
             try:
                 tw_year, tw_week = int(parts[0]), int(parts[1])
-                weeks = {
-                    k: v for k, v in weeks.items() if k == (tw_year, tw_week)
-                }
+                weeks = {k: v for k, v in weeks.items() if k == (tw_year, tw_week)}
             except ValueError:
                 pass
 
@@ -706,14 +737,34 @@ def _generate_weekly_posts(
             print("---")
             continue
 
-        prose = synthesizer.synthesize_weekly(context)
+        memory_text = blog_memory.render_for_prompt()
+        prose = synthesizer.synthesize_weekly(context, blog_memory=memory_text)
         if config.include_diagrams:
             prose = clean_diagrams(prose)
 
-        markdown = formatter.format_weekly(context, prose)
-        out_path = formatter.weekly_output_path(output_dir, year, week)
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(markdown, encoding="utf-8")
+        # Extract blog memory from canonical prose
+        try:
+            title = f"Week {year}-W{week:02d}"
+            summary = synthesizer.extract_blog_memory(prose, slug, title, "weekly")
+            blog_memory.add_post(summary)
+        except Exception:
+            logger.warning("Blog memory extraction failed for %s", slug)
+
+        # Publish to each platform
+        for platform_name in platforms:
+            try:
+                p = Platform(platform_name)
+                publisher = create_publisher(
+                    p, synthesizer=synthesizer, ghost_config=ghost_config
+                )
+                content = publisher.format_weekly(context, prose)
+                out_path = publisher.weekly_output_path(output_dir, year, week)
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                out_path.write_text(content, encoding="utf-8")
+                written.append(out_path)
+                blog_memory.mark_published(slug, platform_name)
+            except Exception:
+                logger.warning("Failed to publish %s to %s", slug, platform_name, exc_info=True)
 
         state.mark_generated(
             BlogPostRecord(
@@ -721,10 +772,165 @@ def _generate_weekly_posts(
                 post_type="weekly",
                 generated_at=datetime.now(),
                 source_dates=[e.date for e in week_entries],
-                file_path=str(out_path),
+                file_path=str(out_path) if written else "",
             )
         )
-        written.append(out_path)
+
+    return written
+
+
+def generate_intake(
+    output_dir: Path,
+    *,
+    feed_urls: list[str] | None = None,
+    feeds_file: str | None = None,
+    opml_file: str | None = None,
+    sources: list[str] | None = None,
+    force: bool = False,
+    dry_run: bool = False,
+    model: str | None = None,
+    target_word_count: int = 800,
+    publishers: list[str] | None = None,
+) -> list[Path]:
+    """Ingest content from configured sources and synthesize a daily digest.
+
+    Args:
+        output_dir: Root output directory (contains intake/).
+        feed_urls: Explicit list of RSS feed URLs.
+        feeds_file: Path to a newline-delimited feeds file.
+        opml_file: Path to an OPML file with feed URLs.
+        sources: List of source names to ingest (e.g. ["rss"]). None = all configured.
+        force: Bypass state check and re-process.
+        dry_run: Preview context without calling LLM.
+        model: Optional Claude model override.
+        target_word_count: Target word count for the digest.
+        publishers: List of publisher names. Defaults to ["obsidian"].
+
+    Returns:
+        List of written output file paths.
+    """
+    from distill.intake.config import IntakeConfig, RSSConfig
+    from distill.intake.context import prepare_daily_context
+    from distill.intake.memory import load_intake_memory, save_intake_memory
+    from distill.intake.models import ContentItem, ContentSource
+    from distill.intake.parsers import create_parser
+    from distill.intake.publishers import create_intake_publisher
+    from distill.intake.state import (
+        IntakeRecord,
+        IntakeState,
+        load_intake_state,
+        save_intake_state,
+    )
+    from distill.intake.synthesizer import IntakeSynthesizer
+
+    if publishers is None:
+        publishers = ["obsidian"]
+
+    # Build config
+    rss_config = RSSConfig(
+        feeds=feed_urls or [],
+        feeds_file=feeds_file or "",
+        opml_file=opml_file or "",
+    )
+    config = IntakeConfig(
+        rss=rss_config,
+        model=model,
+        target_word_count=target_word_count,
+    )
+
+    # Determine which sources to run
+    if sources is None:
+        source_list = [ContentSource.RSS]
+    else:
+        source_list = [ContentSource(s) for s in sources]
+
+    # Load state
+    state = load_intake_state(output_dir) if not force else IntakeState()
+
+    # Fan-in: collect from all configured sources
+    all_items: list[ContentItem] = []
+    for source in source_list:
+        try:
+            parser = create_parser(source, config=config)
+        except ValueError:
+            logger.info("No parser available for %s, skipping", source.value)
+            continue
+        if not parser.is_configured:
+            logger.info("Skipping %s (not configured)", source.value)
+            continue
+
+        items = parser.parse(since=state.last_run if not force else None)
+        # Filter already-processed items
+        new_items = [i for i in items if not state.is_processed(i.id)]
+        all_items.extend(new_items)
+        logger.info("Got %d new items from %s", len(new_items), source.value)
+
+    if not all_items:
+        logger.info("No new content items to process")
+        return []
+
+    # Build context
+    context = prepare_daily_context(all_items)
+
+    if dry_run:
+        print(f"[DRY RUN] Would synthesize intake digest for {context.date}")
+        print(f"  Items: {context.total_items}")
+        print(f"  Sources: {', '.join(context.sources)}")
+        print(f"  Sites: {', '.join(context.sites[:10])}")
+        print(f"  Word count: {context.total_word_count}")
+        print("---")
+        print(context.combined_text[:2000])
+        return []
+
+    # Synthesize
+    memory = load_intake_memory(output_dir)
+    memory_text = memory.render_for_prompt()
+
+    synthesizer = IntakeSynthesizer(config)
+    prose = synthesizer.synthesize_daily(context, memory_context=memory_text)
+
+    # Fan-out: publish to each enabled target
+    written: list[Path] = []
+    for pub_name in publishers:
+        try:
+            publisher = create_intake_publisher(pub_name)
+            content = publisher.format_daily(context, prose)
+            out_path = publisher.daily_output_path(output_dir, context.date)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(content, encoding="utf-8")
+            written.append(out_path)
+        except Exception:
+            logger.warning("Failed to publish intake to %s", pub_name, exc_info=True)
+
+    # Mark items as processed and save state
+    from datetime import datetime as dt
+
+    for item in all_items:
+        state.mark_processed(
+            IntakeRecord(
+                item_id=item.id,
+                url=item.url,
+                title=item.title,
+                source=item.source.value,
+            )
+        )
+    state.last_run = dt.now()
+    state.prune(keep_days=30)
+    save_intake_state(state, output_dir)
+
+    # Update memory
+    from distill.intake.memory import DailyIntakeEntry
+
+    memory.add_entry(
+        DailyIntakeEntry(
+            date=context.date,
+            themes=[t for t in context.all_tags[:5]],
+            key_items=[i.title for i in all_items[:10] if i.title],
+            item_count=len(all_items),
+        )
+    )
+    memory.prune(keep_days=30)
+    save_intake_memory(memory, output_dir)
 
     return written
 
@@ -736,15 +942,19 @@ def _generate_thematic_posts(
     state: Any,
     config: Any,
     synthesizer: Any,
-    formatter: Any,
     output_dir: Path,
     target_theme: str | None,
     force: bool,
     dry_run: bool,
+    platforms: list[str],
+    blog_memory: Any,
+    ghost_config: Any | None = None,
 ) -> list[Path]:
     """Generate thematic deep-dive blog posts."""
+    from distill.blog.config import Platform
     from distill.blog.context import prepare_thematic_context
     from distill.blog.diagrams import clean_diagrams
+    from distill.blog.publishers import create_publisher
     from distill.blog.state import BlogPostRecord
     from distill.blog.themes import THEMES, gather_evidence, get_ready_themes
 
@@ -752,9 +962,7 @@ def _generate_thematic_posts(
 
     if target_theme:
         # Generate a specific theme
-        theme_def = next(
-            (t for t in THEMES if t.slug == target_theme), None
-        )
+        theme_def = next((t for t in THEMES if t.slug == target_theme), None)
         if theme_def is None:
             return []
         evidence = gather_evidence(theme_def, entries)
@@ -778,14 +986,35 @@ def _generate_thematic_posts(
             print("---")
             continue
 
-        prose = synthesizer.synthesize_thematic(context)
+        memory_text = blog_memory.render_for_prompt()
+        prose = synthesizer.synthesize_thematic(context, blog_memory=memory_text)
         if config.include_diagrams:
             prose = clean_diagrams(prose)
 
-        markdown = formatter.format_thematic(context, prose)
-        out_path = formatter.thematic_output_path(output_dir, theme.slug)
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(markdown, encoding="utf-8")
+        # Extract blog memory
+        try:
+            summary = synthesizer.extract_blog_memory(prose, theme.slug, theme.title, "thematic")
+            blog_memory.add_post(summary)
+        except Exception:
+            logger.warning("Blog memory extraction failed for %s", theme.slug)
+
+        # Publish to each platform
+        for platform_name in platforms:
+            try:
+                p = Platform(platform_name)
+                publisher = create_publisher(
+                    p, synthesizer=synthesizer, ghost_config=ghost_config
+                )
+                content = publisher.format_thematic(context, prose)
+                out_path = publisher.thematic_output_path(output_dir, theme.slug)
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                out_path.write_text(content, encoding="utf-8")
+                written.append(out_path)
+                blog_memory.mark_published(theme.slug, platform_name)
+            except Exception:
+                logger.warning(
+                    "Failed to publish %s to %s", theme.slug, platform_name, exc_info=True
+                )
 
         state.mark_generated(
             BlogPostRecord(
@@ -793,58 +1022,8 @@ def _generate_thematic_posts(
                 post_type="thematic",
                 generated_at=datetime.now(),
                 source_dates=[e.date for e in evidence],
-                file_path=str(out_path),
+                file_path=str(out_path) if written else "",
             )
         )
-        written.append(out_path)
 
     return written
-
-
-def _generate_blog_index(output_dir: Path, state: Any) -> None:
-    """Regenerate the blog/index.md file."""
-    blog_dir = output_dir / "blog"
-    blog_dir.mkdir(parents=True, exist_ok=True)
-
-    lines: list[str] = [
-        "---",
-        "type: blog-index",
-        f"created: {datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}",
-        f"total_posts: {len(state.posts)}",
-        "---",
-        "",
-        "# Blog Index",
-        "",
-    ]
-
-    # Weekly posts
-    weekly = sorted(
-        [p for p in state.posts if p.post_type == "weekly"],
-        key=lambda p: p.slug,
-        reverse=True,
-    )
-    if weekly:
-        lines.append("## Weekly Synthesis")
-        lines.append("")
-        for post in weekly:
-            link = f"[[blog/weekly/{post.slug}|{post.slug}]]"
-            date_str = post.generated_at.strftime("%Y-%m-%d")
-            lines.append(f"- {link} (generated {date_str})")
-        lines.append("")
-
-    # Thematic posts
-    thematic = sorted(
-        [p for p in state.posts if p.post_type == "thematic"],
-        key=lambda p: p.slug,
-    )
-    if thematic:
-        lines.append("## Thematic Deep-Dives")
-        lines.append("")
-        for post in thematic:
-            link = f"[[blog/themes/{post.slug}|{post.slug}]]"
-            date_str = post.generated_at.strftime("%Y-%m-%d")
-            lines.append(f"- {link} (generated {date_str})")
-        lines.append("")
-
-    index_path = blog_dir / "index.md"
-    index_path.write_text("\n".join(lines), encoding="utf-8")

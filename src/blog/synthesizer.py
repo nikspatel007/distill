@@ -6,12 +6,15 @@ prose. Follows the same subprocess pattern as journal/synthesizer.py.
 
 from __future__ import annotations
 
+import json
 import logging
 import subprocess
+from datetime import date
 
+from distill.blog.blog_memory import BlogPostSummary
 from distill.blog.config import BlogConfig, BlogPostType
 from distill.blog.context import ThematicBlogContext, WeeklyBlogContext
-from distill.blog.prompts import get_blog_prompt
+from distill.blog.prompts import MEMORY_EXTRACTION_PROMPT, SOCIAL_PROMPTS, get_blog_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +29,14 @@ class BlogSynthesizer:
     def __init__(self, config: BlogConfig) -> None:
         self._config = config
 
-    def synthesize_weekly(self, context: WeeklyBlogContext) -> str:
+    def synthesize_weekly(
+        self, context: WeeklyBlogContext, blog_memory: str = ""
+    ) -> str:
         """Transform weekly context into blog prose.
 
         Args:
             context: Assembled weekly blog context.
+            blog_memory: Optional rendered blog memory for cross-referencing.
 
         Returns:
             Raw prose string from Claude including Mermaid blocks.
@@ -41,15 +47,19 @@ class BlogSynthesizer:
         system_prompt = get_blog_prompt(
             BlogPostType.WEEKLY,
             self._config.target_word_count,
+            blog_memory=blog_memory,
         )
         user_prompt = _render_weekly_prompt(context)
         return self._call_claude(system_prompt, user_prompt, f"weekly W{context.week}")
 
-    def synthesize_thematic(self, context: ThematicBlogContext) -> str:
+    def synthesize_thematic(
+        self, context: ThematicBlogContext, blog_memory: str = ""
+    ) -> str:
         """Transform thematic context into blog prose.
 
         Args:
             context: Assembled thematic blog context.
+            blog_memory: Optional rendered blog memory for cross-referencing.
 
         Returns:
             Raw prose string from Claude including Mermaid blocks.
@@ -61,9 +71,62 @@ class BlogSynthesizer:
             BlogPostType.THEMATIC,
             self._config.target_word_count,
             theme_title=context.theme.title,
+            blog_memory=blog_memory,
         )
         user_prompt = _render_thematic_prompt(context)
         return self._call_claude(system_prompt, user_prompt, context.theme.slug)
+
+    def adapt_for_platform(self, prose: str, platform: str, slug: str) -> str:
+        """Adapt blog prose for a specific platform.
+
+        Args:
+            prose: Canonical blog post prose.
+            platform: Target platform key (e.g., "twitter", "linkedin", "reddit").
+            slug: Post slug for logging.
+
+        Returns:
+            Platform-adapted text.
+
+        Raises:
+            BlogSynthesisError: If the CLI call fails.
+            KeyError: If platform is not in SOCIAL_PROMPTS.
+        """
+        system_prompt = SOCIAL_PROMPTS[platform]
+        return self._call_claude(system_prompt, prose, f"adapt-{platform}-{slug}")
+
+    def extract_blog_memory(
+        self, prose: str, slug: str, title: str, post_type: str
+    ) -> BlogPostSummary:
+        """Extract structured memory from blog prose.
+
+        Args:
+            prose: Blog post prose to extract from.
+            slug: Post slug.
+            title: Post title.
+            post_type: Post type ("weekly" or "thematic").
+
+        Returns:
+            BlogPostSummary with extracted key_points and themes_covered.
+        """
+        try:
+            raw = self._call_claude(MEMORY_EXTRACTION_PROMPT, prose, f"memory-{slug}")
+            data = json.loads(raw)
+            key_points = data.get("key_points", [])
+            themes_covered = data.get("themes_covered", [])
+        except (BlogSynthesisError, json.JSONDecodeError, ValueError):
+            logger.warning("Failed to extract blog memory for %s", slug)
+            key_points = []
+            themes_covered = []
+
+        return BlogPostSummary(
+            slug=slug,
+            title=title,
+            post_type=post_type,
+            date=date.today(),
+            key_points=key_points,
+            themes_covered=themes_covered,
+            platforms_published=[],
+        )
 
     def _call_claude(self, system_prompt: str, user_prompt: str, label: str) -> str:
         """Call Claude CLI with combined prompt."""

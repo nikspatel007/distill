@@ -4,19 +4,15 @@ import contextlib
 import json
 from datetime import date, datetime
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
-from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
-
 from distill.core import (
     AnalysisResult,
     analyze,
-    compute_field_coverage,
-    compute_richness_score,
     discover_sessions,
     generate_blog_posts,
+    generate_intake,
     generate_journal_notes,
     generate_project_notes,
     generate_weekly_notes,
@@ -26,6 +22,8 @@ from distill.formatters.obsidian import ObsidianFormatter
 from distill.models import BaseSession
 from distill.parsers.claude import ClaudeParser
 from distill.parsers.codex import CodexParser
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn
 
 app = typer.Typer(
     name="session-insights",
@@ -123,7 +121,11 @@ def _generate_index(
         for session in sorted(date_sessions, key=lambda s: s.start_time):
             time_str = session.start_time.strftime("%H:%M")
             session_link = f"[[sessions/{session.note_name}]]"
-            summary = session.summary[:60] + "..." if session.summary and len(session.summary) > 60 else (session.summary or "No summary")
+            summary = (
+                session.summary[:60] + "..."
+                if session.summary and len(session.summary) > 60
+                else (session.summary or "No summary")
+            )
             lines.append(f"- {time_str} - {session_link}: {summary}")
 
         lines.append("")
@@ -151,9 +153,7 @@ def _empty_stats_json() -> dict:
     }
 
 
-def _build_stats_json(
-    sessions: list[BaseSession], result: AnalysisResult
-) -> dict:
+def _build_stats_json(sessions: list[BaseSession], result: AnalysisResult) -> dict:
     """Build the stats JSON output from analysis results."""
     date_range = None
     if result.stats.date_range:
@@ -166,9 +166,7 @@ def _build_stats_json(
     return {
         "session_count": result.stats.total_sessions,
         "content_richness_score": result.stats.content_richness_score,
-        "field_coverage": {
-            k: round(v, 3) for k, v in result.stats.field_coverage.items()
-        },
+        "field_coverage": {k: round(v, 3) for k, v in result.stats.field_coverage.items()},
         "sources": result.stats.sources,
         "total_duration_minutes": round(result.stats.total_duration_minutes, 1),
         "date_range": date_range,
@@ -191,9 +189,7 @@ def _infer_source_from_path(path: Path) -> str | None:
     return None
 
 
-def _parse_single_file(
-    path: Path, source_filter: list[str] | None
-) -> list[BaseSession]:
+def _parse_single_file(path: Path, source_filter: list[str] | None) -> list[BaseSession]:
     """Parse a single session file using the appropriate parser.
 
     Uses the parser's single-file method rather than scanning an entire
@@ -277,9 +273,7 @@ def _discover_and_parse(
                     continue
                 # Filter by date if specified
                 if since_date:
-                    sessions = [
-                        s for s in sessions if s.start_time.date() >= since_date
-                    ]
+                    sessions = [s for s in sessions if s.start_time.date() >= since_date]
                 all_sessions.extend(sessions)
                 if progress and task is not None:
                     progress.advance(task)
@@ -309,7 +303,7 @@ def analyze_cmd(
         ),
     ] = Path("."),
     output: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(
             "--output",
             "-o",
@@ -392,7 +386,11 @@ def analyze_cmd(
         all_sessions = _parse_single_file(directory, source)
     else:
         all_sessions = _discover_and_parse(
-            directory, source, include_global, since_date, stats_only,
+            directory,
+            source,
+            include_global,
+            since_date,
+            stats_only,
         )
 
     # Filter by date if specified (for single-file path too)
@@ -614,7 +612,7 @@ def journal_cmd(
         ),
     ] = Path("."),
     output: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(
             "--output",
             "-o",
@@ -730,7 +728,11 @@ def journal_cmd(
 
     # Discover and parse sessions
     all_sessions = _discover_and_parse(
-        directory, source, include_global, since_date, stats_only=False,
+        directory,
+        source,
+        include_global,
+        since_date,
+        stats_only=False,
     )
 
     if not all_sessions:
@@ -769,7 +771,9 @@ def journal_cmd(
         return
 
     if not written:
-        console.print("[yellow]No new entries generated (all cached). Use --force to regenerate.[/yellow]")
+        console.print(
+            "[yellow]No new entries generated (all cached). Use --force to regenerate.[/yellow]"
+        )
         return
 
     console.print()
@@ -845,6 +849,34 @@ def blog_cmd(
             help="Target word count for blog posts.",
         ),
     ] = 1200,
+    publish: Annotated[
+        str | None,
+        typer.Option(
+            "--publish",
+            help="Comma-separated platforms (obsidian,ghost,markdown,twitter,linkedin,reddit).",
+        ),
+    ] = None,
+    ghost_url: Annotated[
+        str | None,
+        typer.Option(
+            "--ghost-url",
+            help="Ghost instance URL (or GHOST_URL env var).",
+        ),
+    ] = None,
+    ghost_key: Annotated[
+        str | None,
+        typer.Option(
+            "--ghost-key",
+            help="Ghost Admin API key as id:secret (or GHOST_ADMIN_API_KEY env var).",
+        ),
+    ] = None,
+    ghost_newsletter: Annotated[
+        str | None,
+        typer.Option(
+            "--ghost-newsletter",
+            help="Ghost newsletter slug for auto-send (or GHOST_NEWSLETTER_SLUG env var).",
+        ),
+    ] = None,
 ) -> None:
     """Generate blog posts from existing journal entries.
 
@@ -854,6 +886,7 @@ def blog_cmd(
 
     Use --dry-run to preview what would be generated.
     Use --force to regenerate posts that already exist.
+    Use --publish to target specific platforms (comma-separated).
     """
     # Validate post type
     valid_types = ("weekly", "thematic", "all")
@@ -861,6 +894,33 @@ def blog_cmd(
         console.print(f"[red]Error:[/red] Unknown type: {post_type}")
         console.print(f"Valid types: {', '.join(valid_types)}")
         raise typer.Exit(1)
+
+    # Parse platforms
+    from distill.blog.config import Platform
+
+    if publish:
+        platform_names = [p.strip() for p in publish.split(",")]
+        valid_platforms = [p.value for p in Platform]
+        for pname in platform_names:
+            if pname != "all" and pname not in valid_platforms:
+                console.print(f"[red]Error:[/red] Unknown platform: {pname}")
+                console.print(f"Valid platforms: {', '.join(valid_platforms)}")
+                raise typer.Exit(1)
+        if "all" in platform_names:
+            platform_names = valid_platforms
+    else:
+        platform_names = ["obsidian"]
+
+    # Build Ghost config from CLI options / env vars
+    from distill.blog.config import GhostConfig
+
+    ghost_config = GhostConfig.from_env()
+    if ghost_url:
+        ghost_config.url = ghost_url
+    if ghost_key:
+        ghost_config.admin_api_key = ghost_key
+    if ghost_newsletter:
+        ghost_config.newsletter_slug = ghost_newsletter
 
     # Check that journal directory exists
     journal_dir = output / "journal"
@@ -883,6 +943,8 @@ def blog_cmd(
             include_diagrams=not no_diagrams,
             model=model,
             target_word_count=words,
+            platforms=platform_names,
+            ghost_config=ghost_config if ghost_config.is_configured else None,
         )
 
     if dry_run:
@@ -895,6 +957,136 @@ def blog_cmd(
 
     console.print()
     console.print(f"[bold green]Generated {len(written)} blog post(s):[/bold green]")
+    for path in written:
+        console.print(f"  {path}")
+
+
+@app.command(name="intake")
+def intake_cmd(
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output directory. Intake digests go in output/intake/.",
+        ),
+    ],
+    sources: Annotated[
+        str | None,
+        typer.Option(
+            "--sources",
+            "-s",
+            help="Comma-separated sources to ingest (rss). Default: rss.",
+        ),
+    ] = None,
+    feeds_file: Annotated[
+        str | None,
+        typer.Option(
+            "--feeds-file",
+            help="Path to a text file with RSS feed URLs (one per line).",
+        ),
+    ] = None,
+    opml: Annotated[
+        str | None,
+        typer.Option(
+            "--opml",
+            help="Path to an OPML file with RSS feed subscriptions.",
+        ),
+    ] = None,
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force",
+            help="Re-process all items, ignoring state.",
+        ),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Preview fetched content without calling LLM.",
+        ),
+    ] = False,
+    model: Annotated[
+        str | None,
+        typer.Option(
+            "--model",
+            help="Override the Claude model.",
+        ),
+    ] = None,
+    words: Annotated[
+        int,
+        typer.Option(
+            "--words",
+            help="Target word count for the digest.",
+        ),
+    ] = 800,
+    publish: Annotated[
+        str | None,
+        typer.Option(
+            "--publish",
+            help="Comma-separated publishers (obsidian, markdown). Default: obsidian.",
+        ),
+    ] = None,
+    use_defaults: Annotated[
+        bool,
+        typer.Option(
+            "--use-defaults",
+            help="Use built-in default RSS feeds (90+ tech/engineering blogs).",
+        ),
+    ] = False,
+) -> None:
+    """Ingest content from external sources and synthesize a daily research digest.
+
+    Fetches RSS feeds (and other configured sources), normalizes content into
+    a canonical model, then synthesizes a daily reading digest via Claude.
+
+    Use --feeds-file or --opml to provide your own feed list.
+    Use --use-defaults to start with 90+ curated tech/engineering feeds.
+    Use --dry-run to preview fetched content without calling the LLM.
+    """
+    # Resolve sources
+    source_list = [s.strip() for s in sources.split(",")] if sources else None
+
+    # Resolve publishers
+    publisher_list = [p.strip() for p in publish.split(",")] if publish else None
+
+    # Resolve feeds file — use built-in defaults if requested
+    resolved_feeds_file = feeds_file
+    if use_defaults and not feeds_file and not opml:
+        import importlib.resources
+
+        default_path = Path(__file__).parent / "intake" / "default_feeds.txt"
+        if default_path.exists():
+            resolved_feeds_file = str(default_path)
+            console.print(f"[dim]Using default feeds from {default_path}[/dim]")
+
+    with _progress_context(quiet=dry_run) as progress:
+        if progress:
+            progress.add_task("Ingesting content...", total=None)
+
+        written = generate_intake(
+            output,
+            feeds_file=resolved_feeds_file,
+            opml_file=opml,
+            sources=source_list,
+            force=force,
+            dry_run=dry_run,
+            model=model,
+            target_word_count=words,
+            publishers=publisher_list,
+        )
+
+    if dry_run:
+        return
+
+    if not written:
+        console.print("[yellow]No new content to digest.[/yellow]")
+        console.print("Use --force to re-process, or check your feed configuration.")
+        return
+
+    console.print()
+    console.print(f"[bold green]Generated {len(written)} intake digest(s):[/bold green]")
     for path in written:
         console.print(f"  {path}")
 

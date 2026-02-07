@@ -24,6 +24,10 @@ htmlcov/
 .vermas-merge-lock
 .agent-*.json
 
+# Secrets / environment
+.env
+.env.*
+
 # IDE
 .idea/
 .vscode/
@@ -38,7 +42,6 @@ htmlcov/
 
 # Generated output
 insights/
-docs/
 
 # Task / workflow markers
 TASK.md

@@ -12,6 +12,40 @@ _OUTPUT_INSTRUCTION = (
     " annotations, no \"Should I save this?\". Just the post."
 )
 
+SOCIAL_PROMPTS: dict[str, str] = {
+    "twitter": (
+        "Convert this blog post into a Twitter/X thread of 5-8 tweets. "
+        "Each tweet MUST be 280 characters or fewer. "
+        "First tweet is the hook -- make it compelling and standalone. "
+        "Number each tweet (1/, 2/, etc.). "
+        "Each tweet should be standalone-readable. "
+        "Last tweet: include [LINK] placeholder and a brief CTA. "
+        "Output ONLY the thread, no commentary."
+    ),
+    "linkedin": (
+        "Condense this blog post into a LinkedIn post (1000-1300 characters total). "
+        "Professional tone. Structure: hook paragraph → 3 key takeaways (use emoji bullets) "
+        "→ closing insight. Include 3-5 relevant hashtags at the end "
+        "(#MultiAgent #AIEngineering #DevOps etc.). "
+        "Output ONLY the post, no commentary."
+    ),
+    "reddit": (
+        "Adapt this blog post for a Reddit r/programming discussion post. "
+        "Structure: **TL;DR** (2-3 sentences) → **Key Points** (3-5 bullets) → "
+        "brief narrative (2-3 paragraphs, ~500-800 words, more casual tone) → "
+        "**Discussion question** (engaging, open-ended). "
+        "Output ONLY the post, no commentary."
+    ),
+}
+
+MEMORY_EXTRACTION_PROMPT = (
+    "Extract the key information from this blog post as JSON.\n"
+    "Return ONLY valid JSON with these fields:\n"
+    "- key_points: list of 3-5 bullet point strings summarizing the main arguments\n"
+    "- themes_covered: list of tag strings (e.g., 'multi-agent', 'coordination', 'testing')\n"
+    'Example: {"key_points": ["point 1", "point 2"], "themes_covered": ["theme1"]}'
+)
+
 BLOG_SYSTEM_PROMPTS: dict[BlogPostType, str] = {
     BlogPostType.WEEKLY: (
         "You are writing a weekly synthesis blog post based on a week"
@@ -88,6 +122,7 @@ def get_blog_prompt(
     post_type: BlogPostType,
     word_count: int,
     theme_title: str = "",
+    blog_memory: str = "",
 ) -> str:
     """Get the system prompt for a given blog post type.
 
@@ -95,9 +130,13 @@ def get_blog_prompt(
         post_type: Weekly or thematic.
         word_count: Target word count.
         theme_title: Theme title (only used for thematic posts).
+        blog_memory: Optional rendered blog memory for cross-referencing.
 
     Returns:
         Interpolated prompt string.
     """
     template = BLOG_SYSTEM_PROMPTS[post_type]
-    return template.format(word_count=word_count, theme_title=theme_title)
+    prompt = template.format(word_count=word_count, theme_title=theme_title)
+    if blog_memory:
+        prompt = f"{prompt}\n\n{blog_memory}"
+    return prompt

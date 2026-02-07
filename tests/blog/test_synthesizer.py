@@ -144,3 +144,80 @@ class TestBlogSynthesizer:
 
         call_kwargs = mock_run.call_args[1]
         assert call_kwargs["timeout"] == 300
+
+    @patch("distill.blog.synthesizer.subprocess.run")
+    def test_adapt_for_platform_calls_claude_with_social_prompt(self, mock_run: MagicMock):
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="1/ Great thread hook...", stderr=""
+        )
+        config = BlogConfig()
+        synthesizer = BlogSynthesizer(config)
+        synthesizer.adapt_for_platform("Blog prose here", "twitter", "weekly-W06")
+
+        mock_run.assert_called_once()
+        cmd = mock_run.call_args[0][0]
+        prompt_arg = cmd[-1]
+        assert "Twitter/X thread" in prompt_arg
+
+    @patch("distill.blog.synthesizer.subprocess.run")
+    def test_adapt_for_platform_returns_output(self, mock_run: MagicMock):
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="1/ Hook tweet\n2/ Detail tweet", stderr=""
+        )
+        config = BlogConfig()
+        synthesizer = BlogSynthesizer(config)
+        result = synthesizer.adapt_for_platform("Blog prose", "twitter", "weekly-W06")
+
+        assert "1/ Hook tweet" in result
+
+    @patch("distill.blog.synthesizer.subprocess.run")
+    def test_extract_blog_memory_parses_json(self, mock_run: MagicMock):
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout='{"key_points": ["point 1", "point 2"], "themes_covered": ["agents"]}',
+            stderr="",
+        )
+        config = BlogConfig()
+        synthesizer = BlogSynthesizer(config)
+        summary = synthesizer.extract_blog_memory(
+            "Blog prose", "weekly-W06", "Week 6 Post", "weekly"
+        )
+
+        assert summary.slug == "weekly-W06"
+        assert summary.title == "Week 6 Post"
+        assert summary.post_type == "weekly"
+        assert summary.key_points == ["point 1", "point 2"]
+        assert summary.themes_covered == ["agents"]
+        assert summary.platforms_published == []
+
+    @patch("distill.blog.synthesizer.subprocess.run")
+    def test_extract_blog_memory_handles_bad_json(self, mock_run: MagicMock):
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="not valid json at all", stderr=""
+        )
+        config = BlogConfig()
+        synthesizer = BlogSynthesizer(config)
+        summary = synthesizer.extract_blog_memory(
+            "Blog prose", "weekly-W06", "Week 6 Post", "weekly"
+        )
+
+        assert summary.slug == "weekly-W06"
+        assert summary.key_points == []
+        assert summary.themes_covered == []
+
+    @patch("distill.blog.synthesizer.subprocess.run")
+    def test_synthesize_weekly_with_blog_memory(self, mock_run: MagicMock):
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="# Post with memory", stderr=""
+        )
+        config = BlogConfig()
+        synthesizer = BlogSynthesizer(config)
+        memory_text = "## Previous Blog Posts\n\n- Some older post"
+        result = synthesizer.synthesize_weekly(
+            _make_weekly_context(), blog_memory=memory_text
+        )
+
+        assert "Post with memory" in result
+        cmd = mock_run.call_args[0][0]
+        prompt_arg = cmd[-1]
+        assert "Previous Blog Posts" in prompt_arg

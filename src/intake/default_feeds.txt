@@ -1,0 +1,111 @@
+# Default RSS feeds — curated from HN top blogs 2025
+# One URL per line. Lines starting with # are ignored.
+
+# --- Tech / Software Engineering ---
+https://simonwillison.net/atom/everything/
+https://www.jeffgeerling.com/blog.xml
+https://www.seangoedecke.com/rss.xml
+https://mitchellh.com/feed.xml
+https://xeiaso.net/blog.rss
+https://rachelbythebay.com/w/atom.xml
+https://overreacted.io/rss.xml
+https://matklad.github.io/feed.xml
+https://eli.thegreenplace.net/feeds/all.atom.xml
+https://lucumr.pocoo.org/feed.atom
+https://blog.jim-nielsen.com/feed.xml
+https://www.geoffreylitt.com/feed.xml
+https://bernsteinbear.com/feed.xml
+https://jyn.dev/atom.xml
+https://evanhahn.com/feed.xml
+https://hugotunius.se/feed.xml
+https://fabiensanglard.net/rss.xml
+https://nesbitt.io/feed.xml
+https://beej.us/blog/rss.xml
+https://matduggan.com/rss/
+https://danieldelaney.net/feed
+https://keygen.sh/blog/feed.xml
+https://blog.miguelgrinberg.com/feed
+
+# --- Security ---
+https://krebsonsecurity.com/feed/
+https://www.troyhunt.com/rss/
+https://micahflee.com/feed/
+
+# --- AI / ML ---
+https://garymarcus.substack.com/feed
+https://gwern.substack.com/feed
+https://minimaxir.com/index.xml
+
+# --- Indie / Startups ---
+http://www.aaronsw.com/2002/feeds/pgessays.rss
+https://steveblank.com/feed/
+https://ericmigi.com/rss.xml
+
+# --- Culture / Tech Commentary ---
+https://pluralistic.net/feed/
+https://daringfireball.net/feeds/main
+https://shkspr.mobi/blog/feed/
+https://www.wheresyoured.at/rss/
+https://joanwestenberg.com/rss
+https://anildash.com/feed.xml
+
+# --- Deep Dives ---
+https://dynomight.net/feed.xml
+https://www.construction-physics.com/feed
+https://feed.tedium.co/
+https://www.experimental-history.com/feed
+https://www.filfre.net/feed/
+https://www.abortretry.fail/feed
+https://computer.rip/rss.xml
+
+# --- Systems / Low-level ---
+http://antirez.com/rss
+https://devblogs.microsoft.com/oldnewthing/feed
+https://www.righto.com/feeds/posts/default
+https://berthub.eu/articles/index.xml
+https://www.chiark.greenend.org.uk/~sgtatham/quasiblog/feed.xml
+https://michael.stapelberg.ch/feed.xml
+https://mjg59.dreamwidth.org/data/rss
+https://www.tedunangst.com/flak/rss
+
+# --- Personal / Essays ---
+https://susam.net/feed.xml
+https://entropicthoughts.com/feed.xml
+https://buttondown.com/hillelwayne/rss
+https://borretti.me/feed.xml
+https://www.dwarkeshpatel.com/feed
+https://gilesthomas.com/feed/rss.xml
+https://rakhim.exotext.com/rss.xml
+https://grantslatton.com/rss.xml
+https://terriblesoftware.org/feed/
+https://www.johndcook.com/blog/feed/
+
+# --- Misc ---
+https://utcc.utoronto.ca/~cks/space/blog/?atom
+https://skyfall.dev/rss.xml
+https://timsh.org/rss/
+https://idiallo.com/feed.rss
+https://maurycyz.com/index.xml
+https://jayd.ml/feed.xml
+https://geohot.github.io/blog/feed.xml
+https://dfarq.homeip.net/feed/
+https://www.downtowndougbrown.com/feed/
+https://brutecat.com/rss.xml
+https://oldvcr.blogspot.com/feeds/posts/default
+https://bogdanthegeek.github.io/blog/index.xml
+https://chadnauseam.com/rss.xml
+https://simone.org/feed/
+https://it-notes.dragas.net/feed/
+https://hey.paris/index.xml
+https://danielwirtz.com/rss.xml
+https://refactoringenglish.com/index.xml
+https://worksonmymachine.substack.com/feed
+https://philiplaine.com/index.xml
+https://herman.bearblog.dev/feed/
+https://tomrenner.com/index.xml
+https://blog.pixelmelt.dev/rss/
+https://martinalderson.com/feed.xml
+https://danielchasehooper.com/feed.xml
+https://aresluna.org/main.rss
+https://lcamtuf.substack.com/feed
+https://www.theatlantic.com/feed/author/derek-thompson/
