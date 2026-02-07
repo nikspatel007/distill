@@ -110,6 +110,10 @@ def _generate_metadata_narrative(session: BaseSession) -> str:
         if successes:
             descs = [o.description for o in successes[:2]]
             parts.append("Accomplished: " + "; ".join(descs) + ".")
+        failures = [o for o in session.outcomes if not o.success]
+        if failures:
+            descs = [o.description for o in failures[:2]]
+            parts.append("Incomplete: " + "; ".join(descs) + ".")
 
     # Tags
     if session.tags:
@@ -226,4 +230,7 @@ def enrich_narrative(session: BaseSession) -> None:
         session: The session to enrich.
     """
     if not session.narrative or _is_low_quality_summary(session.narrative):
-        session.narrative = generate_narrative(session)
+        generated = generate_narrative(session)
+        # Only replace if we actually produce a better narrative
+        if generated and len(generated.split()) > len((session.narrative or "").split()):
+            session.narrative = generated

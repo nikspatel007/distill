@@ -16,6 +16,8 @@ from session_insights.core import (
     compute_field_coverage,
     compute_richness_score,
     discover_sessions,
+    generate_blog_posts,
+    generate_journal_notes,
     generate_project_notes,
     generate_weekly_notes,
     parse_session_file,
@@ -595,6 +597,306 @@ def sessions_cmd(
 
     # Output JSON
     console.print(json.dumps(summary, indent=2))
+
+
+@app.command(name="journal")
+def journal_cmd(
+    directory: Annotated[
+        Path,
+        typer.Option(
+            "--dir",
+            "-d",
+            help="Directory to scan for session data.",
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            resolve_path=True,
+        ),
+    ] = Path("."),
+    output: Annotated[
+        Optional[Path],
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output directory. Journal notes go in output/journal/.",
+        ),
+    ] = None,
+    style: Annotated[
+        str,
+        typer.Option(
+            "--style",
+            "-s",
+            help="Writing style: dev-journal, tech-blog, team-update, building-in-public.",
+        ),
+    ] = "dev-journal",
+    target_date: Annotated[
+        str | None,
+        typer.Option(
+            "--date",
+            help="Generate for a specific date (YYYY-MM-DD). Defaults to today.",
+        ),
+    ] = None,
+    since: Annotated[
+        str | None,
+        typer.Option(
+            "--since",
+            help="Generate for all dates since YYYY-MM-DD.",
+        ),
+    ] = None,
+    source: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--source",
+            help="Filter to specific sources (claude, codex, vermas).",
+        ),
+    ] = None,
+    include_global: Annotated[
+        bool,
+        typer.Option(
+            "--global/--no-global",
+            help="Also scan home directory for sessions.",
+        ),
+    ] = False,
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force",
+            help="Regenerate even if cached.",
+        ),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Print context without calling LLM.",
+        ),
+    ] = False,
+    words: Annotated[
+        int,
+        typer.Option(
+            "--words",
+            help="Target word count for the entry.",
+        ),
+    ] = 600,
+    model: Annotated[
+        str | None,
+        typer.Option(
+            "--model",
+            help="Override the Claude model (e.g., claude-haiku-4-5-20251001).",
+        ),
+    ] = None,
+) -> None:
+    """Generate journal/blog entries from session data using LLM synthesis.
+
+    Discovers sessions, compresses them into structured context, and sends
+    the context to Claude CLI for narrative prose synthesis. Output is
+    Obsidian-compatible markdown with YAML frontmatter.
+
+    Use --dry-run to preview the context that would be sent to the LLM.
+    Use --force to regenerate entries that are already cached.
+    """
+    from session_insights.journal.config import JournalStyle
+
+    # Validate style
+    valid_styles = [s.value for s in JournalStyle]
+    if style not in valid_styles:
+        console.print(f"[red]Error:[/red] Unknown style: {style}")
+        console.print(f"Valid styles: {', '.join(valid_styles)}")
+        raise typer.Exit(1)
+
+    # Parse dates
+    since_date: date | None = None
+    parsed_target_date: date | None = None
+
+    if target_date:
+        try:
+            parsed_target_date = datetime.strptime(target_date, "%Y-%m-%d").date()
+        except ValueError:
+            console.print(f"[red]Error:[/red] Invalid date format: {target_date}")
+            console.print("Use YYYY-MM-DD format (e.g., 2026-02-05)")
+            raise typer.Exit(1)
+
+    if since:
+        try:
+            since_date = datetime.strptime(since, "%Y-%m-%d").date()
+        except ValueError:
+            console.print(f"[red]Error:[/red] Invalid date format: {since}")
+            console.print("Use YYYY-MM-DD format (e.g., 2026-02-05)")
+            raise typer.Exit(1)
+
+    # Default to today if no date specified
+    if parsed_target_date is None and since_date is None:
+        parsed_target_date = date.today()
+
+    # Discover and parse sessions
+    all_sessions = _discover_and_parse(
+        directory, source, include_global, since_date, stats_only=False,
+    )
+
+    if not all_sessions:
+        console.print("[yellow]No sessions found.[/yellow]")
+        raise typer.Exit(0)
+
+    console.print(f"[green]Parsed {len(all_sessions)} session(s)[/green]")
+
+    # Determine target dates
+    target_dates: list[date] | None = None
+    if parsed_target_date:
+        target_dates = [parsed_target_date]
+    # If --since was used, target_dates stays None (all dates)
+
+    # Set default output directory
+    if output is None:
+        output = Path("./insights/")
+
+    # Generate journal entries
+    with _progress_context(quiet=dry_run) as progress:
+        if progress:
+            progress.add_task("Generating journal entries...", total=None)
+
+        written = generate_journal_notes(
+            all_sessions,
+            output,
+            target_dates=target_dates,
+            style=style,
+            target_word_count=words,
+            force=force,
+            dry_run=dry_run,
+            model=model,
+        )
+
+    if dry_run:
+        return
+
+    if not written:
+        console.print("[yellow]No new entries generated (all cached). Use --force to regenerate.[/yellow]")
+        return
+
+    console.print()
+    console.print(f"[bold green]Generated {len(written)} journal entry/entries:[/bold green]")
+    for path in written:
+        console.print(f"  {path}")
+
+
+@app.command(name="blog")
+def blog_cmd(
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output directory (contains journal/ and blog/).",
+        ),
+    ],
+    post_type: Annotated[
+        str,
+        typer.Option(
+            "--type",
+            "-t",
+            help="Post type: weekly, thematic, or all.",
+        ),
+    ] = "all",
+    week: Annotated[
+        str | None,
+        typer.Option(
+            "--week",
+            help="Generate a specific week (e.g., 2026-W06). Weekly only.",
+        ),
+    ] = None,
+    theme: Annotated[
+        str | None,
+        typer.Option(
+            "--theme",
+            help="Generate a specific theme slug. Thematic only.",
+        ),
+    ] = None,
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force",
+            help="Regenerate even if already generated.",
+        ),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Preview what would be generated without calling LLM.",
+        ),
+    ] = False,
+    no_diagrams: Annotated[
+        bool,
+        typer.Option(
+            "--no-diagrams",
+            help="Skip Mermaid diagram generation.",
+        ),
+    ] = False,
+    model: Annotated[
+        str | None,
+        typer.Option(
+            "--model",
+            help="Override the Claude model.",
+        ),
+    ] = None,
+    words: Annotated[
+        int,
+        typer.Option(
+            "--words",
+            help="Target word count for blog posts.",
+        ),
+    ] = 1200,
+) -> None:
+    """Generate blog posts from existing journal entries.
+
+    Reads journal markdown files and working memory, then synthesizes
+    weekly synthesis posts and/or thematic deep-dives with Mermaid
+    diagrams. Output is Obsidian-compatible markdown.
+
+    Use --dry-run to preview what would be generated.
+    Use --force to regenerate posts that already exist.
+    """
+    # Validate post type
+    valid_types = ("weekly", "thematic", "all")
+    if post_type not in valid_types:
+        console.print(f"[red]Error:[/red] Unknown type: {post_type}")
+        console.print(f"Valid types: {', '.join(valid_types)}")
+        raise typer.Exit(1)
+
+    # Check that journal directory exists
+    journal_dir = output / "journal"
+    if not journal_dir.exists():
+        console.print(f"[red]Error:[/red] No journal directory found at {journal_dir}")
+        console.print("Run the 'journal' command first to generate journal entries.")
+        raise typer.Exit(1)
+
+    with _progress_context(quiet=dry_run) as progress:
+        if progress:
+            progress.add_task("Generating blog posts...", total=None)
+
+        written = generate_blog_posts(
+            output,
+            post_type=post_type,
+            target_week=week,
+            target_theme=theme,
+            force=force,
+            dry_run=dry_run,
+            include_diagrams=not no_diagrams,
+            model=model,
+            target_word_count=words,
+        )
+
+    if dry_run:
+        return
+
+    if not written:
+        console.print("[yellow]No new blog posts generated.[/yellow]")
+        console.print("Use --force to regenerate, or check that journal entries exist.")
+        return
+
+    console.print()
+    console.print(f"[bold green]Generated {len(written)} blog post(s):[/bold green]")
+    for path in written:
+        console.print(f"  {path}")
 
 
 if __name__ == "__main__":

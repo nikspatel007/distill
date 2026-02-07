@@ -108,7 +108,9 @@ class ObsidianFormatter:
         title = f"Session {date_str}"
 
         # Summary
-        summary = session.summary if session.summary else "_No summary available._"
+        summary = session.narrative if session.narrative else (
+            session.summary if session.summary else "_No summary available._"
+        )
 
         # Timeline
         start_time = session.start_time.strftime("%Y-%m-%d %H:%M:%S")
@@ -374,7 +376,8 @@ class ObsidianFormatter:
             link = format_obsidian_link(session.note_name)
             time_str = session.start_time.strftime("%H:%M")
             duration = format_duration(session.duration_minutes)
-            summary = session.summary[:50] + "..." if len(session.summary) > 50 else session.summary
+            text = session.narrative or session.summary or ""
+            summary = text[:50] + "..." if len(text) > 50 else text
             summary = summary if summary else "No summary"
             lines.append(f"- {time_str} - {link}: {summary} ({duration})")
         return "\n".join(lines)

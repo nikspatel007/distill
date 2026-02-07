@@ -1,11 +1,14 @@
 """Core analysis pipeline for session insights."""
 
+import logging
 from collections import Counter
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 from session_insights.formatters.project import (
     ProjectFormatter,
@@ -132,17 +135,24 @@ def parse_sessions(root: Path, source: str) -> list[BaseSession]:
     Returns:
         List of parsed sessions.
     """
+    from session_insights.narrative import enrich_narrative
+
+    sessions: list[BaseSession] = []
     if source == "claude":
         parser = ClaudeParser()
-        return list(parser.parse_directory(root))
+        sessions = list(parser.parse_directory(root))
     elif source == "codex":
         parser = CodexParser()
-        return list(parser.parse_directory(root))
+        sessions = list(parser.parse_directory(root))
     elif source == "vermas":
         parser = VermasParser()
-        return list(parser.parse_directory(root))
+        sessions = list(parser.parse_directory(root))
 
-    return []
+    # Enrich narratives for all sessions
+    for session in sessions:
+        enrich_narrative(session)
+
+    return sessions
 
 
 def parse_session_file(path: Path, source: str) -> list[BaseSession]:
@@ -437,3 +447,404 @@ def _detect_patterns(sessions: list[BaseSession]) -> list[SessionPattern]:
         )
 
     return patterns
+
+
+def generate_journal_notes(
+    sessions: list[BaseSession],
+    output_dir: Path,
+    *,
+    target_dates: list[date] | None = None,
+    style: str = "dev-journal",
+    target_word_count: int = 600,
+    force: bool = False,
+    dry_run: bool = False,
+    model: str | None = None,
+) -> list[Path]:
+    """Generate journal entries from sessions using LLM synthesis.
+
+    Args:
+        sessions: All parsed sessions.
+        output_dir: Root output directory. Notes go in output_dir/journal/.
+        target_dates: Dates to generate for. If None, generates for all dates.
+        style: Journal style name (dev-journal, tech-blog, etc.).
+        target_word_count: Target word count for each entry.
+        force: Bypass cache and regenerate.
+        dry_run: Print context without calling LLM.
+        model: Optional Claude model override.
+
+    Returns:
+        List of written journal file paths.
+    """
+    from session_insights.journal.cache import JournalCache
+    from session_insights.journal.config import JournalConfig, JournalStyle
+    from session_insights.journal.context import prepare_daily_context
+    from session_insights.journal.formatter import JournalFormatter
+    from session_insights.journal.memory import load_memory, save_memory
+    from session_insights.journal.synthesizer import JournalSynthesizer
+
+    config = JournalConfig(
+        style=JournalStyle(style),
+        target_word_count=target_word_count,
+        model=model,
+    )
+    cache = JournalCache(output_dir)
+    synthesizer = JournalSynthesizer(config)
+    formatter = JournalFormatter(config)
+
+    # Determine target dates
+    if target_dates is None:
+        all_dates: set[date] = {s.start_time.date() for s in sessions}
+        target_dates = sorted(all_dates)
+
+    written: list[Path] = []
+    memory = load_memory(output_dir)
+
+    for target_date in target_dates:
+        day_sessions = [s for s in sessions if s.start_time.date() == target_date]
+        if not day_sessions:
+            continue
+
+        # Check cache
+        if not force and cache.is_generated(target_date, config.style, len(day_sessions)):
+            continue
+
+        context = prepare_daily_context(day_sessions, target_date, config)
+        context.previous_context = memory.render_for_prompt()
+
+        if dry_run:
+            # Dry run prints context and skips LLM
+            print(context.render_text())
+            print("---")
+            continue
+
+        prose = synthesizer.synthesize(context)
+
+        # Extract memory from prose (second LLM call)
+        try:
+            daily_entry, threads = synthesizer.extract_memory(prose, target_date)
+            memory.add_entry(daily_entry)
+            memory.update_threads(threads)
+            memory.prune(config.memory_window_days)
+            save_memory(memory, output_dir)
+        except Exception:
+            logger.warning(
+                "Memory extraction failed for %s, continuing without update",
+                target_date,
+                exc_info=True,
+            )
+
+        markdown = formatter.format_entry(context, prose)
+
+        out_path = formatter.output_path(output_dir, context)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(markdown, encoding="utf-8")
+
+        cache.mark_generated(target_date, config.style, len(day_sessions))
+        written.append(out_path)
+
+    return written
+
+
+def generate_blog_posts(
+    output_dir: Path,
+    *,
+    post_type: str = "all",
+    target_week: str | None = None,
+    target_theme: str | None = None,
+    force: bool = False,
+    dry_run: bool = False,
+    include_diagrams: bool = True,
+    model: str | None = None,
+    target_word_count: int = 1200,
+) -> list[Path]:
+    """Generate blog posts from existing journal entries.
+
+    Reads journal markdown files and working memory, then synthesizes
+    weekly synthesis posts and/or thematic deep-dives.
+
+    Args:
+        output_dir: Root output directory (contains journal/ and blog/).
+        post_type: "weekly", "thematic", or "all".
+        target_week: Specific week like "2026-W06" (weekly only).
+        target_theme: Specific theme slug (thematic only).
+        force: Bypass state check and regenerate.
+        dry_run: Print context without calling LLM.
+        include_diagrams: Whether to include Mermaid diagrams.
+        model: Optional Claude model override.
+        target_word_count: Target word count for posts.
+
+    Returns:
+        List of written blog post file paths.
+    """
+    from session_insights.blog.config import BlogConfig
+    from session_insights.blog.formatter import BlogFormatter
+    from session_insights.blog.reader import JournalReader
+    from session_insights.blog.state import (
+        BlogState,
+        load_blog_state,
+        save_blog_state,
+    )
+    from session_insights.blog.synthesizer import BlogSynthesizer
+    from session_insights.journal.memory import load_memory
+
+    config = BlogConfig(
+        target_word_count=target_word_count,
+        include_diagrams=include_diagrams,
+        model=model,
+    )
+    reader = JournalReader()
+    synthesizer = BlogSynthesizer(config)
+    formatter = BlogFormatter()
+
+    # 1. Read all journal entries
+    journal_dir = output_dir / "journal"
+    entries = reader.read_all(journal_dir)
+    if not entries:
+        return []
+
+    # 2. Load working memory and blog state
+    memory = load_memory(output_dir)
+    state = load_blog_state(output_dir) if not force else BlogState()
+
+    written: list[Path] = []
+
+    # 3. Weekly posts
+    if post_type in ("weekly", "all"):
+        written.extend(
+            _generate_weekly_posts(
+                entries=entries,
+                memory=memory,
+                state=state,
+                config=config,
+                synthesizer=synthesizer,
+                formatter=formatter,
+                output_dir=output_dir,
+                target_week=target_week,
+                force=force,
+                dry_run=dry_run,
+            )
+        )
+
+    # 4. Thematic posts
+    if post_type in ("thematic", "all"):
+        written.extend(
+            _generate_thematic_posts(
+                entries=entries,
+                memory=memory,
+                state=state,
+                config=config,
+                synthesizer=synthesizer,
+                formatter=formatter,
+                output_dir=output_dir,
+                target_theme=target_theme,
+                force=force,
+                dry_run=dry_run,
+            )
+        )
+
+    # 5. Save state and regenerate index
+    if not dry_run:
+        save_blog_state(state, output_dir)
+        _generate_blog_index(output_dir, state)
+
+    return written
+
+
+def _generate_weekly_posts(
+    *,
+    entries: list[Any],
+    memory: Any,
+    state: Any,
+    config: Any,
+    synthesizer: Any,
+    formatter: Any,
+    output_dir: Path,
+    target_week: str | None,
+    force: bool,
+    dry_run: bool,
+) -> list[Path]:
+    """Generate weekly synthesis blog posts."""
+    from session_insights.blog.context import prepare_weekly_context
+    from session_insights.blog.diagrams import clean_diagrams
+    from session_insights.blog.state import BlogPostRecord
+
+    written: list[Path] = []
+
+    # Group entries by ISO week
+    weeks: dict[tuple[int, int], list[Any]] = {}
+    for entry in entries:
+        iso = entry.date.isocalendar()
+        key = (iso.year, iso.week)
+        weeks.setdefault(key, []).append(entry)
+
+    # Filter to target week if specified
+    if target_week:
+        parts = target_week.split("-W")
+        if len(parts) == 2:
+            try:
+                tw_year, tw_week = int(parts[0]), int(parts[1])
+                weeks = {
+                    k: v for k, v in weeks.items() if k == (tw_year, tw_week)
+                }
+            except ValueError:
+                pass
+
+    for (year, week), week_entries in sorted(weeks.items()):
+        if len(week_entries) < 2:
+            continue
+
+        slug = f"weekly-{year}-W{week:02d}"
+        if not force and state.is_generated(slug):
+            continue
+
+        context = prepare_weekly_context(week_entries, year, week, memory)
+
+        if dry_run:
+            print(f"[DRY RUN] Would generate: {slug}")
+            print(f"  Entries: {len(week_entries)}, Sessions: {context.total_sessions}")
+            print(f"  Projects: {', '.join(context.projects)}")
+            print("---")
+            continue
+
+        prose = synthesizer.synthesize_weekly(context)
+        if config.include_diagrams:
+            prose = clean_diagrams(prose)
+
+        markdown = formatter.format_weekly(context, prose)
+        out_path = formatter.weekly_output_path(output_dir, year, week)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(markdown, encoding="utf-8")
+
+        state.mark_generated(
+            BlogPostRecord(
+                slug=slug,
+                post_type="weekly",
+                generated_at=datetime.now(),
+                source_dates=[e.date for e in week_entries],
+                file_path=str(out_path),
+            )
+        )
+        written.append(out_path)
+
+    return written
+
+
+def _generate_thematic_posts(
+    *,
+    entries: list[Any],
+    memory: Any,
+    state: Any,
+    config: Any,
+    synthesizer: Any,
+    formatter: Any,
+    output_dir: Path,
+    target_theme: str | None,
+    force: bool,
+    dry_run: bool,
+) -> list[Path]:
+    """Generate thematic deep-dive blog posts."""
+    from session_insights.blog.context import prepare_thematic_context
+    from session_insights.blog.diagrams import clean_diagrams
+    from session_insights.blog.state import BlogPostRecord
+    from session_insights.blog.themes import THEMES, gather_evidence, get_ready_themes
+
+    written: list[Path] = []
+
+    if target_theme:
+        # Generate a specific theme
+        theme_def = next(
+            (t for t in THEMES if t.slug == target_theme), None
+        )
+        if theme_def is None:
+            return []
+        evidence = gather_evidence(theme_def, entries)
+        if not evidence:
+            return []
+        themes_to_generate = [(theme_def, evidence)]
+    else:
+        # Find all ready themes
+        themes_to_generate = get_ready_themes(entries, state)
+
+    for theme, evidence in themes_to_generate:
+        if not force and state.is_generated(theme.slug):
+            continue
+
+        context = prepare_thematic_context(theme, evidence, memory)
+
+        if dry_run:
+            print(f"[DRY RUN] Would generate: {theme.slug}")
+            print(f"  Evidence: {len(evidence)} entries")
+            print(f"  Date range: {context.date_range[0]} to {context.date_range[1]}")
+            print("---")
+            continue
+
+        prose = synthesizer.synthesize_thematic(context)
+        if config.include_diagrams:
+            prose = clean_diagrams(prose)
+
+        markdown = formatter.format_thematic(context, prose)
+        out_path = formatter.thematic_output_path(output_dir, theme.slug)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(markdown, encoding="utf-8")
+
+        state.mark_generated(
+            BlogPostRecord(
+                slug=theme.slug,
+                post_type="thematic",
+                generated_at=datetime.now(),
+                source_dates=[e.date for e in evidence],
+                file_path=str(out_path),
+            )
+        )
+        written.append(out_path)
+
+    return written
+
+
+def _generate_blog_index(output_dir: Path, state: Any) -> None:
+    """Regenerate the blog/index.md file."""
+    blog_dir = output_dir / "blog"
+    blog_dir.mkdir(parents=True, exist_ok=True)
+
+    lines: list[str] = [
+        "---",
+        "type: blog-index",
+        f"created: {datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}",
+        f"total_posts: {len(state.posts)}",
+        "---",
+        "",
+        "# Blog Index",
+        "",
+    ]
+
+    # Weekly posts
+    weekly = sorted(
+        [p for p in state.posts if p.post_type == "weekly"],
+        key=lambda p: p.slug,
+        reverse=True,
+    )
+    if weekly:
+        lines.append("## Weekly Synthesis")
+        lines.append("")
+        for post in weekly:
+            link = f"[[blog/weekly/{post.slug}|{post.slug}]]"
+            date_str = post.generated_at.strftime("%Y-%m-%d")
+            lines.append(f"- {link} (generated {date_str})")
+        lines.append("")
+
+    # Thematic posts
+    thematic = sorted(
+        [p for p in state.posts if p.post_type == "thematic"],
+        key=lambda p: p.slug,
+    )
+    if thematic:
+        lines.append("## Thematic Deep-Dives")
+        lines.append("")
+        for post in thematic:
+            link = f"[[blog/themes/{post.slug}|{post.slug}]]"
+            date_str = post.generated_at.strftime("%Y-%m-%d")
+            lines.append(f"- {link} (generated {date_str})")
+        lines.append("")
+
+    index_path = blog_dir / "index.md"
+    index_path.write_text("\n".join(lines), encoding="utf-8")
