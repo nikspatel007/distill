@@ -5,7 +5,6 @@ Runs the project test suite and reports the percentage of tests passing.
 
 from __future__ import annotations
 
-import os
 import re
 import subprocess
 import sys
@@ -61,9 +60,7 @@ class TestsPassMeasurer(Measurer):
 
         return self._parse_results(result.stdout, result.stderr, result.returncode)
 
-    def _parse_results(
-        self, stdout: str, stderr: str, returncode: int
-    ) -> KPIResult:
+    def _parse_results(self, stdout: str, stderr: str, returncode: int) -> KPIResult:
         """Parse pytest output to extract pass/fail counts."""
         output = stdout + "\n" + stderr
 

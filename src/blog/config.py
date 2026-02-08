@@ -1,19 +1,19 @@
 """Configuration models for blog generation."""
 
 import os
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 
-class BlogPostType(str, Enum):
+class BlogPostType(StrEnum):
     """Available blog post types."""
 
     WEEKLY = "weekly"
     THEMATIC = "thematic"
 
 
-class Platform(str, Enum):
+class Platform(StrEnum):
     """Available publishing platforms."""
 
     OBSIDIAN = "obsidian"

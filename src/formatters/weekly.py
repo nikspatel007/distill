@@ -73,9 +73,7 @@ class WeeklyDigestFormatter:
         """Generate Obsidian-compatible note name for a weekly digest."""
         return f"weekly-{iso_year}-W{iso_week:02d}"
 
-    def _format_frontmatter(
-        self, iso_year: int, iso_week: int, sessions: list[BaseSession]
-    ) -> str:
+    def _format_frontmatter(self, iso_year: int, iso_week: int, sessions: list[BaseSession]) -> str:
         """Generate YAML frontmatter for a weekly digest."""
         total_duration = sum(s.duration_minutes or 0 for s in sessions)
         monday = week_start_date(iso_year, iso_week)
@@ -94,7 +92,7 @@ class WeeklyDigestFormatter:
             f"week_end: {sunday.isoformat()}",
             f"total_sessions: {len(sessions)}",
             f"total_duration_minutes: {total_duration:.1f}",
-            f"tags:",
+            "tags:",
             tags_yaml,
             f"created: {datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}",
             "---",
@@ -102,9 +100,7 @@ class WeeklyDigestFormatter:
         ]
         return "\n".join(lines)
 
-    def _format_body(
-        self, iso_year: int, iso_week: int, sessions: list[BaseSession]
-    ) -> str:
+    def _format_body(self, iso_year: int, iso_week: int, sessions: list[BaseSession]) -> str:
         """Generate the markdown body for a weekly digest."""
         monday = week_start_date(iso_year, iso_week)
         sunday = monday + timedelta(days=6)
@@ -119,13 +115,13 @@ class WeeklyDigestFormatter:
 
         # Overview
         total_duration = sum(s.duration_minutes or 0 for s in sessions)
-        projects = set(s.project for s in sessions if s.project)
+        projects = {s.project for s in sessions if s.project}
         lines.append("## Overview")
         lines.append("")
         lines.append(f"- **Sessions:** {len(sessions)}")
         lines.append(f"- **Total Time:** {format_duration(total_duration)}")
         lines.append(f"- **Projects:** {len(projects)}")
-        days_active = len(set(s.timestamp.date() for s in sessions))
+        days_active = len({s.timestamp.date() for s in sessions})
         lines.append(f"- **Days Active:** {days_active}/7")
         lines.append("")
 
@@ -164,7 +160,11 @@ class WeeklyDigestFormatter:
                 lines.append("")
                 for s in proj_sessions:
                     time_str = s.timestamp.strftime("%Y-%m-%d %H:%M")
-                    summary = s.summary[:50] + "..." if s.summary and len(s.summary) > 50 else (s.summary or "-")
+                    summary = (
+                        s.summary[:50] + "..."
+                        if s.summary and len(s.summary) > 50
+                        else (s.summary or "-")
+                    )
                     link = format_obsidian_link(s.note_name)
                     lines.append(f"- {time_str} {link}: {summary}")
                 lines.append("")
@@ -190,8 +190,7 @@ class WeeklyDigestFormatter:
             top_tag = day_tags.most_common(1)[0][0] if day_tags else "-"
             day_link = format_obsidian_link(f"daily/daily-{d.isoformat()}", d.strftime("%a %m/%d"))
             lines.append(
-                f"| {day_link} | {len(day_sessions)} | "
-                f"{format_duration(day_dur)} | {top_tag} |"
+                f"| {day_link} | {len(day_sessions)} | {format_duration(day_dur)} | {top_tag} |"
             )
         lines.append("")
 

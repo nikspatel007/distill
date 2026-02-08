@@ -12,7 +12,6 @@ import tempfile
 from pathlib import Path
 
 import yaml
-
 from distill.core import discover_sessions, parse_session_file
 from distill.formatters.obsidian import ObsidianFormatter
 from distill.measurers.base import KPIResult, Measurer
@@ -101,9 +100,7 @@ def _create_sample_vermas_dir(base: Path) -> None:
     (sig2 / "sp1.yaml").write_text(yaml.dump(data))
 
 
-def _generate_vermas_notes_to_disk(
-    sessions: list[BaseSession], output_dir: Path
-) -> list[Path]:
+def _generate_vermas_notes_to_disk(sessions: list[BaseSession], output_dir: Path) -> list[Path]:
     """Format VerMAS sessions into Obsidian notes and write them to disk.
 
     Returns list of generated VerMAS note file paths.

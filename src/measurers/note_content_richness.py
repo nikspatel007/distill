@@ -10,11 +10,10 @@ from __future__ import annotations
 
 import json
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import yaml
-
 from distill.core import discover_sessions, parse_session_file
 from distill.formatters.obsidian import ObsidianFormatter
 from distill.measurers.base import KPIResult, Measurer
@@ -49,7 +48,7 @@ def _create_sample_claude_dir(base: Path) -> None:
     project_dir = base / ".claude" / "projects" / "test-project"
     project_dir.mkdir(parents=True)
 
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     entries = [
         {
             "type": "user",
@@ -129,9 +128,7 @@ def _create_sample_vermas_dir(base: Path) -> None:
     (agents_dir / "agent-learnings.yaml").write_text(yaml.dump(learnings_data))
 
 
-def _generate_notes_to_disk(
-    sessions: list[BaseSession], output_dir: Path
-) -> list[Path]:
+def _generate_notes_to_disk(sessions: list[BaseSession], output_dir: Path) -> list[Path]:
     """Format sessions into Obsidian notes and write them to disk.
 
     Returns list of generated note file paths.
@@ -207,9 +204,7 @@ class NoteContentRichnessMeasurer(Measurer):
         """Measure richness from pre-generated note files on disk."""
         note_files = list(note_dir.glob("**/*.md"))
         note_files = [
-            f
-            for f in note_files
-            if f.name != "index.md" and not f.name.startswith("daily-")
+            f for f in note_files if f.name != "index.md" and not f.name.startswith("daily-")
         ]
         return self._score_note_files(note_files)
 

@@ -10,11 +10,10 @@ from __future__ import annotations
 
 import json
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import yaml
-
 from distill.core import (
     discover_sessions,
     generate_project_notes,
@@ -41,7 +40,7 @@ def _create_sample_data(base: Path) -> None:
     project_dir = base / ".claude" / "projects" / "test-project"
     project_dir.mkdir(parents=True)
 
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     entries = [
         {
             "type": "user",
@@ -98,9 +97,7 @@ def _create_sample_data(base: Path) -> None:
         "---\nstatus: done\n---\n# Build Feature\n\nBuild it.\n"
     )
     mission_dir = vermas_dir / "tasks" / "mission-proj"
-    (mission_dir / "_epic.md").write_text(
-        "---\nstatus: in_progress\n---\n# Project Mission\n"
-    )
+    (mission_dir / "_epic.md").write_text("---\nstatus: in_progress\n---\n# Project Mission\n")
 
     agents_dir = vermas_dir / "knowledge" / "agents"
     agents_dir.mkdir(parents=True)
@@ -117,9 +114,7 @@ def _create_sample_data(base: Path) -> None:
     (agents_dir / "agent-learnings.yaml").write_text(yaml.dump(learnings))
 
 
-def _generate_project_notes_to_disk(
-    sessions: list[BaseSession], output_dir: Path
-) -> list[Path]:
+def _generate_project_notes_to_disk(sessions: list[BaseSession], output_dir: Path) -> list[Path]:
     """Generate project notes to disk using the core pipeline.
 
     Returns list of generated project note file paths.
@@ -201,9 +196,7 @@ class ProjectNotesMeasurer(Measurer):
 
         # Count real projects (excluding pseudo-projects)
         groups = group_sessions_by_project(all_sessions)
-        real_projects = {
-            k for k in groups if k not in ("(unknown)", "(unassigned)")
-        }
+        real_projects = {k for k in groups if k not in ("(unknown)", "(unassigned)")}
 
         if not real_projects:
             return KPIResult(
@@ -253,10 +246,7 @@ class ProjectNotesMeasurer(Measurer):
 
         # When expected_projects is provided, use it as denominator to enforce
         # per-project coverage: value = valid_notes / expected_projects * 100
-        if expected_projects is not None:
-            denominator = len(expected_projects)
-        else:
-            denominator = total
+        denominator = len(expected_projects) if expected_projects is not None else total
 
         value = (valid_count / denominator * 100) if denominator > 0 else 0.0
 
@@ -267,11 +257,7 @@ class ProjectNotesMeasurer(Measurer):
         }
         if expected_projects is not None:
             details["expected_projects"] = len(expected_projects)
-            details["coverage"] = (
-                total / len(expected_projects) * 100
-                if expected_projects
-                else 0.0
-            )
+            details["coverage"] = total / len(expected_projects) * 100 if expected_projects else 0.0
 
         return KPIResult(
             kpi=self.KPI_NAME,

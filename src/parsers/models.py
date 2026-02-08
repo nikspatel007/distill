@@ -8,7 +8,7 @@ All shared model types live here to avoid circular imports between parsers and f
 """
 
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
@@ -186,34 +186,27 @@ class BaseSession(BaseModel):
         if dt is None:
             return None
         if dt.tzinfo is None:
-            return dt.replace(tzinfo=timezone.utc)
+            return dt.replace(tzinfo=UTC)
         return dt
 
     def model_post_init(self, __context: Any) -> None:
         """Auto-derive enriched fields from raw data if not directly provided."""
         # Normalize all datetimes to UTC-aware to prevent comparison errors
-        self.timestamp = self._ensure_utc(self.timestamp) or datetime.min.replace(
-            tzinfo=timezone.utc
-        )
+        self.timestamp = self._ensure_utc(self.timestamp) or datetime.min.replace(tzinfo=UTC)
         self.start_time = self._ensure_utc(self.start_time)
         self.end_time = self._ensure_utc(self.end_time)
 
         # Derive tools_used from tool_calls
         if not self.tools_used and self.tool_calls:
-            tool_counts: Counter[str] = Counter(
-                tc.tool_name for tc in self.tool_calls
-            )
+            tool_counts: Counter[str] = Counter(tc.tool_name for tc in self.tool_calls)
             self.tools_used = [
-                ToolUsageSummary(name=name, count=count)
-                for name, count in tool_counts.items()
+                ToolUsageSummary(name=name, count=count) for name, count in tool_counts.items()
             ]
 
         # Derive turns from messages
         if not self.turns and self.messages:
             self.turns = [
-                ConversationTurn(
-                    role=m.role, content=m.content, timestamp=m.timestamp
-                )
+                ConversationTurn(role=m.role, content=m.content, timestamp=m.timestamp)
                 for m in self.messages
             ]
 
@@ -238,9 +231,7 @@ class BaseSession(BaseModel):
         if et is None:
             # Fall back to deriving from message timestamps (need 2+ for a span)
             timestamps = [
-                self._ensure_utc(m.timestamp)
-                for m in self.messages
-                if m.timestamp is not None
+                self._ensure_utc(m.timestamp) for m in self.messages if m.timestamp is not None
             ]
             if len(timestamps) >= 2:
                 et = max(timestamps)

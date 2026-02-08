@@ -8,11 +8,10 @@ from __future__ import annotations
 
 import json
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import yaml
-
 from distill.core import discover_sessions, parse_session_file
 from distill.measurers.base import KPIResult, Measurer
 from distill.parsers.models import BaseSession
@@ -24,7 +23,7 @@ def _create_sample_data(base: Path) -> None:
     project_dir = base / ".claude" / "projects" / "test-project"
     project_dir.mkdir(parents=True)
 
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     entries = [
         {
             "type": "user",
@@ -86,9 +85,7 @@ def _create_sample_data(base: Path) -> None:
         "---\nstatus: done\n---\n# Build Feature\n\nBuild it.\n"
     )
     mission_dir = vermas_dir / "tasks" / "mission-proj"
-    (mission_dir / "_epic.md").write_text(
-        "---\nstatus: in_progress\n---\n# Project Mission\n"
-    )
+    (mission_dir / "_epic.md").write_text("---\nstatus: in_progress\n---\n# Project Mission\n")
 
     agents_dir = vermas_dir / "knowledge" / "agents"
     agents_dir.mkdir(parents=True)

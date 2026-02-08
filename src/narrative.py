@@ -17,7 +17,10 @@ _XML_TAG_RE = re.compile(r"</?[a-zA-Z][\w-]*(?:\s[^>]*)?>")
 # Patterns that indicate raw prompt / command text rather than real summaries
 _RAW_PROMPT_PATTERNS = [
     re.compile(r"<\w[\w-]*>"),  # XML-style tags
-    re.compile(r"^(analyze|init|help|run|build|test|start|stop|deploy|status)\s*\w*$", re.IGNORECASE),
+    re.compile(
+        r"^(analyze|init|help|run|build|test|start|stop|deploy|status)\s*\w*$",
+        re.IGNORECASE,
+    ),
     re.compile(r"^/\w+"),  # slash commands
 ]
 
@@ -38,9 +41,7 @@ def _is_low_quality_summary(text: str) -> bool:
         if pattern.match(text) and len(text.split()) <= 3:
             return True
     # Is just a file path
-    if re.match(r"^[\w./\\-]+\.\w{1,5}$", text):
-        return True
-    return False
+    return bool(re.match(r"^[\w./\\-]+\.\w{1,5}$", text))
 
 
 def _sanitize_text(text: str) -> str:

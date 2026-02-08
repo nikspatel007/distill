@@ -9,10 +9,9 @@ from __future__ import annotations
 
 from datetime import date
 
-from pydantic import BaseModel, Field
-
 from distill.journal.config import JournalConfig
 from distill.parsers.models import BaseSession
+from pydantic import BaseModel, Field
 
 
 class SessionSummaryForLLM(BaseModel):
@@ -103,9 +102,7 @@ def _extract_session_summary(session: BaseSession) -> SessionSummaryForLLM:
 
     # User questions from conversation turns
     user_questions = [
-        turn.content[:200]
-        for turn in session.turns
-        if turn.role == "user" and turn.content.strip()
+        turn.content[:200] for turn in session.turns if turn.role == "user" and turn.content.strip()
     ][:5]
 
     # Outcomes as strings
@@ -147,9 +144,7 @@ def prepare_daily_context(
         DailyContext with compressed session data.
     """
     # Filter to target date
-    day_sessions = [
-        s for s in sessions if s.start_time.date() == target_date
-    ]
+    day_sessions = [s for s in sessions if s.start_time.date() == target_date]
 
     # Sort by start time
     day_sessions.sort(key=lambda s: s.start_time)
@@ -160,9 +155,13 @@ def prepare_daily_context(
     # Aggregate data
     total_duration = sum(s.duration_minutes or 0 for s in day_sessions)
 
-    projects = list(dict.fromkeys(
-        s.project for s in day_sessions if s.project and s.project not in ("(unknown)", "(unassigned)")
-    ))
+    projects = list(
+        dict.fromkeys(
+            s.project
+            for s in day_sessions
+            if s.project and s.project not in ("(unknown)", "(unassigned)")
+        )
+    )
 
     all_outcomes: list[str] = []
     all_tags: list[str] = []

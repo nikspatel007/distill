@@ -118,8 +118,77 @@ def _extract_prose(text: str) -> str:
     return text_body
 
 
+class IntakeDigestEntry(BaseModel):
+    """Parsed intake digest entry from a markdown file."""
+
+    date: date
+    themes: list[str] = Field(default_factory=list)
+    key_items: list[str] = Field(default_factory=list)
+    prose: str = ""
+    file_path: Path = Path(".")
+
+
 class JournalReader:
     """Discovers and reads journal entries from the output directory."""
+
+    def read_intake_digests(self, intake_dir: Path) -> list[IntakeDigestEntry]:
+        """Read intake digest markdown files.
+
+        Args:
+            intake_dir: Directory containing intake digest files.
+
+        Returns:
+            List of parsed intake digest entries.
+        """
+        if not intake_dir.exists():
+            return []
+
+        entries: list[IntakeDigestEntry] = []
+        for md_file in sorted(intake_dir.glob("intake-*.md")):
+            entry = self._parse_intake_file(md_file)
+            if entry is not None:
+                entries.append(entry)
+
+        return sorted(entries, key=lambda e: e.date)
+
+    def _parse_intake_file(self, path: Path) -> IntakeDigestEntry | None:
+        """Parse a single intake digest markdown file."""
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            logger.warning("Could not read intake file: %s", path)
+            return None
+
+        fm = _parse_frontmatter(text)
+        prose = _extract_prose(text)
+
+        # Parse date from frontmatter or filename
+        entry_date: date | None = None
+        if "date" in fm and isinstance(fm["date"], str):
+            with contextlib.suppress(ValueError):
+                entry_date = date.fromisoformat(fm["date"])
+
+        if entry_date is None:
+            match = re.search(r"intake-(\d{4}-\d{2}-\d{2})", path.name)
+            if match:
+                with contextlib.suppress(ValueError):
+                    entry_date = date.fromisoformat(match.group(1))
+
+        if entry_date is None:
+            logger.warning("Could not determine date for intake %s", path)
+            return None
+
+        # Parse themes/tags
+        themes = fm.get("themes", fm.get("tags", []))
+        if isinstance(themes, str):
+            themes = [themes]
+
+        return IntakeDigestEntry(
+            date=entry_date,
+            themes=list(themes),
+            prose=prose,
+            file_path=path,
+        )
 
     def read_all(self, journal_dir: Path) -> list[JournalEntry]:
         """Read all journal entries from the journal directory."""
@@ -134,21 +203,16 @@ class JournalReader:
 
         return sorted(entries, key=lambda e: e.date)
 
-    def read_week(
-        self, journal_dir: Path, year: int, week: int
-    ) -> list[JournalEntry]:
+    def read_week(self, journal_dir: Path, year: int, week: int) -> list[JournalEntry]:
         """Read journal entries for a specific ISO week."""
         all_entries = self.read_all(journal_dir)
         return [
             e
             for e in all_entries
-            if e.date.isocalendar().year == year
-            and e.date.isocalendar().week == week
+            if e.date.isocalendar().year == year and e.date.isocalendar().week == week
         ]
 
-    def read_date_range(
-        self, journal_dir: Path, start: date, end: date
-    ) -> list[JournalEntry]:
+    def read_date_range(self, journal_dir: Path, start: date, end: date) -> list[JournalEntry]:
         """Read journal entries within a date range (inclusive)."""
         all_entries = self.read_all(journal_dir)
         return [e for e in all_entries if start <= e.date <= end]

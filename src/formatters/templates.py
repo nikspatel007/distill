@@ -2,7 +2,6 @@
 
 from string import Template
 
-
 # Session frontmatter template (YAML)
 SESSION_FRONTMATTER = Template("""\
 ---
@@ -98,12 +97,12 @@ ${notes_section}
 
 def format_tag(tag: str) -> str:
     """Format a single tag for YAML frontmatter."""
-    return f"  - \"#{tag}\""
+    return f'  - "#{tag}"'
 
 
 def format_yaml_list_item(item: str) -> str:
     """Format a list item for YAML."""
-    return f"  - \"{item}\""
+    return f'  - "{item}"'
 
 
 def format_obsidian_link(note_name: str, display_text: str | None = None) -> str:

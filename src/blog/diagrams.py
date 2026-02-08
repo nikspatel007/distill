@@ -8,20 +8,22 @@ from __future__ import annotations
 
 import re
 
-VALID_DIAGRAM_TYPES = frozenset({
-    "graph",
-    "flowchart",
-    "sequencediagram",
-    "classdiagram",
-    "statediagram",
-    "statediagram-v2",
-    "erdiagram",
-    "gantt",
-    "pie",
-    "timeline",
-    "gitgraph",
-    "mindmap",
-})
+VALID_DIAGRAM_TYPES = frozenset(
+    {
+        "graph",
+        "flowchart",
+        "sequencediagram",
+        "classdiagram",
+        "statediagram",
+        "statediagram-v2",
+        "erdiagram",
+        "gantt",
+        "pie",
+        "timeline",
+        "gitgraph",
+        "mindmap",
+    }
+)
 
 
 def extract_mermaid_blocks(prose: str) -> list[str]:
@@ -58,6 +60,7 @@ def clean_diagrams(prose: str) -> str:
     Invalid blocks are replaced with empty string (removing the entire
     fenced block). Valid blocks are left in place.
     """
+
     def _replace(match: re.Match[str]) -> str:
         content = match.group(1).strip()
         if validate_mermaid(content):

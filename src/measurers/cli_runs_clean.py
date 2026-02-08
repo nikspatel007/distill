@@ -15,7 +15,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import yaml
-
 from distill.measurers.base import KPIResult, Measurer
 
 # Derive the src/ directory so subprocess can find distill

@@ -41,9 +41,7 @@ class JournalSynthesizer:
         Raises:
             SynthesisError: If the CLI call fails.
         """
-        system_prompt = get_system_prompt(
-            self._config.style, self._config.target_word_count
-        )
+        system_prompt = get_system_prompt(self._config.style, self._config.target_word_count)
         user_prompt = context.render_text()
         full_prompt = f"{system_prompt}\n\n---\n\n{user_prompt}"
 
@@ -62,9 +60,7 @@ class JournalSynthesizer:
                 timeout=self._config.claude_timeout,
             )
         except FileNotFoundError as e:
-            raise SynthesisError(
-                "Claude CLI not found -- is 'claude' on the PATH?"
-            ) from e
+            raise SynthesisError("Claude CLI not found -- is 'claude' on the PATH?") from e
         except subprocess.TimeoutExpired as e:
             raise SynthesisError(
                 f"Claude CLI timed out after {self._config.claude_timeout}s"
@@ -74,9 +70,7 @@ class JournalSynthesizer:
 
         if result.returncode != 0:
             err_text = result.stderr.strip() if result.stderr else ""
-            raise SynthesisError(
-                f"Claude CLI exited {result.returncode}: {err_text}"
-            )
+            raise SynthesisError(f"Claude CLI exited {result.returncode}: {err_text}")
 
         return result.stdout.strip()
 
@@ -139,9 +133,7 @@ Journal entry:
                 timeout=self._config.claude_timeout,
             )
         except FileNotFoundError as e:
-            raise SynthesisError(
-                "Claude CLI not found -- is 'claude' on the PATH?"
-            ) from e
+            raise SynthesisError("Claude CLI not found -- is 'claude' on the PATH?") from e
         except subprocess.TimeoutExpired as e:
             raise SynthesisError(
                 f"Claude CLI timed out after {self._config.claude_timeout}s"
@@ -151,23 +143,19 @@ Journal entry:
 
         if result.returncode != 0:
             err_text = result.stderr.strip() if result.stderr else ""
-            raise SynthesisError(
-                f"Claude CLI exited {result.returncode}: {err_text}"
-            )
+            raise SynthesisError(f"Claude CLI exited {result.returncode}: {err_text}")
 
         raw = result.stdout.strip()
         # Strip markdown code fences if present
         if raw.startswith("```"):
             raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
         if raw.endswith("```"):
-            raw = raw[: -3].rstrip()
+            raw = raw[:-3].rstrip()
 
         try:
             data = json.loads(raw)
         except json.JSONDecodeError as e:
-            raise SynthesisError(
-                f"Memory extraction returned invalid JSON: {e}"
-            ) from e
+            raise SynthesisError(f"Memory extraction returned invalid JSON: {e}") from e
 
         entry = DailyMemoryEntry(
             date=target_date,

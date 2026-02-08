@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from distill.core import discover_sessions, parse_session_file
@@ -30,11 +30,11 @@ def _create_multi_week_data(base: Path) -> None:
     project_dir.mkdir(parents=True)
 
     # Week 1 sessions (Monday and Wednesday)
-    week1_mon = datetime(2024, 6, 10, 10, 0, tzinfo=timezone.utc)
-    week1_wed = datetime(2024, 6, 12, 14, 0, tzinfo=timezone.utc)
+    week1_mon = datetime(2024, 6, 10, 10, 0, tzinfo=UTC)
+    week1_wed = datetime(2024, 6, 12, 14, 0, tzinfo=UTC)
 
     # Week 2 session (Tuesday)
-    week2_tue = datetime(2024, 6, 18, 9, 0, tzinfo=timezone.utc)
+    week2_tue = datetime(2024, 6, 18, 9, 0, tzinfo=UTC)
 
     for i, (start, task) in enumerate(
         [
@@ -63,9 +63,7 @@ def _create_multi_week_data(base: Path) -> None:
                 f.write(json.dumps(entry) + "\n")
 
 
-def _generate_weekly_digests_to_disk(
-    sessions: list[BaseSession], output_dir: Path
-) -> list[Path]:
+def _generate_weekly_digests_to_disk(sessions: list[BaseSession], output_dir: Path) -> list[Path]:
     """Generate weekly digest files and return the paths."""
     digests_dir = output_dir / "weekly"
     digests_dir.mkdir(parents=True, exist_ok=True)
@@ -149,9 +147,7 @@ class WeeklyDigestsMeasurer(Measurer):
 
         return self._score_digest_files(note_files, expected_weeks)
 
-    def _score_digest_files(
-        self, note_files: list[Path], expected_weeks: int
-    ) -> KPIResult:
+    def _score_digest_files(self, note_files: list[Path], expected_weeks: int) -> KPIResult:
         valid_count = 0
         per_digest: list[dict[str, object]] = []
 
@@ -163,9 +159,7 @@ class WeeklyDigestsMeasurer(Measurer):
             is_valid = all(scores.values())
             if is_valid:
                 valid_count += 1
-            per_digest.append(
-                {"file": path.name, "scores": scores, "valid": is_valid}
-            )
+            per_digest.append({"file": path.name, "scores": scores, "valid": is_valid})
 
         value = (valid_count / expected_weeks * 100) if expected_weeks > 0 else 0.0
 

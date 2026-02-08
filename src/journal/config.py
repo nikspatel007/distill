@@ -1,11 +1,11 @@
 """Configuration models for journal generation."""
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel
 
 
-class JournalStyle(str, Enum):
+class JournalStyle(StrEnum):
     """Available journal writing styles."""
 
     DEV_JOURNAL = "dev-journal"

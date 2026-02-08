@@ -43,9 +43,7 @@ def group_sessions_by_project(
 class ProjectFormatter:
     """Formatter for generating per-project Obsidian markdown notes."""
 
-    def format_project_note(
-        self, project_name: str, sessions: list[BaseSession]
-    ) -> str:
+    def format_project_note(self, project_name: str, sessions: list[BaseSession]) -> str:
         """Generate a project note aggregating all sessions for a project.
 
         Args:
@@ -65,9 +63,7 @@ class ProjectFormatter:
         slug = project_name.replace(" ", "-").replace("/", "-").lower()
         return f"project-{slug}"
 
-    def _format_frontmatter(
-        self, project_name: str, sessions: list[BaseSession]
-    ) -> str:
+    def _format_frontmatter(self, project_name: str, sessions: list[BaseSession]) -> str:
         """Generate YAML frontmatter for a project note."""
         total_duration = sum(s.duration_minutes or 0 for s in sessions)
         all_tags = {"project-note", "ai-session"}
@@ -88,7 +84,7 @@ class ProjectFormatter:
             f"total_duration_minutes: {total_duration:.1f}",
             f"first_session: {first_date}",
             f"last_session: {last_date}",
-            f"tags:",
+            "tags:",
             tags_yaml,
             f"created: {datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}",
             "---",
@@ -96,9 +92,7 @@ class ProjectFormatter:
         ]
         return "\n".join(lines)
 
-    def _format_body(
-        self, project_name: str, sessions: list[BaseSession]
-    ) -> str:
+    def _format_body(self, project_name: str, sessions: list[BaseSession]) -> str:
         """Generate the markdown body for a project note."""
         lines: list[str] = []
 
@@ -142,7 +136,9 @@ class ProjectFormatter:
             date_str = s.timestamp.strftime("%Y-%m-%d")
             time_str = s.timestamp.strftime("%H:%M")
             dur_str = format_duration(s.duration_minutes)
-            summary = s.summary[:60] + "..." if s.summary and len(s.summary) > 60 else (s.summary or "-")
+            summary = (
+                s.summary[:60] + "..." if s.summary and len(s.summary) > 60 else (s.summary or "-")
+            )
             link = format_obsidian_link(s.note_name)
             lines.append(f"| {date_str} | {time_str} | {dur_str} | {summary} | {link} |")
         lines.append("")
@@ -154,9 +150,7 @@ class ProjectFormatter:
             lines.append("")
             successes = [o for o in all_outcomes if o.success]
             failures = [o for o in all_outcomes if not o.success]
-            lines.append(
-                f"- **Completed:** {len(successes)} | **Incomplete:** {len(failures)}"
-            )
+            lines.append(f"- **Completed:** {len(successes)} | **Incomplete:** {len(failures)}")
             lines.append("")
             # List unique outcomes
             seen: set[str] = set()
@@ -190,9 +184,7 @@ class ProjectFormatter:
         # Key Decisions (extracted from session outcomes)
         lines.append("## Key Decisions")
         lines.append("")
-        decisions = [
-            o for s in sessions for o in s.outcomes if o.success
-        ]
+        decisions = [o for s in sessions for o in s.outcomes if o.success]
         if decisions:
             for d in decisions:
                 lines.append(f"- {d.description}")

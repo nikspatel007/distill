@@ -29,9 +29,7 @@ class BlogSynthesizer:
     def __init__(self, config: BlogConfig) -> None:
         self._config = config
 
-    def synthesize_weekly(
-        self, context: WeeklyBlogContext, blog_memory: str = ""
-    ) -> str:
+    def synthesize_weekly(self, context: WeeklyBlogContext, blog_memory: str = "") -> str:
         """Transform weekly context into blog prose.
 
         Args:
@@ -52,9 +50,7 @@ class BlogSynthesizer:
         user_prompt = _render_weekly_prompt(context)
         return self._call_claude(system_prompt, user_prompt, f"weekly W{context.week}")
 
-    def synthesize_thematic(
-        self, context: ThematicBlogContext, blog_memory: str = ""
-    ) -> str:
+    def synthesize_thematic(self, context: ThematicBlogContext, blog_memory: str = "") -> str:
         """Transform thematic context into blog prose.
 
         Args:
@@ -72,6 +68,8 @@ class BlogSynthesizer:
             self._config.target_word_count,
             theme_title=context.theme.title,
             blog_memory=blog_memory,
+            intake_context=context.intake_context,
+            seed_angle=context.seed_angle,
         )
         user_prompt = _render_thematic_prompt(context)
         return self._call_claude(system_prompt, user_prompt, context.theme.slug)
@@ -110,13 +108,15 @@ class BlogSynthesizer:
         """
         try:
             raw = self._call_claude(MEMORY_EXTRACTION_PROMPT, prose, f"memory-{slug}")
-            data = json.loads(raw)
+            data = json.loads(_strip_json_fences(raw))
             key_points = data.get("key_points", [])
             themes_covered = data.get("themes_covered", [])
+            examples_used = data.get("examples_used", [])
         except (BlogSynthesisError, json.JSONDecodeError, ValueError):
             logger.warning("Failed to extract blog memory for %s", slug)
             key_points = []
             themes_covered = []
+            examples_used = []
 
         return BlogPostSummary(
             slug=slug,
@@ -125,6 +125,7 @@ class BlogSynthesizer:
             date=date.today(),
             key_points=key_points,
             themes_covered=themes_covered,
+            examples_used=examples_used,
             platforms_published=[],
         )
 
@@ -147,9 +148,7 @@ class BlogSynthesizer:
                 timeout=self._config.claude_timeout,
             )
         except FileNotFoundError as e:
-            raise BlogSynthesisError(
-                "Claude CLI not found -- is 'claude' on the PATH?"
-            ) from e
+            raise BlogSynthesisError("Claude CLI not found -- is 'claude' on the PATH?") from e
         except subprocess.TimeoutExpired as e:
             raise BlogSynthesisError(
                 f"Claude CLI timed out after {self._config.claude_timeout}s"
@@ -159,20 +158,31 @@ class BlogSynthesizer:
 
         if result.returncode != 0:
             err_text = result.stderr.strip() if result.stderr else ""
-            raise BlogSynthesisError(
-                f"Claude CLI exited {result.returncode}: {err_text}"
-            )
+            raise BlogSynthesisError(f"Claude CLI exited {result.returncode}: {err_text}")
 
         return result.stdout.strip()
+
+
+def _strip_json_fences(text: str) -> str:
+    """Strip markdown code fences and preamble from LLM JSON output."""
+    import re
+
+    # Try to extract content from ```json ... ``` or ``` ... ``` blocks
+    m = re.search(r"```(?:json)?\s*\n(.*?)```", text, re.DOTALL)
+    if m:
+        return m.group(1).strip()
+    # Try to find raw JSON object
+    m = re.search(r"\{.*\}", text, re.DOTALL)
+    if m:
+        return m.group(0)
+    return text
 
 
 def _render_weekly_prompt(context: WeeklyBlogContext) -> str:
     """Render the user prompt for weekly synthesis."""
     lines: list[str] = []
     lines.append(f"# Week {context.year}-W{context.week:02d}")
-    lines.append(
-        f"({context.week_start.isoformat()} to {context.week_end.isoformat()})"
-    )
+    lines.append(f"({context.week_start.isoformat()} to {context.week_end.isoformat()})")
     lines.append(f"Total sessions: {context.total_sessions}")
     lines.append(f"Total duration: {context.total_duration_minutes:.0f} minutes")
 
@@ -205,9 +215,7 @@ def _render_thematic_prompt(context: ThematicBlogContext) -> str:
     if context.relevant_threads:
         lines.append("## Relevant Ongoing Threads")
         for thread in context.relevant_threads:
-            lines.append(
-                f"- {thread.name} ({thread.status}): {thread.summary}"
-            )
+            lines.append(f"- {thread.name} ({thread.status}): {thread.summary}")
         lines.append("")
 
     lines.append("# Evidence from Journal Entries")

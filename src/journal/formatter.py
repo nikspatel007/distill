@@ -38,7 +38,7 @@ class JournalFormatter:
     def _build_frontmatter(self, context: DailyContext) -> str:
         lines: list[str] = ["---"]
         lines.append(f"date: {context.date.isoformat()}")
-        lines.append(f"type: journal")
+        lines.append("type: journal")
         lines.append(f"style: {self._config.style.value}")
         lines.append(f"sessions_count: {context.total_sessions}")
         lines.append(f"duration_minutes: {context.total_duration_minutes:.0f}")
@@ -80,13 +80,10 @@ class JournalFormatter:
             lines.append("---")
             lines.append("")
             lines.append(
-                f"*{context.total_sessions} sessions "
-                f"| {context.total_duration_minutes:.0f} minutes"
+                f"*{context.total_sessions} sessions | {context.total_duration_minutes:.0f} minutes"
             )
             if context.projects_worked:
-                lines.append(
-                    f"| Projects: {', '.join(context.projects_worked)}"
-                )
+                lines.append(f"| Projects: {', '.join(context.projects_worked)}")
             lines.append("*")
             lines.append("")
 

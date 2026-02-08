@@ -7,9 +7,8 @@ import logging
 from datetime import date, datetime
 from pathlib import Path
 
-from pydantic import BaseModel, Field
-
 from distill.journal.config import JournalStyle
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -45,17 +44,13 @@ class JournalCache:
     def _save(self) -> None:
         self._cache_path.parent.mkdir(parents=True, exist_ok=True)
         raw = {k: v.model_dump() for k, v in self._data.items()}
-        self._cache_path.write_text(
-            json.dumps(raw, indent=2), encoding="utf-8"
-        )
+        self._cache_path.write_text(json.dumps(raw, indent=2), encoding="utf-8")
 
     @staticmethod
     def _key(target_date: date, style: JournalStyle) -> str:
         return f"{target_date.isoformat()}:{style.value}"
 
-    def is_generated(
-        self, target_date: date, style: JournalStyle, session_count: int
-    ) -> bool:
+    def is_generated(self, target_date: date, style: JournalStyle, session_count: int) -> bool:
         """Check if an entry is already cached with the same session count."""
         key = self._key(target_date, style)
         entry = self._data.get(key)
@@ -63,9 +58,7 @@ class JournalCache:
             return False
         return entry.session_count == session_count
 
-    def mark_generated(
-        self, target_date: date, style: JournalStyle, session_count: int
-    ) -> None:
+    def mark_generated(self, target_date: date, style: JournalStyle, session_count: int) -> None:
         """Record that a journal entry has been generated."""
         key = self._key(target_date, style)
         self._data[key] = CacheEntry(

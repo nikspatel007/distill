@@ -4,6 +4,19 @@ version = "0.1.0"
 description = "Distill raw AI coding sessions into journals, blogs, and multi-platform publications"
 readme = "README.md"
 requires-python = ">=3.11"
+license = "MIT"
+authors = [{name = "Nik Patel"}]
+keywords = ["ai", "content-pipeline", "journal", "blog", "publishing", "claude", "codex", "obsidian"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Documentation",
+    "Topic :: Text Processing :: Markup :: Markdown",
+]
 dependencies = [
     "typer>=0.9.0",
     "rich>=13.0",
@@ -14,12 +27,37 @@ dependencies = [
     "trafilatura>=1.6",
 ]
 
+[project.urls]
+Homepage = "https://github.com/nikpatel/distill"
+Repository = "https://github.com/nikpatel/distill"
+Issues = "https://github.com/nikpatel/distill/issues"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "mypy>=1.0",
     "ruff>=0.1",
+]
+reddit = ["praw>=7.0"]
+google = [
+    "google-api-python-client>=2.0",
+    "google-auth-oauthlib>=1.0",
+    "youtube-transcript-api>=0.6",
+]
+db = [
+    "sqlalchemy>=2.0",
+    "psycopg2-binary>=2.9",
+    "pgvector>=0.3",
+]
+embeddings = [
+    "sentence-transformers>=2.0",
+]
+all-sources = [
+    "praw>=7.0",
+    "google-api-python-client>=2.0",
+    "google-auth-oauthlib>=1.0",
+    "youtube-transcript-api>=0.6",
 ]
 
 [project.scripts]

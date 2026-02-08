@@ -27,6 +27,7 @@ class BlogPostSummary(BaseModel):
     date: date
     key_points: list[str] = Field(default_factory=list)
     themes_covered: list[str] = Field(default_factory=list)
+    examples_used: list[str] = Field(default_factory=list)
     platforms_published: list[str] = Field(default_factory=list)
 
 
@@ -38,7 +39,8 @@ class BlogMemory(BaseModel):
     def render_for_prompt(self) -> str:
         """Render as context for LLM injection.
 
-        Returns empty string if no posts exist.
+        Returns empty string if no posts exist. Includes dedup section
+        listing examples/anecdotes already used across previous posts.
         """
         if not self.posts:
             return ""
@@ -46,10 +48,25 @@ class BlogMemory(BaseModel):
         lines: list[str] = ["## Previous Blog Posts", ""]
         for post in sorted(self.posts, key=lambda p: p.date, reverse=True):
             points = "; ".join(post.key_points) if post.key_points else "no summary"
-            lines.append(
-                f'- "{post.title}" ({post.date.isoformat()}): {points}'
-            )
+            lines.append(f'- "{post.title}" ({post.date.isoformat()}): {points}')
         lines.append("")
+
+        # Collect all examples used across posts for dedup
+        all_examples: list[str] = []
+        for post in self.posts:
+            all_examples.extend(post.examples_used)
+        if all_examples:
+            lines.append("## DO NOT REUSE These Examples")
+            lines.append(
+                "The following specific examples, anecdotes, bugs, and statistics"
+                " have already been used in previous posts. Find DIFFERENT"
+                " evidence from the journal entries. Never recycle these:"
+            )
+            lines.append("")
+            for ex in sorted(set(all_examples)):
+                lines.append(f"- {ex}")
+            lines.append("")
+
         return "\n".join(lines)
 
     def add_post(self, summary: BlogPostSummary) -> None:

@@ -6,11 +6,10 @@ This module provides analyzers that detect patterns in session data:
 - CrossSessionCorrelator: Finds relationships between sessions across sources
 """
 
+import hashlib
 from abc import ABC, abstractmethod
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta, timezone
-from typing import Any
-import hashlib
+from datetime import UTC, datetime
 
 from distill.models import BaseSession
 from distill.models.insight import (
@@ -241,7 +240,8 @@ class SuccessFailureAnalyzer(BaseAnalyzer):
                         title=f"Tag '{tag}' associated with failures",
                         description=(
                             f"Sessions tagged '{tag}' have a high failure rate. "
-                            f"Found {count} failed sessions vs {success_tags.get(tag, 0)} successful."
+                            f"Found {count} failed sessions vs "
+                            f"{success_tags.get(tag, 0)} successful."
                         ),
                         severity=InsightSeverity.MEDIUM,
                         confidence=0.6,
@@ -314,7 +314,7 @@ class TimelineAnalyzer(BaseAnalyzer):
         # Find low-activity hours
         all_hours = set(range(24))
         active_hours = set(hour_counts.keys())
-        inactive_hours = all_hours - active_hours
+        all_hours - active_hours
 
         # Morning (6-12), afternoon (12-18), evening (18-24), night (0-6)
         time_periods = {
@@ -418,12 +418,9 @@ class TimelineAnalyzer(BaseAnalyzer):
         sorted_sessions = sorted(sessions, key=lambda s: s.start_time)
 
         # Calculate daily session counts for the last 30 days
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         last_30_days = [s for s in sorted_sessions if (now - s.start_time).days <= 30]
-        previous_30_days = [
-            s for s in sorted_sessions
-            if 30 < (now - s.start_time).days <= 60
-        ]
+        previous_30_days = [s for s in sorted_sessions if 30 < (now - s.start_time).days <= 60]
 
         if len(last_30_days) >= 5 and len(previous_30_days) >= 5:
             recent_avg = len(last_30_days) / 30
@@ -589,8 +586,7 @@ class CrossSessionCorrelator(BaseAnalyzer):
 
         total = sum(len(sessions) for sessions in by_source.values())
         source_percentages = {
-            source: len(sessions) / total * 100
-            for source, sessions in by_source.items()
+            source: len(sessions) / total * 100 for source, sessions in by_source.items()
         }
 
         primary_source = max(source_percentages, key=lambda k: source_percentages[k])
@@ -630,7 +626,7 @@ class CrossSessionCorrelator(BaseAnalyzer):
 
         # Find projects worked on with multiple sources
         for project, project_sessions in by_project.items():
-            sources = set(s.source for s in project_sessions)
+            sources = {s.source for s in project_sessions}
             if len(sources) > 1 and len(project_sessions) >= 3:
                 session_ids = [s.id for s in project_sessions][:5]
                 insights.append(
@@ -666,7 +662,7 @@ class CrossSessionCorrelator(BaseAnalyzer):
         chains: list[list[BaseSession]] = []
         current_chain: list[BaseSession] = []
 
-        for i, session in enumerate(sorted_sessions):
+        for _i, session in enumerate(sorted_sessions):
             if not current_chain:
                 current_chain = [session]
                 continue
@@ -690,7 +686,7 @@ class CrossSessionCorrelator(BaseAnalyzer):
         for chain in chains:
             chain_duration = (chain[-1].start_time - chain[0].start_time).total_seconds() / 60
             session_ids = [s.id for s in chain]
-            sources = set(s.source for s in chain)
+            sources = {s.source for s in chain}
 
             insights.append(
                 Insight(
@@ -698,7 +694,8 @@ class CrossSessionCorrelator(BaseAnalyzer):
                     type=InsightType.CROSS_SESSION_CORRELATION,
                     title=f"Work session chain: {len(chain)} consecutive sessions",
                     description=(
-                        f"Found {len(chain)} related sessions spanning {chain_duration:.0f} minutes. "
+                        f"Found {len(chain)} related sessions "
+                        f"spanning {chain_duration:.0f} minutes. "
                         f"This represents a focused work period across {len(sources)} tool(s)."
                     ),
                     severity=InsightSeverity.MEDIUM if len(chain) >= 5 else InsightSeverity.LOW,

@@ -58,9 +58,7 @@ class ObsidianFormatter:
         body = self._format_session_body(session)
         return frontmatter + body
 
-    def format_daily_summary(
-        self, sessions: list[BaseSession], summary_date: date
-    ) -> str:
+    def format_daily_summary(self, sessions: list[BaseSession], summary_date: date) -> str:
         """Format a daily summary of multiple sessions.
 
         Args:
@@ -108,8 +106,10 @@ class ObsidianFormatter:
         title = f"Session {date_str}"
 
         # Summary
-        summary = session.narrative if session.narrative else (
-            session.summary if session.summary else "_No summary available._"
+        summary = (
+            session.narrative
+            if session.narrative
+            else (session.summary if session.summary else "_No summary available._")
         )
 
         # Timeline
@@ -312,13 +312,9 @@ class ObsidianFormatter:
         daily_link = format_obsidian_link(f"daily-{date_str}", f"Daily Summary {date_str}")
         return f"- {daily_link}"
 
-    def _format_daily_frontmatter(
-        self, sessions: list[BaseSession], summary_date: date
-    ) -> str:
+    def _format_daily_frontmatter(self, sessions: list[BaseSession], summary_date: date) -> str:
         """Generate YAML frontmatter for a daily summary."""
-        total_duration = sum(
-            s.duration_minutes or 0 for s in sessions
-        )
+        total_duration = sum(s.duration_minutes or 0 for s in sessions)
 
         # Collect all tags
         all_tags = ["daily-summary", "ai-session"]
@@ -334,9 +330,7 @@ class ObsidianFormatter:
             created=datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
         )
 
-    def _format_daily_body(
-        self, sessions: list[BaseSession], summary_date: date
-    ) -> str:
+    def _format_daily_body(self, sessions: list[BaseSession], summary_date: date) -> str:
         """Generate the markdown body for a daily summary."""
         total_duration = sum(s.duration_minutes or 0 for s in sessions)
 
@@ -493,7 +487,6 @@ class ObsidianFormatter:
         lines.append("|------|---------|-------|------|--------|---------|")
 
         first_ts = sorted_signals[0].timestamp
-        prev_ts = first_ts
         for signal in sorted_signals:
             time_str = signal.timestamp.strftime("%H:%M:%S")
             elapsed = signal.timestamp - first_ts
@@ -503,7 +496,6 @@ class ObsidianFormatter:
                 f"| {time_str} | {elapsed_str} | {signal.agent_id[:12]} | {signal.role} "
                 f"| {signal.signal} | {msg} |"
             )
-            prev_ts = signal.timestamp
 
         # Total workflow duration
         if len(sorted_signals) >= 2:

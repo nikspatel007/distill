@@ -67,7 +67,7 @@ class MarkdownPublisher(BlogPublisher):
 
     def _weekly_frontmatter(self, context: WeeklyBlogContext) -> str:
         lines: list[str] = ["---"]
-        lines.append(f"title: \"Week {context.year}-W{context.week:02d} Synthesis\"")
+        lines.append(f'title: "Week {context.year}-W{context.week:02d} Synthesis"')
         lines.append(f"date: {context.week_start.isoformat()}")
         lines.append("tags:")
         lines.append("  - blog")
@@ -94,7 +94,7 @@ class MarkdownPublisher(BlogPublisher):
 
     def _thematic_frontmatter(self, context: ThematicBlogContext) -> str:
         lines: list[str] = ["---"]
-        lines.append(f"title: \"{context.theme.title}\"")
+        lines.append(f'title: "{context.theme.title}"')
         lines.append(f"date: {datetime.now().strftime('%Y-%m-%d')}")
         lines.append("tags:")
         lines.append("  - blog")

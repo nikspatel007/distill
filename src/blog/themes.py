@@ -6,10 +6,9 @@ keywords and thread patterns used for evidence gathering from journal entries.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
-
 from distill.blog.reader import JournalEntry
 from distill.blog.state import BlogState
+from pydantic import BaseModel, Field
 
 
 class ThemeDefinition(BaseModel):
@@ -24,6 +23,44 @@ class ThemeDefinition(BaseModel):
 
 
 THEMES: list[ThemeDefinition] = [
+    # Achievement / what-works themes
+    ThemeDefinition(
+        slug="healthy-friction-works",
+        title="How Healthy Friction Between Agents Catches Real Bugs",
+        description=(
+            "QA-dev friction as a quality multiplier"
+            " — when structured disagreement produces better code."
+        ),
+        keywords=["healthy friction", "caught", "revision", "coverage gap", "real bug"],
+        thread_patterns=["healthy-friction", "qa-dev", "friction"],
+    ),
+    ThemeDefinition(
+        slug="pipeline-that-compounds",
+        title="Building a Content Pipeline That Compounds",
+        description=(
+            "How a system that ingests sessions, reads, and thoughts"
+            " produces richer output over time."
+        ),
+        keywords=["pipeline", "compound", "memory", "continuity", "narrative"],
+        thread_patterns=["pipeline", "compound", "memory"],
+    ),
+    ThemeDefinition(
+        slug="mission-cycles-that-chain",
+        title="When Mission Cycles Start Chaining Autonomously",
+        description="The moment multi-agent workflows go from orchestrated to self-sustaining.",
+        keywords=["chaining", "autonomous", "mission cycle", "self-sustaining", "pipeline"],
+        thread_patterns=["mission-cycle", "chaining", "autonomous"],
+    ),
+    ThemeDefinition(
+        slug="self-referential-loop",
+        title="The Self-Referential AI Tooling Loop",
+        description=(
+            "Building tools where the AI watches itself work, then learns from what it sees."
+        ),
+        keywords=["self-referential", "meta-learning", "knowledge extraction", "self-improving"],
+        thread_patterns=["self-referential", "self-improvement", "knowledge-extraction"],
+    ),
+    # Challenge / learning themes
     ThemeDefinition(
         slug="coordination-overhead",
         title="When Coordination Overhead Exceeds Task Value",
@@ -69,9 +106,7 @@ THEMES: list[ThemeDefinition] = [
 ]
 
 
-def gather_evidence(
-    theme: ThemeDefinition, entries: list[JournalEntry]
-) -> list[JournalEntry]:
+def gather_evidence(theme: ThemeDefinition, entries: list[JournalEntry]) -> list[JournalEntry]:
     """Find journal entries that contain evidence for a theme.
 
     Searches both prose content (via keywords) and tags (via thread patterns).
@@ -100,6 +135,88 @@ def get_ready_themes(
         if len(unique_dates) >= theme.min_evidence_days:
             ready.append((theme, evidence))
     return ready
+
+
+def themes_from_seeds(seeds: list[object]) -> list[ThemeDefinition]:
+    """Convert unused seed ideas into dynamic blog themes.
+
+    Each seed becomes a theme. The seed text is the title, and keywords
+    are derived from the seed's tags plus key words from the text.
+
+    Args:
+        seeds: List of SeedIdea objects (has .id, .text, .tags attributes).
+
+    Returns:
+        List of ThemeDefinition objects ready for evidence gathering.
+    """
+    themes: list[ThemeDefinition] = []
+    for seed in seeds:
+        # Build keywords from tags + significant words in the text
+        text = seed.text  # type: ignore[union-attr]
+        tags = list(seed.tags) if hasattr(seed, "tags") else []  # type: ignore[union-attr]
+
+        # Extract meaningful words (>4 chars, not stopwords) as keywords
+        stopwords = {
+            "about",
+            "after",
+            "before",
+            "being",
+            "between",
+            "could",
+            "every",
+            "from",
+            "have",
+            "into",
+            "more",
+            "most",
+            "much",
+            "only",
+            "over",
+            "should",
+            "some",
+            "such",
+            "than",
+            "that",
+            "their",
+            "them",
+            "then",
+            "there",
+            "these",
+            "they",
+            "this",
+            "through",
+            "under",
+            "very",
+            "what",
+            "when",
+            "where",
+            "which",
+            "while",
+            "with",
+            "would",
+            "your",
+        }
+        words = [
+            w.strip(".,;:!?\"'()—-")
+            for w in text.lower().split()
+            if len(w.strip(".,;:!?\"'()—-")) > 4 and w.strip(".,;:!?\"'()—-") not in stopwords
+        ]
+        keywords = tags + words[:8]
+
+        # Slug from seed ID
+        slug = f"seed-{seed.id}"  # type: ignore[union-attr]
+
+        themes.append(
+            ThemeDefinition(
+                slug=slug,
+                title=text,
+                description=f"Blog post exploring: {text}",
+                keywords=keywords,
+                thread_patterns=tags if tags else words[:3],
+                min_evidence_days=1,  # Seeds need less evidence — the seed IS the angle
+            )
+        )
+    return themes
 
 
 def _entry_matches_theme(entry: JournalEntry, theme: ThemeDefinition) -> bool:

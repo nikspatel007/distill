@@ -1,13 +1,13 @@
 """Insight models for pattern analysis."""
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 
-class InsightType(str, Enum):
+class InsightType(StrEnum):
     """Types of insights that can be generated."""
 
     SUCCESS_PATTERN = "success_pattern"
@@ -18,7 +18,7 @@ class InsightType(str, Enum):
     PRODUCTIVITY_INSIGHT = "productivity_insight"
 
 
-class InsightSeverity(str, Enum):
+class InsightSeverity(StrEnum):
     """Severity/importance level of an insight."""
 
     LOW = "low"

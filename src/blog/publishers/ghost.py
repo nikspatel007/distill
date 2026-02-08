@@ -67,7 +67,7 @@ class GhostAPIClient:
     @staticmethod
     def _markdown_to_mobiledoc(markdown: str) -> str:
         """Wrap markdown in Ghost's mobiledoc format for proper rendering."""
-        card_payload = json.dumps(markdown)
+        json.dumps(markdown)
         mobiledoc = {
             "version": "0.3.1",
             "ghostVersion": "4.0",
@@ -243,9 +243,7 @@ class GhostPublisher(BlogPublisher):
             if self._config.newsletter_slug:
                 # Two-step: create draft, then publish with newsletter
                 post = self._api.create_post(title, prose, tags, status="draft")
-                post = self._api.publish_with_newsletter(
-                    post["id"], self._config.newsletter_slug
-                )
+                post = self._api.publish_with_newsletter(post["id"], self._config.newsletter_slug)
                 logger.info("Published '%s' to Ghost with newsletter", title)
                 return post
             else:

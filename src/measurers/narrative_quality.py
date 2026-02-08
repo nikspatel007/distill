@@ -19,11 +19,27 @@ _XML_TAG_RE = re.compile(r"</?[a-zA-Z][\w-]*(?:\s[^>]*)?>")
 _FILE_PATH_RE = re.compile(r"^[\w./\\-]+\.\w{1,5}$")
 
 # Known tool names from Claude Code and similar systems
-_TOOL_NAMES = frozenset({
-    "Read", "Edit", "Write", "Bash", "Glob", "Grep", "WebFetch", "WebSearch",
-    "Task", "TodoRead", "TodoWrite", "NotebookEdit", "AskFollowupQuestion",
-    "AttemptCompletion", "ListFiles", "SearchFiles", "ExecuteCommand",
-})
+_TOOL_NAMES = frozenset(
+    {
+        "Read",
+        "Edit",
+        "Write",
+        "Bash",
+        "Glob",
+        "Grep",
+        "WebFetch",
+        "WebSearch",
+        "Task",
+        "TodoRead",
+        "TodoWrite",
+        "NotebookEdit",
+        "AskFollowupQuestion",
+        "AttemptCompletion",
+        "ListFiles",
+        "SearchFiles",
+        "ExecuteCommand",
+    }
+)
 
 # Known literal command patterns (short CLI-style strings)
 _COMMAND_PATTERNS = [
@@ -120,12 +136,14 @@ class NarrativeQualityMeasurer(Measurer):
             for reason in reasons:
                 failures_summary[reason] = failures_summary.get(reason, 0) + 1
 
-            per_session.append({
-                "session_id": session.session_id,
-                "passed": ok,
-                "failures": reasons,
-                "narrative_preview": narrative[:100] if narrative else "",
-            })
+            per_session.append(
+                {
+                    "session_id": session.session_id,
+                    "passed": ok,
+                    "failures": reasons,
+                    "narrative_preview": narrative[:100] if narrative else "",
+                }
+            )
 
         value = (passed / total * 100) if total > 0 else 0.0
 
