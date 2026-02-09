@@ -238,6 +238,118 @@ export const PostizIntegrationSchema = z.object({
 	identifier: z.string().default(""),
 });
 
+// --- Distill Config (mirrors Python DistillConfig) ---
+
+export const OutputConfigSchema = z.object({
+	directory: z.string().default("./insights"),
+});
+
+export const SessionsConfigSchema = z.object({
+	sources: z.array(z.string()).default(["claude", "codex"]),
+	include_global: z.boolean().default(false),
+	since_days: z.number().default(2),
+});
+
+export const JournalConfigSchema = z.object({
+	style: z.string().default("dev-journal"),
+	target_word_count: z.number().default(600),
+	model: z.string().nullable().default(null),
+	memory_window_days: z.number().default(7),
+});
+
+export const BlogConfigSchema = z.object({
+	target_word_count: z.number().default(1200),
+	include_diagrams: z.boolean().default(true),
+	model: z.string().nullable().default(null),
+	platforms: z.array(z.string()).default(["obsidian"]),
+});
+
+export const IntakeConfigSchema = z.object({
+	feeds_file: z.string().default(""),
+	opml_file: z.string().default(""),
+	use_defaults: z.boolean().default(true),
+	browser_history: z.boolean().default(false),
+	substack_blogs: z.array(z.string()).default([]),
+	target_word_count: z.number().default(800),
+	model: z.string().nullable().default(null),
+	publishers: z.array(z.string()).default(["obsidian"]),
+});
+
+export const GhostConfigSchema = z.object({
+	url: z.string().default(""),
+	admin_api_key: z.string().default(""),
+	newsletter_slug: z.string().default(""),
+	auto_publish: z.boolean().default(true),
+});
+
+export const PostizConfigSchema = z.object({
+	url: z.string().default(""),
+	api_key: z.string().default(""),
+	default_type: z.string().default("draft"),
+	schedule_enabled: z.boolean().default(false),
+});
+
+export const RedditConfigSchema = z.object({
+	client_id: z.string().default(""),
+	client_secret: z.string().default(""),
+	username: z.string().default(""),
+});
+
+export const YouTubeConfigSchema = z.object({
+	api_key: z.string().default(""),
+});
+
+export const NotificationsConfigSchema = z.object({
+	slack_webhook: z.string().default(""),
+	ntfy_url: z.string().default(""),
+	ntfy_topic: z.string().default("distill"),
+	enabled: z.boolean().default(true),
+});
+
+export const ProjectConfigSchema = z.object({
+	name: z.string(),
+	description: z.string(),
+	url: z.string().default(""),
+	tags: z.array(z.string()).default([]),
+});
+
+export const DistillConfigSchema = z.object({
+	output: OutputConfigSchema.default({}),
+	sessions: SessionsConfigSchema.default({}),
+	journal: JournalConfigSchema.default({}),
+	blog: BlogConfigSchema.default({}),
+	intake: IntakeConfigSchema.default({}),
+	ghost: GhostConfigSchema.default({}),
+	postiz: PostizConfigSchema.default({}),
+	reddit: RedditConfigSchema.default({}),
+	youtube: YouTubeConfigSchema.default({}),
+	notifications: NotificationsConfigSchema.default({}),
+	projects: z.array(ProjectConfigSchema).default([]),
+});
+
+// --- Source Status ---
+
+export const SourceStatusSchema = z.object({
+	source: z.string(),
+	configured: z.boolean(),
+	label: z.string(),
+});
+
+// --- Pipeline Status ---
+
+export const PipelineStatusSchema = z.object({
+	status: z.enum(["idle", "running", "completed", "failed"]),
+	log: z.string().default(""),
+	startedAt: z.string().nullable().default(null),
+	completedAt: z.string().nullable().default(null),
+	error: z.string().nullable().default(null),
+});
+
+export const PipelineRunResponseSchema = z.object({
+	id: z.string(),
+	started: z.boolean(),
+});
+
 // --- Save (edit) ---
 
 export const SaveMarkdownSchema = z.object({
@@ -274,3 +386,18 @@ export type IntakeDetail = z.infer<typeof IntakeDetailSchema>;
 export type PublishQueueItem = z.infer<typeof PublishQueueItemSchema>;
 export type PublishRequest = z.infer<typeof PublishRequestSchema>;
 export type PostizIntegration = z.infer<typeof PostizIntegrationSchema>;
+export type OutputConfig = z.infer<typeof OutputConfigSchema>;
+export type SessionsConfig = z.infer<typeof SessionsConfigSchema>;
+export type JournalConfig = z.infer<typeof JournalConfigSchema>;
+export type BlogConfig = z.infer<typeof BlogConfigSchema>;
+export type IntakeConfig = z.infer<typeof IntakeConfigSchema>;
+export type GhostConfig = z.infer<typeof GhostConfigSchema>;
+export type PostizConfig = z.infer<typeof PostizConfigSchema>;
+export type RedditConfig = z.infer<typeof RedditConfigSchema>;
+export type YouTubeConfig = z.infer<typeof YouTubeConfigSchema>;
+export type NotificationsConfig = z.infer<typeof NotificationsConfigSchema>;
+export type ProjectConfig = z.infer<typeof ProjectConfigSchema>;
+export type DistillConfig = z.infer<typeof DistillConfigSchema>;
+export type SourceStatus = z.infer<typeof SourceStatusSchema>;
+export type PipelineStatus = z.infer<typeof PipelineStatusSchema>;
+export type PipelineRunResponse = z.infer<typeof PipelineRunResponseSchema>;

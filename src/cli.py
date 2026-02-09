@@ -58,8 +58,120 @@ def version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
-@app.callback()
+def _init_config(directory: Path) -> None:
+    """Create .distill.toml with sane defaults if it doesn't exist."""
+    config_path = directory / ".distill.toml"
+    if config_path.exists():
+        return
+
+    default_config = """\
+[output]
+directory = "./insights"
+
+[sessions]
+sources = ["claude", "codex"]
+include_global = false
+since_days = 2
+
+[intake]
+use_defaults = true
+browser_history = true
+
+[blog]
+platforms = ["obsidian"]
+"""
+    config_path.write_text(default_config, encoding="utf-8")
+    console.print(f"[green]Created {config_path}[/green]")
+
+
+def _run_bare_command(
+    *,
+    directory: Path,
+    output: Path,
+    port: int,
+    no_run: bool,
+    no_serve: bool,
+) -> None:
+    """Execute the bare `distill` command: init, run pipeline, start server."""
+    import os
+    import shutil
+    import subprocess
+    import sys
+
+    resolved_dir = directory.resolve()
+    resolved_output = output.resolve()
+
+    # Step 1: Init config if needed
+    _init_config(resolved_dir)
+
+    # Step 2: Install web deps if needed
+    web_dir = Path(__file__).resolve().parent.parent / "web"
+    if web_dir.exists() and not (web_dir / "node_modules").exists():
+        bun = shutil.which("bun")
+        if bun:
+            console.print("[dim]Installing web dependencies...[/dim]")
+            subprocess.run(
+                [bun, "install"],
+                cwd=web_dir,
+                capture_output=True,
+            )
+
+    # Step 3: Run pipeline unless --no-run
+    if not no_run:
+        console.print("[bold]Running pipeline...[/bold]")
+        # Re-use the run command's logic via subprocess to keep it clean
+        cmd = [
+            sys.executable,
+            "-m",
+            "distill",
+            "run",
+            "--dir",
+            str(resolved_dir),
+            "--output",
+            str(resolved_output),
+        ]
+        result = subprocess.run(cmd)
+        if result.returncode != 0:
+            console.print("[yellow]Pipeline completed with errors (see above).[/yellow]")
+
+    # Step 4: Start web server unless --no-serve
+    if not no_serve:
+        if not web_dir.exists():
+            console.print("[red]Web directory not found.[/red]")
+            raise typer.Exit(1)
+
+        bun = shutil.which("bun")
+        if not bun:
+            console.print("[red]Bun runtime not found. Install from https://bun.sh[/red]")
+            raise typer.Exit(1)
+
+        env = {
+            **os.environ,
+            "OUTPUT_DIR": str(resolved_output),
+            "PROJECT_DIR": str(resolved_dir),
+            "PORT": str(port),
+        }
+
+        # Build frontend if needed
+        dist_dir = web_dir / "dist"
+        if not dist_dir.exists():
+            console.print("[dim]Building frontend...[/dim]")
+            subprocess.run([bun, "run", "build"], cwd=web_dir, env=env, capture_output=True)
+
+        console.print()
+        console.print(f"[bold green]Open http://localhost:{port} to view your content[/bold green]")
+        console.print(f"Output directory: {resolved_output}")
+        console.print("[dim]Press Ctrl+C to stop[/dim]")
+        subprocess.run(
+            [bun, "server/index.ts"],
+            cwd=web_dir,
+            env={**env, "NODE_ENV": "production"},
+        )
+
+
+@app.callback(invoke_without_command=True)
 def main(
+    ctx: typer.Context,
     version: Annotated[
         bool,
         typer.Option(
@@ -70,9 +182,60 @@ def main(
             is_eager=True,
         ),
     ] = False,
+    directory: Annotated[
+        Path,
+        typer.Option(
+            "--dir",
+            "-d",
+            help="Project directory to scan for sessions.",
+        ),
+    ] = Path("."),
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output directory for all generated content.",
+        ),
+    ] = Path("./insights"),
+    port: Annotated[
+        int,
+        typer.Option(
+            "--port",
+            "-p",
+            help="Port for the web dashboard.",
+        ),
+    ] = 4321,
+    no_run: Annotated[
+        bool,
+        typer.Option(
+            "--no-run",
+            help="Skip running the pipeline (just start the server).",
+        ),
+    ] = False,
+    no_serve: Annotated[
+        bool,
+        typer.Option(
+            "--no-serve",
+            help="Skip starting the web server (just run the pipeline).",
+        ),
+    ] = False,
 ) -> None:
-    """Session Insights - Analyze AI coding assistant sessions."""
-    pass
+    """Distill - Transform AI coding sessions into publishable content.
+
+    When run without a subcommand, initializes config, runs the full pipeline,
+    and starts the web dashboard.
+    """
+    if ctx.invoked_subcommand is not None:
+        return
+
+    _run_bare_command(
+        directory=directory,
+        output=output,
+        port=port,
+        no_run=no_run,
+        no_serve=no_serve,
+    )
 
 
 def _generate_index(
@@ -875,6 +1038,20 @@ def blog_cmd(
             help="Ghost newsletter slug for auto-send (or GHOST_NEWSLETTER_SLUG env var).",
         ),
     ] = None,
+    limit: Annotated[
+        int | None,
+        typer.Option(
+            "--limit",
+            help="Max posts to push to Postiz per run. Only affects API publishers.",
+        ),
+    ] = None,
+    postiz_mode: Annotated[
+        str | None,
+        typer.Option(
+            "--postiz-mode",
+            help="Postiz post type: draft, schedule, or now. Overrides POSTIZ_DEFAULT_TYPE.",
+        ),
+    ] = None,
 ) -> None:
     """Generate blog posts from existing journal entries.
 
@@ -920,6 +1097,17 @@ def blog_cmd(
     if ghost_newsletter:
         ghost_config.newsletter_slug = ghost_newsletter
 
+    # Validate and apply postiz mode
+    if postiz_mode:
+        valid_modes = ("draft", "schedule", "now")
+        if postiz_mode not in valid_modes:
+            console.print(f"[red]Error:[/red] Unknown postiz mode: {postiz_mode}")
+            console.print(f"Valid modes: {', '.join(valid_modes)}")
+            raise typer.Exit(1)
+        import os
+
+        os.environ["POSTIZ_DEFAULT_TYPE"] = postiz_mode
+
     # Check that journal directory exists
     journal_dir = output / "journal"
     if not journal_dir.exists():
@@ -943,6 +1131,7 @@ def blog_cmd(
             target_word_count=words,
             platforms=platform_names,
             ghost_config=ghost_config if ghost_config.is_configured else None,
+            postiz_limit=limit,
         )
 
     if dry_run:
@@ -1781,6 +1970,76 @@ def note_list(
         target_str = f" [dim][{note.target}][/dim]" if note.target else ""
         console.print(f"  {status}{note.text}{target_str}")
         console.print(f"    [dim]ID: {note.id} | {note.created_at.date()}[/dim]")
+
+
+@app.command(name="serve")
+def serve(
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output directory to serve.",
+        ),
+    ] = Path("./insights"),
+    port: Annotated[
+        int,
+        typer.Option(
+            "--port",
+            "-p",
+            help="Port for the web server.",
+        ),
+    ] = 4321,
+    dev: Annotated[
+        bool,
+        typer.Option(
+            "--dev",
+            help="Run in development mode (server only, no static files).",
+        ),
+    ] = False,
+) -> None:
+    """Start the web dashboard server."""
+    import os
+    import shutil
+    import subprocess
+
+    web_dir = Path(__file__).resolve().parent.parent / "web"
+
+    if not web_dir.exists():
+        console.print("[red]Web directory not found.[/red]")
+        console.print(f"Expected at: {web_dir}")
+        raise typer.Exit(1)
+
+    bun = shutil.which("bun")
+    if not bun:
+        console.print("[red]Bun runtime not found. Install from https://bun.sh[/red]")
+        raise typer.Exit(1)
+
+    env = {
+        **os.environ,
+        "OUTPUT_DIR": str(output.resolve()),
+        "PROJECT_DIR": str(Path.cwd()),
+        "PORT": str(port),
+    }
+
+    if dev:
+        console.print(f"[green]Starting dev server on http://localhost:{port}[/green]")
+        console.print(f"Output directory: {output.resolve()}")
+        subprocess.run([bun, "run", "dev:server"], cwd=web_dir, env=env)
+    else:
+        # Check if build exists
+        dist_dir = web_dir / "dist"
+        if not dist_dir.exists():
+            console.print("[yellow]Building frontend...[/yellow]")
+            subprocess.run([bun, "run", "build"], cwd=web_dir, env=env, check=True)
+
+        console.print(f"[green]Starting server on http://localhost:{port}[/green]")
+        console.print(f"Output directory: {output.resolve()}")
+        subprocess.run(
+            [bun, "server/index.ts"],
+            cwd=web_dir,
+            env={**env, "NODE_ENV": "production"},
+        )
 
 
 if __name__ == "__main__":

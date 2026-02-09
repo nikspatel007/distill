@@ -32,6 +32,7 @@
 		"react-markdown": "^9.0.0",
 		"rehype-highlight": "^7.0.0",
 		"remark-gfm": "^4.0.0",
+		"smol-toml": "^1.6.0",
 		"zod": "^3.24.0"
 	},
 	"devDependencies": {

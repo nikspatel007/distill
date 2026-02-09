@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { DashboardResponse } from "../../shared/schemas.js";
+import RunPipelineButton from "../components/shared/RunPipelineButton.js";
 
 export default function Dashboard() {
 	const { data, isLoading, error } = useQuery<DashboardResponse>({
@@ -86,6 +87,12 @@ export default function Dashboard() {
 					</div>
 				</section>
 			)}
+
+			{/* Run pipeline */}
+			<section>
+				<h3 className="mb-3 text-lg font-semibold">Pipeline</h3>
+				<RunPipelineButton />
+			</section>
 
 			{/* Quick actions */}
 			<div className="flex gap-3">

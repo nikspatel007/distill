@@ -10,6 +10,7 @@ describe("GET /api/publish/queue", () => {
 		setConfig({
 			OUTPUT_DIR: FIXTURES,
 			PORT: 3001,
+			PROJECT_DIR: "",
 			POSTIZ_URL: "",
 			POSTIZ_API_KEY: "",
 		});
@@ -68,6 +69,7 @@ describe("POST /api/publish/:slug", () => {
 		setConfig({
 			OUTPUT_DIR: FIXTURES,
 			PORT: 3001,
+			PROJECT_DIR: "",
 			POSTIZ_URL: "",
 			POSTIZ_API_KEY: "",
 		});
@@ -92,6 +94,7 @@ describe("GET /api/publish/integrations", () => {
 		setConfig({
 			OUTPUT_DIR: FIXTURES,
 			PORT: 3001,
+			PROJECT_DIR: "",
 			POSTIZ_URL: "",
 			POSTIZ_API_KEY: "",
 		});

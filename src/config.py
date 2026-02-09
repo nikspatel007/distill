@@ -39,7 +39,7 @@ class OutputConfig(BaseModel):
 class SessionsConfig(BaseModel):
     """[sessions] section."""
 
-    sources: list[str] = Field(default_factory=lambda: ["claude", "codex", "vermas"])
+    sources: list[str] = Field(default_factory=lambda: ["claude", "codex"])
     include_global: bool = False
     since_days: int = 2
 

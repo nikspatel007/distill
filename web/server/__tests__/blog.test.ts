@@ -11,6 +11,7 @@ describe("GET /api/blog/posts", () => {
 		setConfig({
 			OUTPUT_DIR: FIXTURES,
 			PORT: 3001,
+			PROJECT_DIR: "",
 			POSTIZ_URL: "",
 			POSTIZ_API_KEY: "",
 		});
@@ -99,6 +100,7 @@ describe("GET /api/blog/posts/:slug", () => {
 		setConfig({
 			OUTPUT_DIR: FIXTURES,
 			PORT: 3001,
+			PROJECT_DIR: "",
 			POSTIZ_URL: "",
 			POSTIZ_API_KEY: "",
 		});

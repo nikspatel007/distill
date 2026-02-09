@@ -13,6 +13,7 @@ describe("PUT /api/journal/:date", () => {
 		setConfig({
 			OUTPUT_DIR: FIXTURES,
 			PORT: 3001,
+			PROJECT_DIR: "",
 			POSTIZ_URL: "",
 			POSTIZ_API_KEY: "",
 		});
