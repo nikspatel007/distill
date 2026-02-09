@@ -41,17 +41,22 @@ def _call_claude(prompt: str, model: str | None = None, timeout: int = 120) -> s
 
 
 def _parse_json_response(text: str) -> Any:
-    """Extract JSON from LLM response, handling markdown code fences."""
+    """Extract JSON from LLM response, handling markdown code fences and preamble."""
     text = text.strip()
-    # Strip markdown code fences
-    if text.startswith("```"):
-        lines = text.splitlines()
-        # Remove first and last fence lines
-        if lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-        text = "\n".join(lines)
+
+    # Extract content between code fences (handles preamble/postamble text)
+    import re
+
+    fence_match = re.search(r"```(?:json)?\s*\n(.*?)```", text, re.DOTALL)
+    if fence_match:
+        text = fence_match.group(1).strip()
+    else:
+        # No fences — try to find a JSON array or object directly
+        bracket = text.find("[")
+        brace = text.find("{")
+        if bracket >= 0 or brace >= 0:
+            start = min(p for p in (bracket, brace) if p >= 0)
+            text = text[start:]
 
     try:
         return json.loads(text)

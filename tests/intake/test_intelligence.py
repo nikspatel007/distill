@@ -65,6 +65,20 @@ class TestParseJsonResponse:
         result = _parse_json_response(json.dumps(data))
         assert result == data
 
+    def test_json_with_preamble_and_postamble(self):
+        text = (
+            'This looks like entity extraction. Let me process:\n\n'
+            '```json\n[{"key": "value"}]\n```\n\n'
+            'Were you testing the extraction prompt?'
+        )
+        result = _parse_json_response(text)
+        assert result == [{"key": "value"}]
+
+    def test_json_without_fences(self):
+        text = 'Here is the result: [{"key": "value"}]'
+        result = _parse_json_response(text)
+        assert result == [{"key": "value"}]
+
 
 class TestBuildPrompts:
     """Test prompt construction."""
