@@ -6,12 +6,20 @@ exit codes, and generated filesystem artifacts.
 
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _strip_ansi(text: str) -> str:
+    """Remove ANSI escape codes from text."""
+    return _ANSI_RE.sub("", text)
 
 
 # Derive PYTHONPATH from this file's location (tests/integration/ -> src/)
@@ -86,8 +94,8 @@ class TestCLIEndToEnd:
 
         assert result.returncode == 0
         # Should list the main commands
-        assert "analyze" in result.stdout
-        assert "sessions" in result.stdout
+        assert "analyze" in _strip_ansi(result.stdout)
+        assert "sessions" in _strip_ansi(result.stdout)
 
     def test_sessions_command_with_sample_data(
         self, sample_claude_history: Path
@@ -101,7 +109,7 @@ class TestCLIEndToEnd:
         assert result.returncode == 0
 
         # Parse and validate JSON schema
-        data = json.loads(result.stdout)
+        data = json.loads(_strip_ansi(result.stdout))
         assert "session_count" in data
         assert "total_messages" in data
         assert "date_range" in data
@@ -126,7 +134,7 @@ class TestCLIEndToEnd:
         )
 
         assert result.returncode == 0
-        assert "Analysis complete" in result.stdout
+        assert "Analysis complete" in _strip_ansi(result.stdout)
 
         # Verify filesystem artifacts
         sessions_dir = output_dir / "sessions"
@@ -166,7 +174,7 @@ class TestCLIEndToEnd:
 
         # Should exit cleanly with "no sessions" message
         assert result.returncode == 0
-        assert "No sessions found" in result.stdout
+        assert "No sessions found" in _strip_ansi(result.stdout)
 
     def test_sessions_no_data(self, tmp_path: Path) -> None:
         """Run sessions against empty directory, verify graceful exit."""
@@ -178,7 +186,7 @@ class TestCLIEndToEnd:
         assert result.returncode == 0
 
         # Should return valid JSON with zero counts
-        data = json.loads(result.stdout)
+        data = json.loads(_strip_ansi(result.stdout))
         assert data["session_count"] == 0
         assert data["total_messages"] == 0
 
@@ -192,7 +200,7 @@ class TestCLIEndToEnd:
         )
 
         assert result.returncode == 1
-        assert "Unsupported format" in result.stdout or "Error" in result.stdout
+        assert "Unsupported format" in _strip_ansi(result.stdout) or "Error" in _strip_ansi(result.stdout)
 
     def test_analyze_stats_only_with_data(
         self, sample_claude_history: Path, tmp_path: Path
@@ -207,7 +215,7 @@ class TestCLIEndToEnd:
 
         assert result.returncode == 0
 
-        data = json.loads(result.stdout)
+        data = json.loads(_strip_ansi(result.stdout))
         assert "session_count" in data
         assert "content_richness_score" in data
         assert "field_coverage" in data
@@ -226,7 +234,7 @@ class TestCLIEndToEnd:
 
         assert result.returncode == 0
 
-        data = json.loads(result.stdout)
+        data = json.loads(_strip_ansi(result.stdout))
         assert data["session_count"] == 0
         assert data["content_richness_score"] == 0.0
 

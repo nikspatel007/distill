@@ -1,6 +1,7 @@
 """Smoke tests for the CLI."""
 
 import json
+import re
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -9,6 +10,13 @@ import pytest
 from typer.testing import CliRunner
 
 from distill.cli import app
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _strip_ansi(text: str) -> str:
+    """Remove ANSI escape codes from text."""
+    return _ANSI_RE.sub("", text)
 
 
 @pytest.fixture
@@ -60,19 +68,19 @@ class TestCLI:
         """Test that --help works on the main command."""
         result = runner.invoke(app, ["--help"])
         assert result.exit_code == 0
-        assert "session-insights" in result.output.lower() or "analyze" in result.output.lower()
+        assert "session-insights" in _strip_ansi(result.output).lower() or "analyze" in _strip_ansi(result.output).lower()
 
     def test_main_version(self, runner: CliRunner) -> None:
         """Test that --version works."""
         result = runner.invoke(app, ["--version"])
         assert result.exit_code == 0
-        assert "session-insights" in result.output
+        assert "session-insights" in _strip_ansi(result.output)
 
     def test_analyze_help(self, runner: CliRunner) -> None:
         """Test that analyze --help works."""
         result = runner.invoke(app, ["analyze", "--help"])
         assert result.exit_code == 0
-        assert "output" in result.output.lower()
+        assert "output" in _strip_ansi(result.output).lower()
 
     def test_analyze_default_output(self, runner: CliRunner) -> None:
         """Test that analyze exits cleanly when no sessions are found."""
@@ -88,20 +96,20 @@ class TestAnalyzeFormatOption:
         """Test that --format option is documented in help."""
         result = runner.invoke(app, ["analyze", "--help"])
         assert result.exit_code == 0
-        assert "--format" in result.output
+        assert "--format" in _strip_ansi(result.output)
 
     def test_analyze_default_format_is_obsidian(self, runner: CliRunner) -> None:
         """Test that default format is obsidian."""
         result = runner.invoke(app, ["analyze", "--help"])
         assert result.exit_code == 0
         # Help should mention obsidian as the format
-        assert "obsidian" in result.output.lower()
+        assert "obsidian" in _strip_ansi(result.output).lower()
 
     def test_analyze_unsupported_format_fails(self, runner: CliRunner) -> None:
         """Test that unsupported format produces an error."""
         result = runner.invoke(app, ["analyze", "--dir", "/tmp", "--format", "json"])
         assert result.exit_code == 1
-        assert "unsupported format" in result.output.lower()
+        assert "unsupported format" in _strip_ansi(result.output).lower()
 
     def test_analyze_obsidian_format_succeeds(self, runner: CliRunner) -> None:
         """Test that obsidian format is accepted."""
@@ -122,7 +130,7 @@ class TestAnalyzeIndexGeneration:
         )
         # Should succeed but exit early with no sessions
         assert result.exit_code == 0
-        assert "No session files found" in result.output
+        assert "No session files found" in _strip_ansi(result.output)
 
         # Index should NOT be created when no sessions found
         index_path = output_dir / "index.md"
@@ -136,7 +144,7 @@ class TestAnalyzeStatsOnly:
         """Test that --stats-only appears in help."""
         result = runner.invoke(app, ["analyze", "--help"])
         assert result.exit_code == 0
-        assert "--stats-only" in result.output
+        assert "--stats-only" in _strip_ansi(result.output)
 
     def test_stats_only_empty_directory(self, runner: CliRunner, tmp_path: Path) -> None:
         """Test --stats-only with no sessions returns valid JSON with zero counts."""
@@ -218,7 +226,7 @@ class TestAnalyzeErrorHandling:
             app, ["analyze", "--dir", "/tmp", "--since", "not-a-date"]
         )
         assert result.exit_code == 1
-        assert "Invalid date" in result.output
+        assert "Invalid date" in _strip_ansi(result.output)
 
 
 class TestGenerateIndexFunction:

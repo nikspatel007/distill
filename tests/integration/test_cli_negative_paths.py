@@ -10,6 +10,7 @@ Python tracebacks in output.
 
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime, timedelta
@@ -18,6 +19,13 @@ from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _strip_ansi(text: str) -> str:
+    """Remove ANSI escape codes from text."""
+    return _ANSI_RE.sub("", text)
 
 from distill.cli import app
 
@@ -46,7 +54,7 @@ def _run_cli(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
 
 def _assert_no_traceback(result: subprocess.CompletedProcess[str]) -> None:
     """Assert that neither stdout nor stderr contains a Python traceback."""
-    for output in (result.stdout, result.stderr):
+    for output in (_strip_ansi(result.stdout), _strip_ansi(result.stderr)):
         assert "Traceback (most recent call last)" not in output, (
             f"CLI produced a traceback:\n{output}"
         )
@@ -72,7 +80,7 @@ class TestMalformedInputFiles:
         result = runner.invoke(app, ["analyze", "--dir", str(tmp_path)])
         assert result.exit_code == 0
         # Should not crash — graceful handling
-        assert "Traceback" not in result.output
+        assert "Traceback" not in _strip_ansi(result.output)
 
     def test_invalid_jsonl_lines_mixed_with_valid(
         self, runner: CliRunner, tmp_path: Path
@@ -93,7 +101,7 @@ class TestMalformedInputFiles:
 
         result = runner.invoke(app, ["analyze", "--dir", str(tmp_path)])
         assert result.exit_code == 0
-        assert "Traceback" not in result.output
+        assert "Traceback" not in _strip_ansi(result.output)
 
     def test_binary_garbage_in_session_file(
         self, runner: CliRunner, tmp_path: Path
@@ -106,7 +114,7 @@ class TestMalformedInputFiles:
 
         result = runner.invoke(app, ["analyze", "--dir", str(tmp_path)])
         assert result.exit_code == 0
-        assert "Traceback" not in result.output
+        assert "Traceback" not in _strip_ansi(result.output)
 
     def test_corrupted_session_state_partial_write(
         self, runner: CliRunner, tmp_path: Path
@@ -123,7 +131,7 @@ class TestMalformedInputFiles:
 
         result = runner.invoke(app, ["analyze", "--dir", str(tmp_path)])
         assert result.exit_code == 0
-        assert "Traceback" not in result.output
+        assert "Traceback" not in _strip_ansi(result.output)
 
     def test_json_array_instead_of_jsonl(
         self, runner: CliRunner, tmp_path: Path
@@ -139,7 +147,7 @@ class TestMalformedInputFiles:
 
         result = runner.invoke(app, ["analyze", "--dir", str(tmp_path)])
         assert result.exit_code == 0
-        assert "Traceback" not in result.output
+        assert "Traceback" not in _strip_ansi(result.output)
 
     def test_malformed_codex_session(
         self, runner: CliRunner, tmp_path: Path
@@ -152,9 +160,9 @@ class TestMalformedInputFiles:
 
         result = runner.invoke(app, ["sessions", "--dir", str(tmp_path)])
         assert result.exit_code == 0
-        assert "Traceback" not in result.output
+        assert "Traceback" not in _strip_ansi(result.output)
         # Should still produce valid JSON output
-        data = json.loads(result.output)
+        data = json.loads(_strip_ansi(result.output))
         assert "session_count" in data
 
     def test_malformed_input_e2e_no_traceback(self, tmp_path: Path) -> None:
@@ -178,13 +186,13 @@ class TestMissingDirectories:
         result = runner.invoke(app, ["analyze", "--dir", "/tmp/does_not_exist_xyz_123"])
         # Typer validates exists=True and returns exit code 2
         assert result.exit_code != 0
-        assert "Traceback" not in result.output
+        assert "Traceback" not in _strip_ansi(result.output)
 
     def test_dir_nonexistent_path_sessions_cmd(self, runner: CliRunner) -> None:
         """sessions --dir with non-existent path produces a clean error."""
         result = runner.invoke(app, ["sessions", "--dir", "/tmp/does_not_exist_xyz_123"])
         assert result.exit_code != 0
-        assert "Traceback" not in result.output
+        assert "Traceback" not in _strip_ansi(result.output)
 
     def test_dir_is_a_file_not_directory(
         self, runner: CliRunner, tmp_path: Path
@@ -196,7 +204,7 @@ class TestMissingDirectories:
         result = runner.invoke(app, ["analyze", "--dir", str(some_file)])
         # cli.py now supports file_okay=True for single-file parsing
         assert result.exit_code in (0, 1)
-        assert "Traceback" not in result.output
+        assert "Traceback" not in _strip_ansi(result.output)
 
     def test_empty_directory_no_source_dirs(
         self, runner: CliRunner, tmp_path: Path
@@ -204,7 +212,7 @@ class TestMissingDirectories:
         """Empty directory with no .claude/.codex/.vermas dirs exits cleanly."""
         result = runner.invoke(app, ["analyze", "--dir", str(tmp_path)])
         assert result.exit_code == 0
-        assert "No session files found" in result.output
+        assert "No session files found" in _strip_ansi(result.output)
 
     def test_claude_dir_exists_but_no_projects(
         self, runner: CliRunner, tmp_path: Path
@@ -251,7 +259,7 @@ class TestPermissionErrors:
             result = runner.invoke(app, ["analyze", "--dir", str(tmp_path)])
 
         assert result.exit_code == 0
-        assert "Traceback" not in result.output
+        assert "Traceback" not in _strip_ansi(result.output)
 
     def test_unreadable_directory_iterdir(
         self, runner: CliRunner, tmp_path: Path
@@ -272,7 +280,7 @@ class TestPermissionErrors:
             result = runner.invoke(app, ["analyze", "--dir", str(tmp_path)])
 
         # May exit 0 (no sessions found) or handle the error
-        assert "Traceback" not in result.output
+        assert "Traceback" not in _strip_ansi(result.output)
 
     def test_sessions_cmd_permission_error_on_parse(
         self, runner: CliRunner, tmp_path: Path
@@ -294,7 +302,7 @@ class TestPermissionErrors:
             result = runner.invoke(app, ["sessions", "--dir", str(tmp_path)])
 
         assert result.exit_code == 0
-        assert "Traceback" not in result.output
+        assert "Traceback" not in _strip_ansi(result.output)
 
 
 # ---------------------------------------------------------------------------
@@ -313,7 +321,7 @@ class TestEmptySessionFiles:
 
         result = runner.invoke(app, ["analyze", "--dir", str(tmp_path)])
         assert result.exit_code == 0
-        assert "Traceback" not in result.output
+        assert "Traceback" not in _strip_ansi(result.output)
 
     def test_file_with_only_whitespace(
         self, runner: CliRunner, tmp_path: Path
@@ -325,7 +333,7 @@ class TestEmptySessionFiles:
 
         result = runner.invoke(app, ["analyze", "--dir", str(tmp_path)])
         assert result.exit_code == 0
-        assert "Traceback" not in result.output
+        assert "Traceback" not in _strip_ansi(result.output)
 
     def test_valid_json_but_empty_array(
         self, runner: CliRunner, tmp_path: Path
@@ -337,7 +345,7 @@ class TestEmptySessionFiles:
 
         result = runner.invoke(app, ["analyze", "--dir", str(tmp_path)])
         assert result.exit_code == 0
-        assert "Traceback" not in result.output
+        assert "Traceback" not in _strip_ansi(result.output)
 
     def test_valid_json_but_empty_object(
         self, runner: CliRunner, tmp_path: Path
@@ -349,7 +357,7 @@ class TestEmptySessionFiles:
 
         result = runner.invoke(app, ["analyze", "--dir", str(tmp_path)])
         assert result.exit_code == 0
-        assert "Traceback" not in result.output
+        assert "Traceback" not in _strip_ansi(result.output)
 
     def test_sessions_cmd_zero_byte_file(
         self, runner: CliRunner, tmp_path: Path
@@ -361,7 +369,7 @@ class TestEmptySessionFiles:
 
         result = runner.invoke(app, ["sessions", "--dir", str(tmp_path)])
         assert result.exit_code == 0
-        data = json.loads(result.output)
+        data = json.loads(_strip_ansi(result.output))
         assert data["session_count"] == 0
 
     def test_codex_zero_byte_file(
@@ -374,7 +382,7 @@ class TestEmptySessionFiles:
 
         result = runner.invoke(app, ["sessions", "--dir", str(tmp_path)])
         assert result.exit_code == 0
-        data = json.loads(result.output)
+        data = json.loads(_strip_ansi(result.output))
         assert isinstance(data["session_count"], int)
 
 
@@ -399,7 +407,7 @@ class TestEdgeCases:
 
         result = runner.invoke(app, ["analyze", "--dir", str(tmp_path)])
         assert result.exit_code == 0
-        assert "Traceback" not in result.output
+        assert "Traceback" not in _strip_ansi(result.output)
 
     def test_session_with_only_system_messages(
         self, runner: CliRunner, tmp_path: Path
@@ -415,7 +423,7 @@ class TestEdgeCases:
 
         result = runner.invoke(app, ["analyze", "--dir", str(tmp_path)])
         assert result.exit_code == 0
-        assert "Traceback" not in result.output
+        assert "Traceback" not in _strip_ansi(result.output)
 
     def test_very_large_session_file(
         self, runner: CliRunner, tmp_path: Path
@@ -437,7 +445,7 @@ class TestEdgeCases:
 
         result = runner.invoke(app, ["analyze", "--dir", str(tmp_path)])
         assert result.exit_code == 0
-        assert "Traceback" not in result.output
+        assert "Traceback" not in _strip_ansi(result.output)
 
     def test_invalid_since_date_format(self, runner: CliRunner, tmp_path: Path) -> None:
         """--since with invalid date format produces clean error."""
@@ -445,8 +453,8 @@ class TestEdgeCases:
             app, ["analyze", "--dir", str(tmp_path), "--since", "not-a-date"]
         )
         assert result.exit_code == 1
-        assert "Invalid date format" in result.output
-        assert "Traceback" not in result.output
+        assert "Invalid date format" in _strip_ansi(result.output)
+        assert "Traceback" not in _strip_ansi(result.output)
 
     def test_since_date_various_bad_formats(
         self, runner: CliRunner, tmp_path: Path
@@ -458,7 +466,7 @@ class TestEdgeCases:
                 app, ["analyze", "--dir", str(tmp_path), "--since", bad_date]
             )
             assert result.exit_code == 1, f"Expected exit 1 for date '{bad_date}'"
-            assert "Traceback" not in result.output
+            assert "Traceback" not in _strip_ansi(result.output)
 
     def test_unsupported_format_option(
         self, runner: CliRunner, tmp_path: Path
@@ -468,8 +476,8 @@ class TestEdgeCases:
             app, ["analyze", "--dir", str(tmp_path), "--format", "csv"]
         )
         assert result.exit_code == 1
-        assert "Unsupported format" in result.output
-        assert "Traceback" not in result.output
+        assert "Unsupported format" in _strip_ansi(result.output)
+        assert "Traceback" not in _strip_ansi(result.output)
 
     def test_session_with_missing_timestamp_fields(
         self, runner: CliRunner, tmp_path: Path
@@ -485,7 +493,7 @@ class TestEdgeCases:
 
         result = runner.invoke(app, ["analyze", "--dir", str(tmp_path)])
         assert result.exit_code == 0
-        assert "Traceback" not in result.output
+        assert "Traceback" not in _strip_ansi(result.output)
 
     def test_session_with_null_content(
         self, runner: CliRunner, tmp_path: Path
@@ -501,7 +509,7 @@ class TestEdgeCases:
 
         result = runner.invoke(app, ["analyze", "--dir", str(tmp_path)])
         assert result.exit_code == 0
-        assert "Traceback" not in result.output
+        assert "Traceback" not in _strip_ansi(result.output)
 
     def test_deeply_nested_source_directories(
         self, runner: CliRunner, tmp_path: Path
@@ -513,7 +521,7 @@ class TestEdgeCases:
 
         result = runner.invoke(app, ["analyze", "--dir", str(tmp_path)])
         assert result.exit_code == 0
-        assert "Traceback" not in result.output
+        assert "Traceback" not in _strip_ansi(result.output)
 
     def test_invalid_since_e2e_no_traceback(self, tmp_path: Path) -> None:
         """E2E: invalid --since date produces no traceback."""
@@ -551,7 +559,7 @@ class TestEdgeCases:
 
         result = runner.invoke(app, ["analyze", "--dir", str(tmp_path)])
         assert result.exit_code == 0
-        assert "Traceback" not in result.output
+        assert "Traceback" not in _strip_ansi(result.output)
 
 
 # ---------------------------------------------------------------------------
@@ -583,7 +591,7 @@ class TestGlobalFlagDiscovery:
             )
 
         assert result.exit_code == 0
-        data = json.loads(result.output)
+        data = json.loads(_strip_ansi(result.output))
         assert data["sources"]["claude"] > 0
 
     def test_global_discovers_codex_sessions_from_home(
@@ -609,7 +617,7 @@ class TestGlobalFlagDiscovery:
             )
 
         assert result.exit_code == 0
-        data = json.loads(result.output)
+        data = json.loads(_strip_ansi(result.output))
         assert data["sources"]["codex"] > 0
 
     def test_global_with_no_home_claude_or_codex(
@@ -628,8 +636,8 @@ class TestGlobalFlagDiscovery:
             )
 
         assert result.exit_code == 0
-        assert "Traceback" not in result.output
-        data = json.loads(result.output)
+        assert "Traceback" not in _strip_ansi(result.output)
+        data = json.loads(_strip_ansi(result.output))
         assert data["session_count"] == 0
 
     def test_global_flag_with_analyze_command(
@@ -655,7 +663,7 @@ class TestGlobalFlagDiscovery:
             )
 
         assert result.exit_code == 0
-        assert "Traceback" not in result.output
+        assert "Traceback" not in _strip_ansi(result.output)
 
     def test_global_combines_local_and_home_sessions(
         self, runner: CliRunner, tmp_path: Path
@@ -689,7 +697,7 @@ class TestGlobalFlagDiscovery:
             )
 
         assert result.exit_code == 0
-        data = json.loads(result.output)
+        data = json.loads(_strip_ansi(result.output))
         # Should have sessions from both local and home
         assert data["session_count"] >= 2
 
@@ -715,5 +723,5 @@ class TestGlobalFlagDiscovery:
             )
 
         assert result.exit_code == 0
-        data = json.loads(result.output)
+        data = json.loads(_strip_ansi(result.output))
         assert data["session_count"] == 0
