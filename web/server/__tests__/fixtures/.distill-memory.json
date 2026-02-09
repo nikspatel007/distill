@@ -1,0 +1,59 @@
+{
+	"entries": [
+		{
+			"date": "2026-02-09",
+			"sessions": ["Built web dashboard for distill", "Refactored memory system"],
+			"reads": ["HN post on local-first apps"],
+			"themes": ["web-dashboard", "local-first"],
+			"insights": ["Hono RPC eliminates API client drift"],
+			"decisions": ["Chose Bun over Node for speed"],
+			"open_questions": ["Should we add WebSocket for live reload?"]
+		},
+		{
+			"date": "2026-02-08",
+			"sessions": ["Implemented editorial notes"],
+			"reads": [],
+			"themes": ["content-pipeline"],
+			"insights": [],
+			"decisions": [],
+			"open_questions": []
+		}
+	],
+	"threads": [
+		{
+			"name": "Web Dashboard",
+			"summary": "Building a personal knowledge cockpit for distill output",
+			"first_seen": "2026-02-09",
+			"last_seen": "2026-02-09",
+			"mention_count": 3,
+			"status": "active"
+		},
+		{
+			"name": "Social Publishing",
+			"summary": "Postiz integration for multi-platform publishing",
+			"first_seen": "2026-02-05",
+			"last_seen": "2026-02-08",
+			"mention_count": 5,
+			"status": "active"
+		}
+	],
+	"entities": {
+		"project:distill": {
+			"name": "Distill",
+			"entity_type": "project",
+			"first_seen": "2026-01-15",
+			"last_seen": "2026-02-09",
+			"mention_count": 42,
+			"context": ["Content pipeline project"]
+		}
+	},
+	"published": [
+		{
+			"slug": "weekly-2026-W06",
+			"title": "Week 6: Building the Pipeline",
+			"post_type": "weekly",
+			"date": "2026-02-07",
+			"platforms": ["obsidian", "twitter"]
+		}
+	]
+}

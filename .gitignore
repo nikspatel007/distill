@@ -32,6 +32,9 @@ htmlcov/
 .distill.toml
 .distill-notes.json
 
+# Node / Web
+node_modules/
+
 # IDE
 .idea/
 .vscode/

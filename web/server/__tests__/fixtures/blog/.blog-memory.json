@@ -1,0 +1,26 @@
+{
+	"posts": [
+		{
+			"slug": "weekly-2026-W06",
+			"title": "Week 6: Building the Pipeline",
+			"post_type": "weekly",
+			"date": "2026-02-07",
+			"key_points": ["Implemented intake pipeline", "Added Postiz integration"],
+			"themes_covered": ["content-pipeline", "social-publishing"],
+			"examples_used": ["RSS feed parsing example"],
+			"platforms_published": ["obsidian", "twitter"],
+			"postiz_ids": ["post-123"]
+		},
+		{
+			"slug": "theme-multi-agent-patterns",
+			"title": "Multi-Agent Patterns in Practice",
+			"post_type": "thematic",
+			"date": "2026-02-06",
+			"key_points": ["Agent coordination strategies", "Task decomposition"],
+			"themes_covered": ["multi-agent", "architecture"],
+			"examples_used": [],
+			"platforms_published": ["obsidian"],
+			"postiz_ids": []
+		}
+	]
+}

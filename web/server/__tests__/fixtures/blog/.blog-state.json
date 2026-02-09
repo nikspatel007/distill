@@ -1,0 +1,18 @@
+{
+	"posts": [
+		{
+			"slug": "weekly-2026-W06",
+			"post_type": "weekly",
+			"generated_at": "2026-02-07T10:00:00Z",
+			"source_dates": ["2026-02-03", "2026-02-04", "2026-02-05", "2026-02-06", "2026-02-07"],
+			"file_path": "blog/weekly/weekly-2026-W06.md"
+		},
+		{
+			"slug": "theme-multi-agent-patterns",
+			"post_type": "thematic",
+			"generated_at": "2026-02-06T14:00:00Z",
+			"source_dates": ["2026-02-01", "2026-02-03", "2026-02-05"],
+			"file_path": "blog/themes/theme-multi-agent-patterns.md"
+		}
+	]
+}
