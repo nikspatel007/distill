@@ -1241,8 +1241,12 @@ def generate_intake(
     for pub_name in publishers:
         try:
             publisher = create_intake_publisher(pub_name, ghost_config=ghost_config)
-            content = publisher.format_daily(context, prose)
             out_path = publisher.daily_output_path(output_dir, context.date)
+            if out_path.exists():
+                existing = out_path.read_text(encoding="utf-8")
+                content = publisher.merge_daily(existing, context, prose)
+            else:
+                content = publisher.format_daily(context, prose)
             _atomic_write(out_path, content)
             written.append(out_path)
         except Exception:
