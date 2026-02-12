@@ -41,6 +41,8 @@ jobs:
         run: uv run mypy src/ --no-error-summary
 
       - name: Run tests
+        env:
+          NO_COLOR: "1"
         run: |
           uv run pytest tests/ -x -q \
             --ignore=tests/test_verify_all_kpis.py \
