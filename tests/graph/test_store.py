@@ -7,7 +7,6 @@ from datetime import datetime
 from distill.graph.models import EdgeType, GraphEdge, GraphNode, NodeType
 from distill.graph.store import GRAPH_STORE_FILENAME, GraphStore
 
-
 # -- Node operations ---------------------------------------------------------
 
 
@@ -357,7 +356,11 @@ class TestStats:
         store.upsert_node(GraphNode(node_type=NodeType.FILE, name="b.py"))
         store.upsert_node(GraphNode(node_type=NodeType.PROJECT, name="distill"))
         store.upsert_edge(
-            GraphEdge(source_key="file:a.py", target_key="project:distill", edge_type=EdgeType.PART_OF)
+            GraphEdge(
+                source_key="file:a.py",
+                target_key="project:distill",
+                edge_type=EdgeType.PART_OF,
+            )
         )
         store.upsert_edge(
             GraphEdge(
