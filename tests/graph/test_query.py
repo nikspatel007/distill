@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from distill.graph.context import ContextScorer
 from distill.graph.extractor import SessionGraphExtractor
 from distill.graph.models import GraphNode, NodeType
 from distill.graph.query import GraphQuery
@@ -352,7 +351,7 @@ class TestRenderContext:
         # Should group by node type with section headers
         # At minimum we should see some type sections
         lines = result.split("\n")
-        section_headers = [l for l in lines if l.startswith("## ")]
+        section_headers = [line for line in lines if line.startswith("## ")]
         assert len(section_headers) > 0
 
 
