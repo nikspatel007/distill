@@ -1,1 +1,1 @@
-"""Knowledge graph — models, storage, and context scoring."""
+"""Knowledge graph — models, storage, context scoring, and query API."""
