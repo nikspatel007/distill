@@ -14,7 +14,6 @@ import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import yaml
 from distill.measurers.base import KPIResult, Measurer
 
 # Derive the src/ directory so subprocess can find distill
@@ -89,24 +88,6 @@ def _create_malformed_claude_dir(base: Path) -> None:
             )
             + "\n"
         )
-
-
-def _create_valid_vermas_dir(base: Path) -> None:
-    """Create a .vermas directory with valid workflow data."""
-    workflow_dir = base / ".vermas" / "state" / "mission-test-cycle-1-execute-sample-task"
-    signals_dir = workflow_dir / "signals"
-    signals_dir.mkdir(parents=True)
-
-    signal_data = {
-        "signal_id": "sig1",
-        "agent_id": "dev01",
-        "role": "dev",
-        "signal": "done",
-        "message": "Task completed",
-        "workflow_id": "mission-test-cycle-1-execute-sample-task",
-        "created_at": "2024-06-15T10:30:00",
-    }
-    (signals_dir / "sig1.yaml").write_text(yaml.dump(signal_data))
 
 
 def _build_test_matrix(
@@ -224,27 +205,6 @@ def _build_test_matrix(
             ["--help"],
             0,
             "help output",
-        )
-    )
-
-    # --- VerMAS directory ---
-    vermas_dir = base_dir / "vermas"
-    vermas_dir.mkdir()
-    _create_valid_vermas_dir(vermas_dir)
-
-    matrix.append(
-        (
-            [
-                "analyze",
-                "--dir",
-                str(vermas_dir),
-                "--source",
-                "vermas",
-                "--output",
-                str(output_dir / "d"),
-            ],
-            0,
-            "analyze vermas source",
         )
     )
 

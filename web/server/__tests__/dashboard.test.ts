@@ -69,8 +69,8 @@ describe("GET /api/dashboard", () => {
 	test("returns project count and active projects", async () => {
 		const res = await app.request("/api/dashboard");
 		const data = await res.json();
-		// Journal fixture has projects: [distill, vermas]
-		expect(data.projectCount).toBe(2);
+		// Journal fixture has projects: [distill]
+		expect(data.projectCount).toBe(1);
 		expect(data.activeProjects.length).toBeGreaterThan(0);
 		expect(data.activeProjects[0]).toHaveProperty("name");
 		expect(data.activeProjects[0]).toHaveProperty("lastSeen");
@@ -80,9 +80,8 @@ describe("GET /api/dashboard", () => {
 	test("activeProjects are ordered by most recently seen first", async () => {
 		const res = await app.request("/api/dashboard");
 		const data = await res.json();
-		// Both distill and vermas appear in the 2026-02-09 fixture, so both have lastSeen = 2026-02-09
-		// They should both appear and be sorted by lastSeen descending
-		expect(data.activeProjects.length).toBe(2);
+		// distill appears in the 2026-02-09 fixture
+		expect(data.activeProjects.length).toBe(1);
 		for (let i = 0; i < data.activeProjects.length - 1; i++) {
 			expect(data.activeProjects[i].lastSeen >= data.activeProjects[i + 1].lastSeen).toBe(true);
 		}

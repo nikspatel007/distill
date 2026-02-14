@@ -2,15 +2,15 @@
 
 from datetime import date, datetime
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from distill.blog.config import Platform
+from distill.blog.config import GhostConfig, Platform
 from distill.blog.context import ThematicBlogContext, WeeklyBlogContext
 from distill.blog.publishers import create_publisher
 from distill.blog.publishers.base import BlogPublisher
-from distill.blog.publishers.ghost import GhostPublisher
+from distill.blog.publishers.ghost import GhostAPIClient, GhostPublisher
 from distill.blog.publishers.linkedin import LinkedInPublisher
 from distill.blog.publishers.markdown import MarkdownPublisher
 from distill.blog.publishers.obsidian import ObsidianPublisher
@@ -41,7 +41,7 @@ def _make_weekly_context(**kwargs) -> WeeklyBlogContext:
         ],
         "total_sessions": 10,
         "total_duration_minutes": 200,
-        "projects": ["vermas", "session-insights"],
+        "projects": ["distill", "session-insights"],
         "all_tags": ["python", "multi-agent"],
         "combined_prose": "All the prose.",
     }
@@ -403,3 +403,55 @@ class TestCreatePublisherFactory:
     def test_unknown_platform_string_raises(self):
         with pytest.raises(ValueError):
             create_publisher("nonexistent")
+
+
+def _make_ghost_api_client() -> GhostAPIClient:
+    """Create a GhostAPIClient with dummy config for testing."""
+    config = GhostConfig(
+        url="https://example.ghost.io",
+        admin_api_key="aabbccdd:00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
+    )
+    return GhostAPIClient(config)
+
+
+class TestGhostAPIClientUploadImage:
+    def test_upload_image_returns_url_on_success(self):
+        client = _make_ghost_api_client()
+        mock_response = {
+            "images": [{"url": "https://example.ghost.io/content/images/hero.png"}]
+        }
+        with patch.object(client, "_request_multipart", return_value=mock_response):
+            result = client.upload_image(Path("/tmp/hero.png"))
+        assert result == "https://example.ghost.io/content/images/hero.png"
+
+    def test_upload_image_returns_none_on_error(self):
+        client = _make_ghost_api_client()
+        with patch.object(client, "_request_multipart", side_effect=Exception("network")):
+            result = client.upload_image(Path("/tmp/hero.png"))
+        assert result is None
+
+    def test_create_post_with_feature_image(self):
+        client = _make_ghost_api_client()
+        mock_post = {"id": "post-1", "title": "Test", "feature_image": "https://img.url/hero.png"}
+        mock_response = {"posts": [mock_post]}
+        with patch.object(client, "_request", return_value=mock_response) as mock_req:
+            result = client.create_post(
+                title="Test",
+                markdown="Hello world",
+                feature_image="https://img.url/hero.png",
+            )
+        assert result["feature_image"] == "https://img.url/hero.png"
+        # Verify feature_image was included in the post data sent to _request
+        call_args = mock_req.call_args
+        post_data = call_args[0][2]  # third positional arg is the data dict
+        assert post_data["posts"][0]["feature_image"] == "https://img.url/hero.png"
+
+    def test_create_post_without_feature_image(self):
+        client = _make_ghost_api_client()
+        mock_post = {"id": "post-1", "title": "Test"}
+        mock_response = {"posts": [mock_post]}
+        with patch.object(client, "_request", return_value=mock_response) as mock_req:
+            result = client.create_post(title="Test", markdown="Hello world")
+        call_args = mock_req.call_args
+        post_data = call_args[0][2]
+        assert "feature_image" not in post_data["posts"][0]

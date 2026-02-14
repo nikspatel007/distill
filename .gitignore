@@ -18,10 +18,8 @@ htmlcov/
 .ruff_cache/
 .pytest_cache/
 
-# VerMAS workflow artifacts (legacy)
-.vermas/
+# Workflow artifacts
 .worktrees/
-.vermas-merge-lock
 .agent-*.json
 
 # Secrets / environment

@@ -54,8 +54,11 @@ def _call_claude(prompt: str, model: str | None = None, timeout: int = 120) -> s
 
 
 def _parse_json_response(text: str) -> Any:
-    """Extract JSON from LLM response, handling markdown code fences."""
+    """Extract JSON from LLM response, handling markdown code fences and preamble text."""
     text = text.strip()
+    if not text:
+        return None
+
     # Strip markdown code fences
     if text.startswith("```"):
         lines = text.splitlines()
@@ -64,12 +67,38 @@ def _parse_json_response(text: str) -> Any:
             lines = lines[1:]
         if lines and lines[-1].strip() == "```":
             lines = lines[:-1]
-        text = "\n".join(lines)
+        text = "\n".join(lines).strip()
 
+    # Try direct parse first
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        return None
+        pass
+
+    # Fallback: find a JSON array in the response (Claude sometimes adds preamble text)
+    bracket_start = text.find("[")
+    if bracket_start != -1:
+        # Find the matching closing bracket by scanning from the end
+        bracket_end = text.rfind("]")
+        if bracket_end > bracket_start:
+            candidate = text[bracket_start : bracket_end + 1]
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                pass
+
+    # Fallback: find a JSON object in the response
+    brace_start = text.find("{")
+    if brace_start != -1:
+        brace_end = text.rfind("}")
+        if brace_end > brace_start:
+            candidate = text[brace_start : brace_end + 1]
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                pass
+
+    return None
 
 
 def _build_entity_prompt(items: list[ContentItem]) -> str:
@@ -167,20 +196,30 @@ def extract_entities(
     Returns:
         The same list with entities populated.
     """
+    failed_empty = 0
+    failed_parse = 0
+    succeeded = 0
+
     for batch_start in range(0, len(items), _BATCH_SIZE):
         batch = items[batch_start : batch_start + _BATCH_SIZE]
         prompt = _build_entity_prompt(batch)
         response = _call_claude(prompt, model=model or _INTELLIGENCE_MODEL, timeout=timeout)
 
         if not response:
-            logger.warning("Entity extraction failed for batch starting at %d", batch_start)
+            failed_empty += 1
             continue
 
         parsed = _parse_json_response(response)
         if not isinstance(parsed, list):
-            logger.warning("Entity extraction returned non-list for batch at %d", batch_start)
+            failed_parse += 1
+            logger.debug(
+                "Entity extraction non-list response (batch %d): %.200s",
+                batch_start,
+                response,
+            )
             continue
 
+        succeeded += 1
         for i, item in enumerate(batch):
             if i < len(parsed) and isinstance(parsed[i], dict):
                 entities = parsed[i]
@@ -189,6 +228,16 @@ def extract_entities(
                 concepts = entities.get("concepts", [])
                 if concepts and not item.topics:
                     item.topics = concepts[:5]
+
+    total = failed_empty + failed_parse + succeeded
+    if failed_empty or failed_parse:
+        logger.warning(
+            "Entity extraction: %d/%d batches succeeded, %d empty responses, %d parse failures",
+            succeeded,
+            total,
+            failed_empty,
+            failed_parse,
+        )
 
     return items
 
@@ -212,23 +261,43 @@ def classify_items(
     Returns:
         The same list with classification populated.
     """
+    failed_empty = 0
+    failed_parse = 0
+    succeeded = 0
+
     for batch_start in range(0, len(items), _BATCH_SIZE):
         batch = items[batch_start : batch_start + _BATCH_SIZE]
         prompt = _build_classification_prompt(batch)
         response = _call_claude(prompt, model=model or _INTELLIGENCE_MODEL, timeout=timeout)
 
         if not response:
-            logger.warning("Classification failed for batch starting at %d", batch_start)
+            failed_empty += 1
             continue
 
         parsed = _parse_json_response(response)
         if not isinstance(parsed, list):
-            logger.warning("Classification returned non-list for batch at %d", batch_start)
+            failed_parse += 1
+            logger.debug(
+                "Classification non-list response (batch %d): %.200s",
+                batch_start,
+                response,
+            )
             continue
 
+        succeeded += 1
         for i, item in enumerate(batch):
             if i < len(parsed) and isinstance(parsed[i], dict):
                 item.metadata["classification"] = parsed[i]
+
+    total = failed_empty + failed_parse + succeeded
+    if failed_empty or failed_parse:
+        logger.warning(
+            "Classification: %d/%d batches succeeded, %d empty responses, %d parse failures",
+            succeeded,
+            total,
+            failed_empty,
+            failed_parse,
+        )
 
     return items
 

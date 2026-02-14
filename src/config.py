@@ -51,6 +51,7 @@ class JournalSectionConfig(BaseModel):
     target_word_count: int = 600
     model: str | None = None
     memory_window_days: int = 7
+    claude_timeout: int = 120
 
 
 class BlogSectionConfig(BaseModel):
@@ -59,6 +60,7 @@ class BlogSectionConfig(BaseModel):
     target_word_count: int = 1200
     include_diagrams: bool = True
     model: str | None = None
+    claude_timeout: int = 360
     platforms: list[str] = Field(default_factory=lambda: ["obsidian"])
 
 
@@ -163,6 +165,7 @@ class DistillConfig(BaseModel):
             target_word_count=self.journal.target_word_count,
             model=self.journal.model,
             memory_window_days=self.journal.memory_window_days,
+            claude_timeout=self.journal.claude_timeout,
         )
 
     def to_blog_config(self) -> object:
@@ -173,6 +176,7 @@ class DistillConfig(BaseModel):
             target_word_count=self.blog.target_word_count,
             include_diagrams=self.blog.include_diagrams,
             model=self.blog.model,
+            claude_timeout=self.blog.claude_timeout,
         )
 
     def to_intake_config(self) -> object:

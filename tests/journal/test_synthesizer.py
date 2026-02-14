@@ -16,7 +16,7 @@ def _make_context() -> DailyContext:
         date=date(2026, 2, 5),
         total_sessions=2,
         total_duration_minutes=60.0,
-        projects_worked=["vermas"],
+        projects_worked=["distill"],
     )
 
 
@@ -27,14 +27,14 @@ class TestSynthesizer:
     def test_successful_synthesis(self, mock_run):
         mock_run.return_value = MagicMock(
             returncode=0,
-            stdout="Today I worked on the VerMAS project...",
+            stdout="Today I worked on the Distill project...",
             stderr="",
         )
         config = JournalConfig()
         synthesizer = JournalSynthesizer(config)
         result = synthesizer.synthesize(_make_context())
 
-        assert "VerMAS" in result
+        assert "Distill" in result
         mock_run.assert_called_once()
 
         # Verify the command starts with claude -p

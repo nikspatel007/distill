@@ -25,7 +25,7 @@ def _make_weekly_context() -> WeeklyBlogContext:
         ],
         total_sessions=10,
         total_duration_minutes=200,
-        projects=["vermas"],
+        projects=["distill"],
         combined_prose="Combined prose here.",
     )
 
@@ -115,7 +115,7 @@ class TestBlogSynthesizer:
 
     @patch("distill.blog.synthesizer.subprocess.run")
     def test_cli_timeout(self, mock_run: MagicMock):
-        mock_run.side_effect = subprocess.TimeoutExpired(cmd="claude", timeout=180)
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="claude", timeout=360)
         config = BlogConfig()
         synthesizer = BlogSynthesizer(config)
 
@@ -230,12 +230,12 @@ class TestBlogSynthesizer:
         config = BlogConfig()
         synthesizer = BlogSynthesizer(config)
         ctx = _make_weekly_context()
-        ctx.project_context = "## Project Context\n\n**VerMAS**: Multi-agent platform"
+        ctx.project_context = "## Project Context\n\n**Distill**: Content pipeline"
         synthesizer.synthesize_weekly(ctx)
 
         cmd = mock_run.call_args[0][0]
         prompt_arg = cmd[-1]
-        assert "**VerMAS**: Multi-agent platform" in prompt_arg
+        assert "**Distill**: Content pipeline" in prompt_arg
 
     @patch("distill.blog.synthesizer.subprocess.run")
     def test_weekly_prompt_includes_editorial_notes(self, mock_run: MagicMock):

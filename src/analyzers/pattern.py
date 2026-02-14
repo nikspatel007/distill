@@ -537,7 +537,7 @@ class CrossSessionCorrelator(BaseAnalyzer):
 
     This analyzer identifies:
     - Sessions that relate to the same project/topic
-    - Patterns across .claude, .codex, and .vermas sources
+    - Patterns across .claude and .codex sources
     - Session chains (related sequential work)
     """
 

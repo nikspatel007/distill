@@ -5,9 +5,9 @@ from distill.config import DistillConfig, ProjectConfig, load_config
 
 class TestProjectConfig:
     def test_project_config_fields(self):
-        p = ProjectConfig(name="VerMAS", description="Multi-agent platform")
-        assert p.name == "VerMAS"
-        assert p.description == "Multi-agent platform"
+        p = ProjectConfig(name="Distill", description="Content pipeline")
+        assert p.name == "Distill"
+        assert p.description == "Content pipeline"
         assert p.url == ""
         assert p.tags == []
 
@@ -34,7 +34,7 @@ class TestDistillConfigProjects:
     def test_render_project_context(self):
         config = DistillConfig(
             projects=[
-                ProjectConfig(name="VerMAS", description="Multi-agent platform"),
+                ProjectConfig(name="MyApp", description="Web application"),
                 ProjectConfig(
                     name="Distill",
                     description="Content pipeline",
@@ -45,7 +45,7 @@ class TestDistillConfigProjects:
         rendered = config.render_project_context()
 
         assert "## Project Context" in rendered
-        assert "**VerMAS**: Multi-agent platform" in rendered
+        assert "**MyApp**: Web application" in rendered
         assert "**Distill**: Content pipeline" in rendered
         assert "URL: https://github.com/user/distill" in rendered
 
@@ -62,10 +62,10 @@ class TestDistillConfigProjects:
         data = {
             "projects": [
                 {
-                    "name": "VerMAS",
-                    "description": "Multi-agent platform",
-                    "url": "https://github.com/user/vermas",
-                    "tags": ["agents"],
+                    "name": "MyApp",
+                    "description": "Web application",
+                    "url": "https://github.com/user/myapp",
+                    "tags": ["web"],
                 },
                 {
                     "name": "Distill",
@@ -76,8 +76,8 @@ class TestDistillConfigProjects:
         config = DistillConfig.model_validate(data)
 
         assert len(config.projects) == 2
-        assert config.projects[0].name == "VerMAS"
-        assert config.projects[0].tags == ["agents"]
+        assert config.projects[0].name == "MyApp"
+        assert config.projects[0].tags == ["web"]
         assert config.projects[1].url == ""
 
     def test_load_config_from_toml_file(self, tmp_path):

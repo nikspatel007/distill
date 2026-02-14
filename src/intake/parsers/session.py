@@ -91,7 +91,7 @@ def _session_to_content_item(session: BaseSession) -> ContentItem:
 
 
 class SessionParser(ContentParser):
-    """Wraps existing Claude/Codex/Vermas parsers to produce ContentItems."""
+    """Wraps existing Claude/Codex parsers to produce ContentItems."""
 
     @property
     def source(self) -> ContentSource:

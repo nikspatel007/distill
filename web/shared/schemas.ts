@@ -250,6 +250,9 @@ export const ContentItemsResponseSchema = z.object({
 	item_count: z.number(),
 	items: z.array(ContentItemSchema),
 	available_sources: z.array(z.string()).default([]),
+	page: z.number().default(1),
+	total_pages: z.number().default(1),
+	total_items: z.number().default(0),
 });
 
 export const PublishQueueItemSchema = z.object({

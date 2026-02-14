@@ -1,7 +1,7 @@
 """Claude CLI integration for journal synthesis (Phase 2).
 
 Calls ``claude -p`` to transform compressed session context into
-narrative prose. Pattern follows VerMAS LLMService.
+narrative prose.
 """
 
 from __future__ import annotations
@@ -111,7 +111,7 @@ Return ONLY valid JSON with this exact structure (no markdown fences, no comment
   ]
 }}
 
-Threads are ongoing narratives that span multiple days -- problems being debugged,
+Threads are ongoing narratives that span multiple days: problems being debugged,
 features being built, patterns being established. Only include threads if the prose
 describes something clearly ongoing or recently resolved.
 

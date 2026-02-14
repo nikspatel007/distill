@@ -96,6 +96,10 @@ app.get("/api/reading/items", async (c) => {
 	const { OUTPUT_DIR } = getConfig();
 	const dateParam = c.req.query("date");
 	const sourceParam = c.req.query("source");
+	const pageParam = Number.parseInt(c.req.query("page") ?? "1", 10);
+	const limitParam = Number.parseInt(c.req.query("limit") ?? "50", 10);
+	const page = Number.isNaN(pageParam) || pageParam < 1 ? 1 : pageParam;
+	const limit = Number.isNaN(limitParam) || limitParam < 1 ? 50 : Math.min(limitParam, 200);
 
 	// If no date, list available archive dates
 	if (!dateParam) {
@@ -114,20 +118,40 @@ app.get("/api/reading/items", async (c) => {
 	const archive = await readJson(archivePath, ContentItemsResponseSchema);
 
 	if (!archive) {
-		return c.json({ date: dateParam, item_count: 0, items: [], available_sources: [] });
+		return c.json({
+			date: dateParam,
+			item_count: 0,
+			items: [],
+			available_sources: [],
+			page: 1,
+			total_pages: 1,
+			total_items: 0,
+		});
 	}
 
 	// Compute available_sources from ALL items before filtering
 	const availableSources = [...new Set(archive.items.map((i) => i.source))].sort();
 
 	// Filter by source if requested
-	const items = sourceParam ? archive.items.filter((i) => i.source === sourceParam) : archive.items;
+	const filtered = sourceParam
+		? archive.items.filter((i) => i.source === sourceParam)
+		: archive.items;
+
+	// Apply pagination AFTER source filtering
+	const totalItems = filtered.length;
+	const totalPages = Math.max(1, Math.ceil(totalItems / limit));
+	const safePage = Math.min(page, totalPages);
+	const start = (safePage - 1) * limit;
+	const items = filtered.slice(start, start + limit);
 
 	return c.json({
 		date: archive.date,
 		item_count: items.length,
 		items,
 		available_sources: availableSources,
+		page: safePage,
+		total_pages: totalPages,
+		total_items: totalItems,
 	});
 });
 

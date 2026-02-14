@@ -25,7 +25,7 @@ def _make_entry(
         sessions_count=sessions,
         duration_minutes=duration,
         tags=tags or ["python"],
-        projects=projects or ["vermas"],
+        projects=projects or ["distill"],
         prose=prose,
     )
 
@@ -53,12 +53,12 @@ class TestPrepareWeeklyContext:
 
     def test_deduplicates_projects(self):
         entries = [
-            _make_entry(day=3, projects=["vermas", "insights"]),
-            _make_entry(day=4, projects=["vermas", "other"]),
+            _make_entry(day=3, projects=["distill", "insights"]),
+            _make_entry(day=4, projects=["distill", "other"]),
         ]
         ctx = prepare_weekly_context(entries, 2026, 6)
 
-        assert ctx.projects == ["vermas", "insights", "other"]
+        assert ctx.projects == ["distill", "insights", "other"]
 
     def test_deduplicates_tags(self):
         entries = [
@@ -119,9 +119,9 @@ class TestPrepareWeeklyContext:
     def test_project_context_and_editorial_notes_settable(self):
         entries = [_make_entry(day=3)]
         ctx = prepare_weekly_context(entries, 2026, 6)
-        ctx.project_context = "## Project Context\n\n**VerMAS**: Multi-agent platform"
+        ctx.project_context = "## Project Context\n\n**Distill**: Content pipeline"
         ctx.editorial_notes = "## Editorial Direction\n\n- Focus on X"
-        assert "VerMAS" in ctx.project_context
+        assert "Distill" in ctx.project_context
         assert "Focus on X" in ctx.editorial_notes
 
 

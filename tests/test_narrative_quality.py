@@ -32,7 +32,7 @@ class TestScoreNarrative:
     """Tests for the score_narrative function."""
 
     def test_good_narrative_passes(self) -> None:
-        text = "45-minute session in vermas using Bash, Read, Edit. Modified 15 files across the workflow engine."
+        text = "45-minute session in my-project using Bash, Read, Edit. Modified 15 files across the workflow engine."
         ok, reasons = score_narrative(text)
         assert ok is True
         assert reasons == []
@@ -190,7 +190,7 @@ class TestImprovedNarrativeGeneration:
             start_time=start,
             end_time=start + timedelta(minutes=45),
             summary="<command-message>analyze the code</command-message>",
-            project="vermas",
+            project="my-project",
             tools_used=[
                 ToolUsageSummary(name="Bash", count=10),
                 ToolUsageSummary(name="Read", count=8),
@@ -207,7 +207,7 @@ class TestImprovedNarrativeGeneration:
         # Should NOT contain XML tags
         assert "<" not in narrative
         # Should contain metadata-based info
-        assert "vermas" in narrative
+        assert "my-project" in narrative
         assert "Bash" in narrative
 
     def test_short_summary_falls_back_to_metadata(self) -> None:
@@ -230,7 +230,7 @@ class TestImprovedNarrativeGeneration:
             session_id="dur",
             start_time=start,
             end_time=start + timedelta(minutes=45),
-            project="vermas",
+            project="my-project",
             tools_used=[
                 ToolUsageSummary(name="Bash", count=10),
                 ToolUsageSummary(name="Read", count=8),
@@ -239,7 +239,7 @@ class TestImprovedNarrativeGeneration:
         )
         narrative = _generate_metadata_narrative(session)
         assert "45-minute" in narrative
-        assert "vermas" in narrative
+        assert "my-project" in narrative
         assert "Bash" in narrative
 
     def test_metadata_narrative_brief_session(self) -> None:
@@ -351,7 +351,7 @@ class TestNarrativeQualityMeasurer:
 
     def test_all_good_narratives(self) -> None:
         sessions = [
-            self._make_session("s1", narrative="45-minute session in vermas using Bash, Read, Edit to fix authentication."),
+            self._make_session("s1", narrative="45-minute session in my-project using Bash, Read, Edit to fix authentication."),
             self._make_session("s2", narrative="Implemented the new user registration flow with email verification and testing."),
         ]
         measurer = NarrativeQualityMeasurer(sessions)

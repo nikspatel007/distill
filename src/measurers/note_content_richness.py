@@ -13,7 +13,6 @@ import tempfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-import yaml
 from distill.core import discover_sessions, parse_session_file
 from distill.formatters.obsidian import ObsidianFormatter
 from distill.measurers.base import KPIResult, Measurer
@@ -31,12 +30,6 @@ COMMON_FIELDS: list[tuple[str, str]] = [
 
 CLAUDE_FIELDS: list[tuple[str, str]] = [
     ("has_conversation_summary", "## Conversation"),
-]
-
-VERMAS_FIELDS: list[tuple[str, str]] = [
-    ("has_vermas_task_details", "## Task Details"),
-    ("has_vermas_signals", "## Agent Signals"),
-    ("has_vermas_learnings", "## Learnings"),
 ]
 
 
@@ -77,57 +70,6 @@ def _create_sample_claude_dir(base: Path) -> None:
             f.write(json.dumps(entry) + "\n")
 
 
-def _create_sample_vermas_dir(base: Path) -> None:
-    """Create a .vermas dir with sample workflow data that has rich metadata."""
-    vermas_dir = base / ".vermas"
-
-    workflow_dir = vermas_dir / "state" / "mission-rich-cycle-1-execute-implement-feature"
-    signals_dir = workflow_dir / "signals"
-    signals_dir.mkdir(parents=True)
-
-    for i, (role, signal, msg) in enumerate(
-        [
-            ("dev", "done", "Implementation complete"),
-            ("qa", "approved", "Tests pass, looks good"),
-        ]
-    ):
-        signal_data = {
-            "signal_id": f"sig{i}",
-            "agent_id": f"{role}01",
-            "role": role,
-            "signal": signal,
-            "message": msg,
-            "workflow_id": "mission-rich-cycle-1-execute-implement-feature",
-            "created_at": f"2024-06-15T1{i}:00:00",
-        }
-        (signals_dir / f"sig{i}.yaml").write_text(yaml.dump(signal_data))
-
-    task_dir = vermas_dir / "tasks" / "mission-rich" / "feature"
-    task_dir.mkdir(parents=True)
-    (task_dir / "implement-feature.md").write_text(
-        "---\nstatus: done\n---\n# Implement Feature\n\nBuild the new feature.\n"
-    )
-
-    mission_dir = vermas_dir / "tasks" / "mission-rich"
-    (mission_dir / "_epic.md").write_text(
-        "---\nstatus: in_progress\npriority: high\n---\n# Rich Mission\n\nA rich test mission.\n"
-    )
-
-    agents_dir = vermas_dir / "knowledge" / "agents"
-    agents_dir.mkdir(parents=True)
-    learnings_data = {
-        "agents": {
-            "general": {
-                "learnings": ["Tests are important"],
-                "strengths": ["Fast"],
-                "weaknesses": [],
-                "best_practices": ["Write tests first"],
-            }
-        }
-    }
-    (agents_dir / "agent-learnings.yaml").write_text(yaml.dump(learnings_data))
-
-
 def _generate_notes_to_disk(sessions: list[BaseSession], output_dir: Path) -> list[Path]:
     """Format sessions into Obsidian notes and write them to disk.
 
@@ -150,11 +92,6 @@ def _generate_notes_to_disk(sessions: list[BaseSession], output_dir: Path) -> li
 
 def _detect_source(note_path: Path, content: str) -> str:
     """Detect the source type from note filename or frontmatter."""
-    name = note_path.stem.lower()
-    if name.startswith("vermas-"):
-        return "vermas"
-    if "source: vermas" in content:
-        return "vermas"
     if "source: claude" in content:
         return "claude"
     if "source: codex" in content:
@@ -177,9 +114,6 @@ def score_note_file(note_path: Path) -> tuple[str, dict[str, bool]]:
 
     if source == "claude":
         for field_name, search_str in CLAUDE_FIELDS:
-            results[field_name] = search_str in content
-    elif source == "vermas":
-        for field_name, search_str in VERMAS_FIELDS:
             results[field_name] = search_str in content
 
     return source, results
@@ -211,7 +145,6 @@ class NoteContentRichnessMeasurer(Measurer):
     def _measure_from_directory(self, base: Path) -> KPIResult:
         """Set up sample data, run pipeline, write notes, and score."""
         _create_sample_claude_dir(base)
-        _create_sample_vermas_dir(base)
 
         # Parse sessions using the core pipeline
         all_sessions: list[BaseSession] = []

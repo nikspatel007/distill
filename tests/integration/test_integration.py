@@ -79,31 +79,6 @@ def sample_claude_history(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def sample_vermas_session(tmp_path: Path) -> Path:
-    """Create a sample .vermas directory with workflow state data."""
-    # Create .vermas/state/mission-xxx-cycle-1-execute-task/ structure
-    state_dir = tmp_path / ".vermas" / "state" / "mission-abc123-cycle-1-execute-implement-feature"
-    signals_dir = state_dir / "signals"
-    signals_dir.mkdir(parents=True)
-
-    now = datetime.now()
-
-    # Create a signal file (YAML format as VermasParser expects)
-    # Uses 'created_at' field (not 'timestamp') as expected by parser
-    signal_data = f"""signal: done
-agent_id: dev-001
-role: dev
-created_at: "{now.isoformat()}"
-message: "Completed implementation of feature X"
-workflow_id: "wf-abc123"
-"""
-    signal_file = signals_dir / "signal-001.yaml"
-    signal_file.write_text(signal_data, encoding="utf-8")
-
-    return tmp_path
-
-
-@pytest.fixture
 def output_dir(tmp_path: Path) -> Path:
     """Create an output directory for notes."""
     output = tmp_path / "obsidian_notes"
@@ -123,20 +98,10 @@ class TestDiscoverSessions:
         # Now returns the .claude directory, not individual files
         assert discovered["claude"][0].name == ".claude"
 
-    def test_discover_vermas_sessions(self, sample_vermas_session: Path) -> None:
-        """Test discovering VerMAS source root directory."""
-        discovered = discover_sessions(sample_vermas_session, sources=["vermas"])
-
-        assert "vermas" in discovered
-        assert len(discovered["vermas"]) == 1
-        # Now returns the .vermas directory, not individual files
-        assert discovered["vermas"][0].name == ".vermas"
-
     def test_discover_all_sources(
-        self, sample_claude_history: Path, sample_vermas_session: Path
+        self, sample_claude_history: Path
     ) -> None:
         """Test discovering from all sources."""
-        # Combine the sample directories
         discovered = discover_sessions(sample_claude_history, sources=None)
 
         # Should find at least claude
@@ -191,15 +156,6 @@ class TestParseSessionFile:
         # ClaudeSession uses "claude-code" as source, not "claude"
         assert all(s.source == "claude-code" for s in sessions)
 
-    def test_parse_vermas_session(self, sample_vermas_session: Path) -> None:
-        """Test parsing VerMAS sessions from .vermas directory."""
-        vermas_dir = sample_vermas_session / ".vermas"
-        sessions = parse_session_file(vermas_dir, "vermas")
-
-        # Should find the mission workflow session
-        assert len(sessions) >= 1
-        assert all(s.source == "vermas" for s in sessions)
-
     def test_parse_invalid_source(self, tmp_path: Path) -> None:
         """Test parsing with unknown source type."""
         sessions = parse_session_file(tmp_path, "unknown")
@@ -244,7 +200,7 @@ class TestAnalyze:
             BaseSession(
                 session_id=f"test-{i:03d}",
                 timestamp=datetime(2024, 1, 15, 10 + i, 0),
-                source="claude" if i % 2 == 0 else "vermas",
+                source="claude" if i % 2 == 0 else "codex",
                 summary=f"Session {i}",
                 tool_calls=[ParserToolUsage(tool_name="Read")] * (i + 1),
             )

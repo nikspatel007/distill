@@ -51,7 +51,7 @@ export default function Settings() {
 						key={tab}
 						type="button"
 						onClick={() => setActiveTab(tab)}
-						className={`px-4 py-2 text-sm font-medium ${activeTab === tab ? "border-b-2 border-indigo-600 text-indigo-600" : "text-zinc-500 hover:text-zinc-700"}`}
+						className={`px-4 py-2 text-sm font-medium ${activeTab === tab ? "border-b-2 border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400" : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"}`}
 					>
 						{tab}
 					</button>
@@ -92,7 +92,6 @@ function SourcesTab() {
 		},
 	});
 
-	const [vermas, setVermas] = useState(false);
 	const [rssEnabled, setRssEnabled] = useState(true);
 	const [useDefaults, setUseDefaults] = useState(true);
 	const [customFeeds, setCustomFeeds] = useState("");
@@ -103,8 +102,6 @@ function SourcesTab() {
 	// Sync from fetched config
 	useEffect(() => {
 		if (!config) return;
-		const sources = config.sessions?.sources ?? [];
-		setVermas(sources.includes("vermas"));
 		setUseDefaults(config.intake?.use_defaults ?? true);
 		setCustomFeeds((config.intake?.rss_feeds ?? []).join("\n"));
 		setBrowserHistory(config.intake?.browser_history ?? false);
@@ -131,7 +128,6 @@ function SourcesTab() {
 
 	function handleSave() {
 		const sessionSources = ["claude", "codex"];
-		if (vermas) sessionSources.push("vermas");
 
 		const substackBlogs = substackEnabled
 			? substackUrls
@@ -178,15 +174,6 @@ function SourcesTab() {
 					<span className="text-sm">Codex</span>
 					<span className="text-xs text-zinc-400">(auto-detected)</span>
 				</div>
-				<label className="flex items-center gap-2 text-sm">
-					<input
-						type="checkbox"
-						checked={vermas}
-						onChange={(e) => setVermas(e.target.checked)}
-						className="rounded border-zinc-300"
-					/>
-					VerMAS session parsing
-				</label>
 			</div>
 
 			{/* RSS */}
@@ -273,9 +260,7 @@ function SourcesTab() {
 			{comingSoonSources.length > 0 && (
 				<div className={sectionClass}>
 					<h3 className="text-base font-semibold">Coming Soon</h3>
-					<p className="text-sm text-zinc-500">
-						These sources are planned for future releases.
-					</p>
+					<p className="text-sm text-zinc-500">These sources are planned for future releases.</p>
 					<div className="space-y-2">
 						{comingSoonSources.map((s) => (
 							<div key={s.source} className="flex items-center gap-2 text-sm">
@@ -533,7 +518,7 @@ function PipelineTab() {
 		},
 	});
 
-	const allSessionSources = ["claude", "codex", "vermas"];
+	const allSessionSources = ["claude", "codex"];
 
 	function toggleSource(s: string) {
 		setSessionSources((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));

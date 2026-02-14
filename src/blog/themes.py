@@ -213,7 +213,7 @@ def themes_from_seeds(seeds: list[object]) -> list[ThemeDefinition]:
                 description=f"Blog post exploring: {text}",
                 keywords=keywords,
                 thread_patterns=tags if tags else words[:3],
-                min_evidence_days=1,  # Seeds need less evidence — the seed IS the angle
+                min_evidence_days=3,  # Seeds still need real evidence from journal entries
             )
         )
     return themes

@@ -74,7 +74,7 @@ class TestFormatDailyMeta:
         pub = GhostIntakePublisher()
         result = pub.format_daily(_ctx(), "Prose.")
         meta = _extract_meta(result)
-        assert meta["title"] == "Daily Research Digest \u2014 February 7, 2026"
+        assert meta["title"] == "Daily Digest \u2014 February 7, 2026"
 
     def test_ghost_meta_contains_date(self):
         pub = GhostIntakePublisher()
@@ -172,7 +172,7 @@ class TestAPIPublishing:
 
         mock_client.create_post.assert_called_once()
         call_args = mock_client.create_post.call_args
-        assert "Daily Research Digest" in call_args[0][0] or "Daily Research Digest" in str(call_args)
+        assert "Daily Digest" in call_args[0][0] or "Daily Digest" in str(call_args)
 
     @patch("distill.blog.publishers.ghost.GhostAPIClient")
     def test_newsletter_publish_flow(self, MockClient):
@@ -252,6 +252,246 @@ class TestAPIErrorHandling:
         # Manually call _publish_to_api to verify return
         api_result = pub._publish_to_api(content)
         assert api_result is None
+
+
+# ------------------------------------------------------------------
+# Image upload and feature_image tests
+# ------------------------------------------------------------------
+
+
+class TestImageUpload:
+    """Tests for uploading local images to Ghost and setting feature_image."""
+
+    def test_images_uploaded_and_replaced_in_prose(self, tmp_path):
+        """Image markdown refs are replaced with CDN URLs after upload."""
+        mock_client = MagicMock()
+        mock_client.create_post.return_value = {"id": "post-1"}
+        mock_client.publish_with_newsletter.return_value = {"id": "post-1", "status": "published"}
+        mock_client.upload_image.return_value = "https://cdn.ghost.io/images/hero.png"
+
+        config = _configured_ghost()
+        pub = GhostIntakePublisher(ghost_config=config, output_dir=tmp_path)
+        pub._api = mock_client
+
+        # Create a local image file
+        img_dir = tmp_path / "intake" / "images"
+        img_dir.mkdir(parents=True)
+        (img_dir / "2026-02-14-hero.png").write_bytes(b"fake-png")
+
+        prose = "# My Digest\n\n![hero](images/2026-02-14-hero.png)\n\nSome text."
+        pub.format_daily(_ctx(), prose)
+
+        # upload_image should have been called with the local path
+        mock_client.upload_image.assert_called_once_with(
+            tmp_path / "intake" / "images" / "2026-02-14-hero.png"
+        )
+
+        # create_post should have the CDN URL in prose, not the local path
+        call_args = mock_client.create_post.call_args
+        sent_prose = call_args[0][1]
+        assert "https://cdn.ghost.io/images/hero.png" in sent_prose
+        assert "images/2026-02-14-hero.png" not in sent_prose
+
+    def test_feature_image_set_from_first_image(self, tmp_path):
+        """feature_image kwarg is set to the first uploaded image URL."""
+        mock_client = MagicMock()
+        mock_client.create_post.return_value = {"id": "post-1"}
+        mock_client.publish_with_newsletter.return_value = {"id": "post-1", "status": "published"}
+        mock_client.upload_image.side_effect = [
+            "https://cdn.ghost.io/images/first.png",
+            "https://cdn.ghost.io/images/second.png",
+        ]
+
+        config = _configured_ghost()
+        pub = GhostIntakePublisher(ghost_config=config, output_dir=tmp_path)
+        pub._api = mock_client
+
+        img_dir = tmp_path / "intake" / "images"
+        img_dir.mkdir(parents=True)
+        (img_dir / "first.png").write_bytes(b"fake")
+        (img_dir / "second.png").write_bytes(b"fake")
+
+        prose = "![a](images/first.png)\n![b](images/second.png)"
+        pub.format_daily(_ctx(), prose)
+
+        # feature_image should be the first image
+        call_kwargs = mock_client.create_post.call_args[1]
+        assert call_kwargs["feature_image"] == "https://cdn.ghost.io/images/first.png"
+
+    def test_upload_failure_leaves_local_path(self, tmp_path):
+        """When upload_image returns None, the local path stays in prose."""
+        mock_client = MagicMock()
+        mock_client.create_post.return_value = {"id": "post-1"}
+        mock_client.publish_with_newsletter.return_value = {"id": "post-1", "status": "published"}
+        mock_client.upload_image.return_value = None
+
+        config = _configured_ghost()
+        pub = GhostIntakePublisher(ghost_config=config, output_dir=tmp_path)
+        pub._api = mock_client
+
+        img_dir = tmp_path / "intake" / "images"
+        img_dir.mkdir(parents=True)
+        (img_dir / "hero.png").write_bytes(b"fake")
+
+        prose = "![alt](images/hero.png)\nMore text."
+        pub.format_daily(_ctx(), prose)
+
+        # The local path should remain since upload failed
+        call_args = mock_client.create_post.call_args
+        sent_prose = call_args[0][1]
+        assert "images/hero.png" in sent_prose
+
+        # feature_image should be None since upload failed
+        call_kwargs = mock_client.create_post.call_args[1]
+        assert call_kwargs["feature_image"] is None
+
+    def test_no_images_behaves_as_before(self):
+        """When prose has no image refs, behavior is unchanged."""
+        mock_client = MagicMock()
+        mock_client.create_post.return_value = {"id": "post-1"}
+        mock_client.publish_with_newsletter.return_value = {"id": "post-1", "status": "published"}
+
+        config = _configured_ghost()
+        pub = GhostIntakePublisher(ghost_config=config)
+        pub._api = mock_client
+
+        prose = "Just text, no images."
+        pub.format_daily(_ctx(), prose)
+
+        # upload_image should not have been called
+        mock_client.upload_image.assert_not_called()
+
+        # feature_image should be None
+        call_kwargs = mock_client.create_post.call_args[1]
+        assert call_kwargs["feature_image"] is None
+
+    def test_missing_image_file_skipped(self, tmp_path):
+        """When the local image file doesn't exist, it's skipped gracefully."""
+        mock_client = MagicMock()
+        mock_client.create_post.return_value = {"id": "post-1"}
+        mock_client.publish_with_newsletter.return_value = {"id": "post-1", "status": "published"}
+
+        config = _configured_ghost()
+        pub = GhostIntakePublisher(ghost_config=config, output_dir=tmp_path)
+        pub._api = mock_client
+
+        # Don't create the image file — it won't exist
+        prose = "![alt](images/missing.png)\nSome text."
+        pub.format_daily(_ctx(), prose)
+
+        # upload_image should NOT be called since file doesn't exist
+        mock_client.upload_image.assert_not_called()
+
+        # local path stays in prose
+        call_args = mock_client.create_post.call_args
+        sent_prose = call_args[0][1]
+        assert "images/missing.png" in sent_prose
+
+    def test_no_output_dir_skips_upload(self):
+        """When output_dir is not set, image upload is skipped entirely."""
+        mock_client = MagicMock()
+        mock_client.create_post.return_value = {"id": "post-1"}
+        mock_client.publish_with_newsletter.return_value = {"id": "post-1", "status": "published"}
+
+        config = _configured_ghost()
+        pub = GhostIntakePublisher(ghost_config=config, output_dir=None)
+        pub._api = mock_client
+
+        prose = "![alt](images/hero.png)"
+        pub.format_daily(_ctx(), prose)
+
+        # Should not attempt upload without output_dir
+        mock_client.upload_image.assert_not_called()
+
+    def test_multiple_images_all_uploaded(self, tmp_path):
+        """All image references in prose are processed."""
+        cdn_urls = [
+            "https://cdn.ghost.io/images/a.png",
+            "https://cdn.ghost.io/images/b.png",
+            "https://cdn.ghost.io/images/c.png",
+        ]
+        mock_client = MagicMock()
+        mock_client.create_post.return_value = {"id": "post-1"}
+        mock_client.publish_with_newsletter.return_value = {"id": "post-1", "status": "published"}
+        mock_client.upload_image.side_effect = cdn_urls
+
+        config = _configured_ghost()
+        pub = GhostIntakePublisher(ghost_config=config, output_dir=tmp_path)
+        pub._api = mock_client
+
+        img_dir = tmp_path / "intake" / "images"
+        img_dir.mkdir(parents=True)
+        for name in ["a.png", "b.png", "c.png"]:
+            (img_dir / name).write_bytes(b"fake")
+
+        prose = "![x](images/a.png)\n![y](images/b.png)\n![z](images/c.png)"
+        pub.format_daily(_ctx(), prose)
+
+        assert mock_client.upload_image.call_count == 3
+
+        call_args = mock_client.create_post.call_args
+        sent_prose = call_args[0][1]
+        for url in cdn_urls:
+            assert url in sent_prose
+
+    def test_partial_upload_failure(self, tmp_path):
+        """When some uploads fail, successful ones are replaced; failed ones remain."""
+        mock_client = MagicMock()
+        mock_client.create_post.return_value = {"id": "post-1"}
+        mock_client.publish_with_newsletter.return_value = {"id": "post-1", "status": "published"}
+        mock_client.upload_image.side_effect = [
+            "https://cdn.ghost.io/images/good.png",
+            None,  # second upload fails
+        ]
+
+        config = _configured_ghost()
+        pub = GhostIntakePublisher(ghost_config=config, output_dir=tmp_path)
+        pub._api = mock_client
+
+        img_dir = tmp_path / "intake" / "images"
+        img_dir.mkdir(parents=True)
+        (img_dir / "good.png").write_bytes(b"fake")
+        (img_dir / "bad.png").write_bytes(b"fake")
+
+        prose = "![a](images/good.png)\n![b](images/bad.png)"
+        pub.format_daily(_ctx(), prose)
+
+        call_args = mock_client.create_post.call_args
+        sent_prose = call_args[0][1]
+        # First image replaced with CDN URL
+        assert "https://cdn.ghost.io/images/good.png" in sent_prose
+        # Second image remains as local path
+        assert "images/bad.png" in sent_prose
+
+        # feature_image is the successful first one
+        call_kwargs = mock_client.create_post.call_args[1]
+        assert call_kwargs["feature_image"] == "https://cdn.ghost.io/images/good.png"
+
+    def test_feature_image_with_auto_publish(self, tmp_path):
+        """feature_image is passed to create_post in auto_publish (no newsletter) mode."""
+        mock_client = MagicMock()
+        mock_client.create_post.return_value = {"id": "post-1"}
+        mock_client.upload_image.return_value = "https://cdn.ghost.io/images/hero.png"
+
+        config = GhostConfig(
+            url="https://ghost.example.com",
+            admin_api_key="abc123:deadbeef",
+            newsletter_slug="",
+            auto_publish=True,
+        )
+        pub = GhostIntakePublisher(ghost_config=config, output_dir=tmp_path)
+        pub._api = mock_client
+
+        img_dir = tmp_path / "intake" / "images"
+        img_dir.mkdir(parents=True)
+        (img_dir / "hero.png").write_bytes(b"fake")
+
+        prose = "![hero](images/hero.png)\nContent."
+        pub.format_daily(_ctx(), prose)
+
+        call_kwargs = mock_client.create_post.call_args[1]
+        assert call_kwargs["feature_image"] == "https://cdn.ghost.io/images/hero.png"
+        assert call_kwargs["status"] == "published"
 
 
 # ------------------------------------------------------------------

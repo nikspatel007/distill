@@ -23,7 +23,7 @@ from distill.formatters.weekly import (
     WeeklyDigestFormatter,
     group_sessions_by_week,
 )
-from distill.parsers import ClaudeParser, CodexParser, VermasParser
+from distill.parsers import ClaudeParser, CodexParser
 from distill.parsers.models import BaseSession
 from pydantic import BaseModel, Field
 
@@ -85,7 +85,6 @@ class AnalysisResult(BaseModel):
 SOURCE_DIRECTORIES: dict[str, str] = {
     "claude": ".claude",
     "codex": ".codex",
-    "vermas": ".vermas",
 }
 
 
@@ -131,7 +130,7 @@ def discover_sessions(
     Args:
         directory: Root directory to scan.
         sources: Filter to specific sources. If None, discover all.
-        include_home: Also scan home directory (~/.claude, ~/.codex, ~/.vermas).
+        include_home: Also scan home directory (~/.claude, ~/.codex).
 
     Returns:
         Dictionary mapping source name to list containing the source root path.
@@ -164,8 +163,8 @@ def parse_sessions(
     Dispatches to the appropriate parser based on source type.
 
     Args:
-        root: Root directory for the source (e.g., .claude, .codex, .vermas).
-        source: The source type (claude, codex, vermas).
+        root: Root directory for the source (e.g., .claude, .codex).
+        source: The source type (claude, codex).
         since: Only parse files modified on or after this date (uses mtime).
 
     Returns:
@@ -179,9 +178,6 @@ def parse_sessions(
         sessions = list(parser.parse_directory(root, since=since))
     elif source == "codex":
         parser = CodexParser()
-        sessions = list(parser.parse_directory(root, since=since))
-    elif source == "vermas":
-        parser = VermasParser()
         sessions = list(parser.parse_directory(root, since=since))
 
     # Enrich narratives for all sessions
@@ -204,7 +200,7 @@ def parse_session_file(
 
     Args:
         path: Path to a source directory or file.
-        source: The source type (claude, codex, vermas).
+        source: The source type (claude, codex).
         since: Only parse files modified on or after this date (uses mtime).
 
     Returns:
@@ -231,14 +227,6 @@ def parse_session_file(
             if p.name == ".codex" or (p / ".codex").exists():
                 return parse_sessions(
                     p if p.name == ".codex" else p / ".codex",
-                    source,
-                    since=since,
-                )
-    elif source == "vermas":
-        for p in [parent] + list(parent.parents):
-            if p.name == ".vermas" or (p / ".vermas").exists():
-                return parse_sessions(
-                    p if p.name == ".vermas" else p / ".vermas",
                     source,
                     since=since,
                 )
@@ -989,6 +977,51 @@ def _generate_weekly_posts(
     return written
 
 
+def generate_images(
+    prose: str,
+    output_dir: Path,
+    date: str,
+    generator: object | None = None,
+) -> tuple[list, dict[int, str]]:
+    """Generate images for an intake digest.
+
+    Returns (prompts, paths) where paths maps prompt index to relative image path.
+    Returns ([], {}) if not configured or on failure.
+    """
+    from distill.images import ImageGenerator
+
+    if generator is None:
+        generator = ImageGenerator()
+
+    if not generator.is_configured():
+        return [], {}
+
+    from distill.intake.images import extract_image_prompts
+
+    prompts = extract_image_prompts(prose)
+    if not prompts:
+        return [], {}
+
+    images_dir = output_dir / "intake" / "images"
+    paths: dict[int, str] = {}
+
+    for idx, prompt in enumerate(prompts):
+        suffix = "hero" if prompt.role == "hero" else str(idx)
+        filename = f"{date}-{suffix}.png"
+        aspect = "16:9" if prompt.role == "hero" else "3:2"
+
+        result = generator.generate(
+            prompt.prompt,
+            output_path=images_dir / filename,
+            aspect_ratio=aspect,
+            mood=getattr(prompt, "mood", None),
+        )
+        if result:
+            paths[idx] = f"images/{filename}"
+
+    return prompts, paths
+
+
 def generate_intake(
     output_dir: Path,
     *,
@@ -1243,11 +1276,20 @@ def generate_intake(
     synthesizer = IntakeSynthesizer(config)
     prose = synthesizer.synthesize_daily(context, memory_context=memory_text)
 
+    # Generate images (optional — no-op if GOOGLE_AI_API_KEY not set)
+    from distill.intake.images import insert_images_into_prose
+
+    image_prompts, image_paths = generate_images(prose, output_dir, context.date)
+    if image_paths:
+        prose = insert_images_into_prose(prose, image_prompts, image_paths)
+
     # Fan-out: publish to each enabled target
     written: list[Path] = [archive_path, index_path]
     for pub_name in publishers:
         try:
-            publisher = create_intake_publisher(pub_name, ghost_config=ghost_config)
+            publisher = create_intake_publisher(
+                pub_name, ghost_config=ghost_config, output_dir=output_dir
+            )
             content = publisher.format_daily(context, prose)
             out_path = publisher.daily_output_path(output_dir, context.date)
             _atomic_write(out_path, content)
@@ -1381,9 +1423,9 @@ def _generate_thematic_posts(
             return []
         themes_to_generate = [(theme_def, evidence)]
     else:
-        # Find all ready themes (static + seed-derived)
+        # Find all ready themes (static + seed-derived + series)
         themes_to_generate = get_ready_themes(entries, state)
-        # Also check seed themes (lower evidence bar — min_evidence_days=1)
+
         for seed_theme in seed_themes:
             if state.is_generated(seed_theme.slug):
                 continue
@@ -1399,6 +1441,19 @@ def _generate_thematic_posts(
                 evidence = gather_evidence(series_theme, entries)
                 if len({e.date for e in evidence}) >= series_theme.min_evidence_days:
                     themes_to_generate.append((series_theme, evidence))
+
+        # Prioritize by evidence strength (unique days desc), cap total
+        themes_to_generate.sort(
+            key=lambda te: len({e.date for e in te[1]}), reverse=True
+        )
+        max_posts = getattr(config, "max_thematic_posts", 2) if config else 2
+        if len(themes_to_generate) > max_posts:
+            logger.info(
+                "Capping thematic posts: %d candidates -> %d",
+                len(themes_to_generate),
+                max_posts,
+            )
+            themes_to_generate = themes_to_generate[:max_posts]
 
     for theme, evidence in themes_to_generate:
         if not force and state.is_generated(theme.slug):

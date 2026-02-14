@@ -2,7 +2,7 @@
 
 Distill raw AI coding sessions into journals, blogs, and multi-platform publications.
 
-Distill reads session data from AI coding assistants (Claude, Codex, VerMAS), ingests content from RSS feeds, browser history, and social platforms, then synthesizes everything into publishable content using Claude LLM.
+Distill reads session data from AI coding assistants (Claude, Codex), ingests content from RSS feeds, browser history, and social platforms, then synthesizes everything into publishable content using Claude LLM.
 
 ## What It Does
 
@@ -121,7 +121,6 @@ Run `distill <command> --help` for detailed options.
 |--------|----------|------------------|
 | Claude | `~/.claude/projects/*/` | Claude Code session JSONL files |
 | Codex | `.codex/sessions/` | Codex CLI session rollouts |
-| VerMAS | `.vermas/state/` | Multi-agent workflow executions |
 
 ### Intake Sources
 
@@ -149,7 +148,7 @@ Place a `.distill.toml` file in your project root or at `~/.config/distill/confi
 directory = "./insights"
 
 [sessions]
-sources = ["claude", "codex", "vermas"]
+sources = ["claude", "codex"]
 include_global = false
 since_days = 2
 
@@ -172,14 +171,7 @@ browser_history = false
 
 # ─── Project Descriptions ─────────────────────────────────────────
 # These get injected into LLM prompts so the AI knows what each
-# project is when writing about your sessions. Without this, the
-# LLM sees names like "vermas" but can't describe what they do.
-
-[[projects]]
-name = "VerMAS"
-description = "Multi-agent orchestration platform where AI agents collaborate through structured meetings and workflows."
-url = "https://github.com/user/vermas"
-tags = ["multi-agent", "orchestration"]
+# project is when writing about your sessions.
 
 [[projects]]
 name = "Distill"
@@ -272,7 +264,7 @@ Steer what the LLM emphasizes in generated content. Notes can target a specific 
 distill note "Emphasize the fan-in architecture pattern"
 
 # Target a specific week
-distill note "Highlight the VerMAS agent spawning milestone" --target "week:2026-W06"
+distill note "Highlight the intake pipeline architecture" --target "week:2026-W06"
 
 # Target a theme
 distill note "Focus on testing strategies" --target "theme:testing-patterns"
@@ -323,7 +315,7 @@ src/
     publishers/        # Intake output publishers
   integrations/        # External service integrations (Postiz, Ghost)
   journal/             # Journal synthesis pipeline
-  parsers/             # Session parsers (Claude, Codex, VerMAS)
+  parsers/             # Session parsers (Claude, Codex)
   cli.py               # CLI entry point (Typer)
   config.py            # Unified config (.distill.toml loader)
   core.py              # Pipeline orchestration
@@ -364,7 +356,7 @@ All LLM calls go through the Claude CLI (`claude -p`) as a subprocess. This keep
 
 ### Project Context
 
-When you define projects in `.distill.toml`, their descriptions are injected into every LLM prompt. This means when the LLM writes about a session in "vermas", it knows VerMAS is a multi-agent orchestration platform -- not just an opaque project name.
+When you define projects in `.distill.toml`, their descriptions are injected into every LLM prompt. This gives the LLM context about what each project does, rather than just seeing opaque project names.
 
 ## Development
 

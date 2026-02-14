@@ -17,6 +17,10 @@ vi.mock("@tanstack/react-router", () => ({
 	),
 }));
 
+vi.mock("../components/shared/DateBadge.js", () => ({
+	DateBadge: ({ date }: { date: string }) => <span>{date}</span>,
+}));
+
 const server = setupServer(...handlers);
 
 beforeAll(() => server.listen());
@@ -39,10 +43,10 @@ describe("Publish", () => {
 		expect(screen.getByText("twitter")).toBeInTheDocument();
 	});
 
-	test("shows Postiz not configured warning", async () => {
+	test("shows Postiz not configured note", async () => {
 		renderWithProviders(<Publish />);
 		await waitFor(() => {
-			expect(screen.getByText(/Postiz is not configured/)).toBeInTheDocument();
+			expect(screen.getByText(/Connect Postiz/)).toBeInTheDocument();
 		});
 	});
 });

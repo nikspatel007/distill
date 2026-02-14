@@ -13,7 +13,7 @@ def _make_context(**kwargs) -> DailyContext:
         date=date(2026, 2, 5),
         total_sessions=3,
         total_duration_minutes=90.0,
-        projects_worked=["vermas", "session-insights"],
+        projects_worked=["distill", "session-insights"],
         key_outcomes=["Shipped feature"],
         tags=["python", "refactoring"],
     )
@@ -57,7 +57,7 @@ class TestJournalFormatter:
         formatter = JournalFormatter(config)
         result = formatter.format_entry(_make_context(), "Prose.")
 
-        assert "  - vermas" in result
+        assert "  - distill" in result
         assert "  - session-insights" in result
 
     def test_body_has_title(self):

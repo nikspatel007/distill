@@ -55,5 +55,6 @@ class BlogConfig(BaseModel):
     include_diagrams: bool = True
     model: str | None = None
     claude_timeout: int = 360
+    max_thematic_posts: int = 2
     platforms: list[Platform] = Field(default_factory=lambda: [Platform.OBSIDIAN])
     ghost: GhostConfig = Field(default_factory=GhostConfig)

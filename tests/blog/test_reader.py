@@ -21,7 +21,7 @@ tags:
   - python
   - refactoring
 projects:
-  - vermas
+  - distill
   - session-insights
 created: 2026-02-05T10:00:00
 ---
@@ -37,7 +37,7 @@ the pattern was clear: we needed to remove worktrees after merge, not before.
 ---
 
 *5 sessions | 120 minutes
-| Projects: vermas, session-insights*
+| Projects: distill, session-insights*
 
 ## Related
 
@@ -62,7 +62,7 @@ class TestParseFrontmatter:
     def test_projects_list(self):
         fm = _parse_frontmatter(SAMPLE_JOURNAL)
         assert isinstance(fm["projects"], list)
-        assert "vermas" in fm["projects"]
+        assert "distill" in fm["projects"]
 
     def test_no_frontmatter(self):
         fm = _parse_frontmatter("Just some text with no frontmatter")
@@ -184,7 +184,7 @@ class TestJournalReader:
         assert entry.sessions_count == 5
         assert entry.duration_minutes == 120.0
         assert "python" in entry.tags
-        assert "vermas" in entry.projects
+        assert "distill" in entry.projects
         assert entry.prose != ""
 
     def test_date_from_filename_fallback(self, tmp_path: Path):

@@ -348,8 +348,6 @@ def _infer_source_from_path(path: Path) -> str | None:
             return "claude"
         if parent.name == ".codex":
             return "codex"
-        if parent.name == ".vermas":
-            return "vermas"
     return None
 
 
@@ -380,7 +378,6 @@ def _parse_single_file(path: Path, source_filter: list[str] | None) -> list[Base
                     console.print(f"[yellow]Warning:[/yellow] {err}")
             return [session] if session is not None else []
         else:
-            # For vermas or unknown, fall back to directory parsing
             return parse_session_file(path, src)
     except Exception as exc:
         console.print(f"[red]Error:[/red] Failed to parse {path}: {exc}")
@@ -484,7 +481,7 @@ def analyze_cmd(
         typer.Option(
             "--source",
             "-s",
-            help="Filter to specific sources (claude, codex, vermas).",
+            help="Filter to specific sources (claude, codex).",
         ),
     ] = None,
     since: Annotated[
@@ -697,7 +694,7 @@ def sessions_cmd(
     Scans the specified directory for .claude/ and .codex/ directories,
     uses the existing parsers to extract sessions, and prints a simple
     JSON summary with session count, total messages, and date range.
-    Use --global to also include sessions from your home directory.
+    Use --global to also scan sessions from your home directory.
     """
     claude_parser = ClaudeParser()
     codex_parser = CodexParser()
@@ -806,7 +803,7 @@ def journal_cmd(
         list[str] | None,
         typer.Option(
             "--source",
-            help="Filter to specific sources (claude, codex, vermas).",
+            help="Filter to specific sources (claude, codex).",
         ),
     ] = None,
     include_global: Annotated[

@@ -78,12 +78,75 @@ class GhostAPIClient:
         }
         return json.dumps(mobiledoc)
 
+    def _request_multipart(self, path: str, file_path: Path, field: str = "file") -> dict:
+        """Upload a file via multipart form POST to the Ghost Admin API.
+
+        Args:
+            path: API endpoint path (e.g. "/images/upload/").
+            file_path: Local file to upload.
+            field: Form field name for the file.
+
+        Returns:
+            Parsed JSON response from Ghost.
+        """
+        url = f"{self.base_url}/ghost/api/admin{path}"
+        token = self._generate_token()
+
+        boundary = "----DistillUploadBoundary"
+        ext = file_path.suffix.lower()
+        content_type = "image/png" if ext == ".png" else "image/jpeg"
+
+        file_data = file_path.read_bytes()
+
+        disposition = (
+            f'Content-Disposition: form-data; name="{field}";'
+            f' filename="{file_path.name}"\r\n'
+        )
+        body_parts: list[bytes] = [
+            f"--{boundary}\r\n".encode(),
+            disposition.encode(),
+            f"Content-Type: {content_type}\r\n\r\n".encode(),
+            file_data,
+            f"\r\n--{boundary}--\r\n".encode(),
+        ]
+        body = b"".join(body_parts)
+
+        req = urllib.request.Request(
+            url,
+            data=body,
+            method="POST",
+            headers={
+                "Authorization": f"Ghost {token}",
+                "Content-Type": f"multipart/form-data; boundary={boundary}",
+            },
+        )
+
+        with urllib.request.urlopen(req) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+
+    def upload_image(self, file_path: Path) -> str | None:
+        """Upload an image to Ghost and return its URL.
+
+        Args:
+            file_path: Local image file to upload.
+
+        Returns:
+            The URL of the uploaded image, or None on any failure.
+        """
+        try:
+            result = self._request_multipart("/images/upload/", file_path)
+            return result["images"][0]["url"]
+        except Exception:
+            logger.warning("Failed to upload image '%s' to Ghost", file_path, exc_info=True)
+            return None
+
     def create_post(
         self,
         title: str,
         markdown: str,
         tags: list[str] | None = None,
         status: str = "draft",
+        feature_image: str | None = None,
     ) -> dict:
         """Create a post in Ghost.
 
@@ -92,6 +155,7 @@ class GhostAPIClient:
             markdown: Post content as markdown.
             tags: List of tag names.
             status: "draft" or "published".
+            feature_image: Optional URL for the post's feature image.
 
         Returns:
             The created post dict from Ghost API.
@@ -103,6 +167,8 @@ class GhostAPIClient:
         }
         if tags:
             post_data["tags"] = [{"name": t} for t in tags]
+        if feature_image:
+            post_data["feature_image"] = feature_image
 
         result = self._request("POST", "/posts/", {"posts": [post_data]})
         return result["posts"][0]

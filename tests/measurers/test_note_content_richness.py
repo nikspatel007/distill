@@ -78,51 +78,6 @@ Fixed auth bug
         assert scores["has_outcomes"]
         assert scores["has_conversation_summary"]
 
-    def test_score_vermas_note(self, tmp_path: Path) -> None:
-        """VerMAS note file should check for vermas-specific sections."""
-        content = """\
----
-source: vermas
----
-# Session
-
-## Timeline
-
-- **Started:** 2024-01-15 10:00:00
-- **Duration:** 15 minutes
-
-## Tools Used
-
-- **Bash**: 3 calls
-
-## Outcomes
-
-- [done] Task completed
-
-## Task Details
-
-- **Task:** implement-feature
-- **Cycle:** 1
-
-## Agent Signals
-
-| Time | Agent | Role | Signal |
-
-## Learnings
-
-### Agent: general
-"""
-        note = _write_note(tmp_path / "vermas-2024-01-15-impl.md", content)
-        source, scores = score_note_file(note)
-        assert source == "vermas"
-        assert scores["has_timestamps"]
-        assert scores["has_duration"]
-        assert scores["has_tool_list"]
-        assert scores["has_outcomes"]
-        assert scores["has_vermas_task_details"]
-        assert scores["has_vermas_signals"]
-        assert scores["has_vermas_learnings"]
-
     def test_score_partial_note(self, tmp_path: Path) -> None:
         """Partially complete note should have mixed scores."""
         content = """\
@@ -145,12 +100,6 @@ source: claude
         assert not scores["has_duration"]
         assert not scores["has_tool_list"]
         assert scores["has_outcomes"]
-
-    def test_detect_source_from_filename(self, tmp_path: Path) -> None:
-        """Source detection works from filename prefix."""
-        note = _write_note(tmp_path / "vermas-2024-01-15-task.md", "no frontmatter")
-        source, _ = score_note_file(note)
-        assert source == "vermas"
 
     def test_detect_source_from_frontmatter(self, tmp_path: Path) -> None:
         """Source detection works from frontmatter source field."""

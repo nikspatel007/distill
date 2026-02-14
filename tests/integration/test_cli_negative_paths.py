@@ -209,7 +209,7 @@ class TestMissingDirectories:
     def test_empty_directory_no_source_dirs(
         self, runner: CliRunner, tmp_path: Path
     ) -> None:
-        """Empty directory with no .claude/.codex/.vermas dirs exits cleanly."""
+        """Empty directory with no .claude/.codex dirs exits cleanly."""
         result = runner.invoke(app, ["analyze", "--dir", str(tmp_path)])
         assert result.exit_code == 0
         assert "No session files found" in _strip_ansi(result.output)

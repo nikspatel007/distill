@@ -213,7 +213,7 @@ def generate_narrative(session: BaseSession) -> str:
     if session.tags:
         parts.append(f"Activity type: {', '.join(session.tags)}.")
 
-    # VerMAS workflow context
+    # Workflow context
     if session.cycle_info:
         ci = session.cycle_info
         if ci.outcome and ci.outcome != "unknown":

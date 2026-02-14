@@ -29,7 +29,7 @@ def _make_weekly_context(**kwargs) -> WeeklyBlogContext:
         ],
         "total_sessions": 10,
         "total_duration_minutes": 200,
-        "projects": ["vermas", "session-insights"],
+        "projects": ["distill", "session-insights"],
         "all_tags": ["python", "multi-agent"],
         "combined_prose": "All the prose.",
     }
@@ -85,7 +85,7 @@ class TestBlogFormatterWeekly:
     def test_frontmatter_projects(self):
         formatter = BlogFormatter()
         result = formatter.format_weekly(_make_weekly_context(), "Prose.")
-        assert "  - vermas" in result
+        assert "  - distill" in result
         assert "  - session-insights" in result
 
     def test_frontmatter_tags(self):
