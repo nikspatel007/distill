@@ -21,15 +21,57 @@ _WRITE_TOOLS = {"Edit", "Write", "NotebookEdit"}
 # Tools that produce "reads" edges
 _READ_TOOLS = {"Read", "Glob", "Grep"}
 
-# Regex for detecting failures in Bash output (case insensitive)
+# Regex for detecting failures in Bash output.
+# Requires a word-boundary or line-start anchor to avoid matching filenames.
 _FAILURE_PATTERN = re.compile(
-    r"(?:FAIL|ERROR|Exception|Traceback|SyntaxError|ImportError"
+    r"(?:^|\s|:)(?:FAIL(?:ED)?|ERROR|Exception|Traceback|SyntaxError|ImportError"
     r"|TypeError|ValueError|KeyError|AttributeError|RuntimeError"
     r"|ModuleNotFoundError|FileNotFoundError|NameError|IndentationError"
     r"|AssertionError|OSError|PermissionError|ConnectionError"
-    r"|TimeoutError|NotImplementedError)",
+    r"|TimeoutError|NotImplementedError)\b",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+# Patterns that indicate overall success — override failure detection
+_SUCCESS_OVERRIDE = re.compile(
+    r"(?:0 errors?\b|no errors?\b|all \d+ tests? passed"
+    r"|\d+ passed(?:,\s*0 failed)?"
+    r"|all checks? passed|Success:)",
     re.IGNORECASE,
 )
+
+# Max length for first user message to be considered a human goal
+_MAX_GOAL_LENGTH = 500
+
+# Patterns that indicate agent/automated session prompts in first user message.
+_AGENT_PROMPT_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(r"^You are [\w-]+ \(\w+\)"),  # "You are name (role)"
+    re.compile(r"^You are [\w]+-[\w-]+\."),  # Hyphenated agent name: "You are corp-planner-x."
+    re.compile(r"^You are \w+ (?:supervisor|lead)\b", re.IGNORECASE),  # factory/squad lead
+    re.compile(r"^You are (?:a |the |an )?\w+ agent\b", re.IGNORECASE),  # "You are X agent"
+    re.compile(r"^You are (?:a |the |an )?[\w ]{1,40}\.[\s\n]", re.IGNORECASE),  # Role + instruction
+    re.compile(r"^You are joining ", re.IGNORECASE),  # Meeting summon
+    re.compile(r"^## (?:TASK|ROLE|MISSION)\b"),  # Structured agent task headers
+]
+
+# XML tag pattern for summary sanitization
+_XML_TAG_RE = re.compile(r"</?[a-zA-Z][\w-]*(?:\s[^>]*)?>")
+
+# Patterns that indicate low-quality summaries (raw prompts, commands, paths)
+_LOW_QUALITY_SUMMARY_PATTERNS = [
+    re.compile(r"<\w[\w-]*>"),  # XML-style tags
+    re.compile(
+        r"^(analyze|init|help|run|build|test|start|stop|deploy|status)\s*\w*$",
+        re.IGNORECASE,
+    ),
+    re.compile(r"^/\w+"),  # slash commands
+]
+
+# Project aliases — map old/alternate names to canonical name.
+# This lets the graph treat renamed projects as one entity.
+PROJECT_ALIASES: dict[str, str] = {
+    "session-insights": "distill",
+}
 
 # Known tech names for Tier 2 entity extraction
 KNOWN_ENTITIES: frozenset[str] = frozenset(
@@ -71,6 +113,12 @@ KNOWN_ENTITIES: frozenset[str] = frozenset(
         "openai",
         "anthropic",
     }
+)
+
+# Short tokens that are too ambiguous when found in file paths.
+# Only match these in Bash commands, not in file/path args.
+_AMBIGUOUS_ENTITIES: frozenset[str] = frozenset(
+    {"go", "node", "click", "java", "rust", "bun"}
 )
 
 # Known path anchors for fallback normalization
@@ -119,37 +167,150 @@ class SessionGraphExtractor:
     No LLM calls are made — everything is derived from structural data.
     """
 
-    def __init__(self, store: GraphStore) -> None:
+    def __init__(
+        self,
+        store: GraphStore,
+        extra_agent_patterns: list[str] | None = None,
+    ) -> None:
         self._store = store
         self._last_session_by_project: dict[str, str] = {}
         self._last_timestamp_by_project: dict[str, datetime] = {}
+        # Merge defaults with user-supplied patterns
+        self._agent_patterns: list[re.Pattern[str]] = list(_AGENT_PROMPT_PATTERNS)
+        for raw in extra_agent_patterns or []:
+            try:
+                self._agent_patterns.append(re.compile(raw, re.IGNORECASE))
+            except re.error:
+                pass
 
     # -- Public API ----------------------------------------------------------
 
     def extract(self, session: BaseSession) -> None:
-        """Extract all Tier 1-2 nodes and edges from *session*."""
-        session_key = self._extract_session_node(session)
+        """Extract all Tier 1-2 nodes and edges from *session*.
+
+        Idempotent: re-processing the same session upserts (merges) all
+        nodes and edges without creating duplicates or inflating weights.
+        """
+        session_type = self._classify_session(session)
+
+        # Check if this session was already processed (node exists in store)
+        candidate_key = f"{NodeType.SESSION}:{session.session_id}"
+        already_processed = self._store.get_node(candidate_key) is not None
+
+        session_key = self._extract_session_node(session, session_type)
         self._extract_project(session, session_key)
-        self._extract_goal(session, session_key)
+        if session_type == "human":
+            self._extract_goal(session, session_key)
         self._extract_files(session, session_key)
         self._extract_problems(session, session_key)
         self._extract_entities(session, session_key)
+        # Only accumulate co-occurrence weights on first processing
+        if not already_processed:
+            self._extract_co_occurrences(session, session_key)
         self._chain_sessions(session, session_key)
+
+    # -- Session classification ----------------------------------------------
+
+    def _classify_session(self, session: BaseSession) -> str:
+        """Classify a session as ``"human"``, ``"machine"``, or ``"agent"``.
+
+        Heuristics (no hardcoded prompt matching):
+        - **agent**: has ``cycle_info`` or ``signals`` (workflow-managed session),
+          or first message matches an agent prompt pattern
+        - **machine**: ≤1 user message AND (no tool calls OR first message
+          is very long — structured prompts like blog synthesis or entity
+          extraction use tools but aren't interactive)
+        - **human**: multiple user turns (interactive conversation),
+          or single turn with tool calls and a short first message
+        """
+        # Agent detection: workflow metadata or agent signals present
+        if session.cycle_info is not None or len(session.signals) > 0:
+            return "agent"
+
+        user_msgs = [m for m in session.messages if m.role == "user"]
+        has_tool_calls = len(session.tool_calls) > 0
+        multi_turn = len(user_msgs) > 1
+
+        # Single turn (or no messages)
+        first_msg_len = len(user_msgs[0].content) if user_msgs else 0
+
+        # Long first message = structured prompt (even with tool calls)
+        if first_msg_len > _MAX_GOAL_LENGTH:
+            return "machine"
+
+        # Check if first message matches agent prompt patterns
+        # (applied after length check so LLM prompts stay "machine")
+        if user_msgs:
+            first_content = user_msgs[0].content.strip()
+            for pattern in self._agent_patterns:
+                if pattern.search(first_content):
+                    return "agent"
+
+        # Multi-turn is always interactive
+        if multi_turn:
+            return "human"
+
+        # No tool calls and short/no message = machine
+        if not has_tool_calls:
+            return "machine"
+
+        return "human"
+
+    # -- Summary cleaning -----------------------------------------------------
+
+    @staticmethod
+    def _clean_summary(summary: str, session_id: str) -> str:
+        """Validate and clean a session summary.
+
+        Returns the cleaned summary, or *session_id* as fallback for
+        low-quality summaries (XML tags, slash commands, file paths, etc.).
+        """
+        if not summary or not summary.strip():
+            return session_id
+
+        text = summary.strip()
+
+        # Strip XML tags
+        cleaned = _XML_TAG_RE.sub("", text).strip()
+        if not cleaned:
+            return session_id
+
+        # Too short (< 5 words)
+        if len(cleaned.split()) < 5:
+            # Check for raw command patterns
+            for pattern in _LOW_QUALITY_SUMMARY_PATTERNS:
+                if pattern.match(cleaned):
+                    return session_id
+            # Check if it's just a file path
+            if re.match(r"^[\w./\\-]+\.\w{1,5}$", cleaned):
+                return session_id
+            # Very short but not a pattern match — still too short
+            if len(cleaned.split()) < 3:
+                return session_id
+
+        return cleaned
 
     # -- Step 1: Session node ------------------------------------------------
 
-    def _extract_session_node(self, session: BaseSession) -> str:
+    def _extract_session_node(
+        self, session: BaseSession, session_type: str = "human"
+    ) -> str:
         """Create a SESSION node and return its node_key."""
-        name = session.summary or session.session_id
+        name = self._clean_summary(session.summary, session.session_id)
+        canonical_project = self._resolve_project(session.project) if session.project else ""
+        ts = _ensure_tz(session.timestamp)
         node = GraphNode(
             node_type=NodeType.SESSION,
             name=session.session_id,
             source_id=session.session_id,
+            first_seen=ts,
+            last_seen=ts,
             properties={
-                "project": session.project,
+                "project": canonical_project,
                 "branch": session.metadata.get("branch", ""),
                 "tool_count": len(session.tool_calls),
                 "summary": name,
+                "session_type": session_type,
             },
         )
         result = self._store.upsert_node(node)
@@ -157,13 +318,19 @@ class SessionGraphExtractor:
 
     # -- Step 2: Project node + edge -----------------------------------------
 
+    @staticmethod
+    def _resolve_project(raw_name: str) -> str:
+        """Apply project aliases to merge renamed projects."""
+        return PROJECT_ALIASES.get(raw_name, raw_name)
+
     def _extract_project(self, session: BaseSession, session_key: str) -> None:
         if not session.project:
             return
 
+        canonical = self._resolve_project(session.project)
         proj_node = GraphNode(
             node_type=NodeType.PROJECT,
-            name=session.project,
+            name=canonical,
         )
         result = self._store.upsert_node(proj_node)
 
@@ -183,6 +350,10 @@ class SessionGraphExtractor:
             None,
         )
         if first_user_msg is None:
+            return
+
+        # Skip structured prompts (very long first messages are likely LLM prompts)
+        if len(first_user_msg.content) > _MAX_GOAL_LENGTH:
             return
 
         goal_text = first_user_msg.content[:200]
@@ -255,23 +426,33 @@ class SessionGraphExtractor:
     # -- Step 5: Problem nodes -----------------------------------------------
 
     def _extract_problems(self, session: BaseSession, session_key: str) -> None:
-        for tc in session.tool_calls:
-            if tc.tool_name != "Bash":
-                continue
-            if tc.result is None:
+        # First pass: find all bash failures and track which are resolved
+        failures: list[tuple[int, str, str]] = []  # (index, command, first_line)
+
+        for i, tc in enumerate(session.tool_calls):
+            if tc.tool_name != "Bash" or tc.result is None:
                 continue
             if not _FAILURE_PATTERN.search(tc.result):
                 continue
-
+            # Check for success-override patterns (e.g., "0 errors", "all passed")
+            if _SUCCESS_OVERRIDE.search(tc.result):
+                continue
             first_line = tc.result.split("\n")[0][:200]
+            failures.append((i, tc.arguments.get("command", ""), first_line))
+
+        # Second pass: check resolution — if a failure is followed by edits
+        # then a successful bash, mark it resolved
+        for idx, command, first_line in failures:
+            resolved = self._is_resolved(session, idx)
             problem_name = f"{session.session_id}:{first_line}"
             problem_node = GraphNode(
                 node_type=NodeType.PROBLEM,
                 name=problem_name,
                 source_id=session.session_id,
                 properties={
-                    "command": tc.arguments.get("command", ""),
+                    "command": command,
                     "error_snippet": first_line,
+                    "resolved": resolved,
                 },
             )
             self._store.upsert_node(problem_node)
@@ -283,22 +464,44 @@ class SessionGraphExtractor:
                 )
             )
 
+    @staticmethod
+    def _is_resolved(session: BaseSession, failure_idx: int) -> bool:
+        """Check if a bash failure at *failure_idx* was resolved later.
+
+        Looks for the pattern: failure → edit(s) → bash success.
+        """
+        saw_edit = False
+        for tc in session.tool_calls[failure_idx + 1 :]:
+            if tc.tool_name in _WRITE_TOOLS:
+                saw_edit = True
+            elif tc.tool_name == "Bash" and saw_edit:
+                if tc.result is not None and not _FAILURE_PATTERN.search(tc.result):
+                    return True
+                if tc.result is not None and _SUCCESS_OVERRIDE.search(tc.result):
+                    return True
+        return False
+
     # -- Step 6: Entity hints (Tier 2) ---------------------------------------
 
     def _extract_entities(self, session: BaseSession, session_key: str) -> None:
         found_entities: set[str] = set()
 
         for tc in session.tool_calls:
-            # Scan all string argument values
-            for value in tc.arguments.values():
+            is_bash = tc.tool_name == "Bash"
+            for arg_name, value in tc.arguments.items():
                 if not isinstance(value, str):
                     continue
-                # Tokenize on word boundaries, lowercase
+                is_path_arg = arg_name in ("file_path", "path", "notebook_path")
                 tokens = re.findall(r"[a-zA-Z][a-zA-Z0-9_]*", value)
                 for token in tokens:
                     lower = token.lower()
-                    if lower in KNOWN_ENTITIES:
-                        found_entities.add(lower)
+                    if lower not in KNOWN_ENTITIES:
+                        continue
+                    # Ambiguous short tokens (go, node, click, etc.)
+                    # only count from Bash commands, not file paths
+                    if lower in _AMBIGUOUS_ENTITIES and (is_path_arg or not is_bash):
+                        continue
+                    found_entities.add(lower)
 
         for entity_name in found_entities:
             entity_node = GraphNode(
@@ -314,10 +517,42 @@ class SessionGraphExtractor:
                 )
             )
 
+    # -- Step 6b: Entity co-occurrence edges ---------------------------------
+
+    def _extract_co_occurrences(
+        self, session: BaseSession, session_key: str
+    ) -> None:
+        """Create CO_OCCURS edges between entities found in the same session.
+
+        Weight accumulates across sessions: if entities A and B co-occur
+        in 3 sessions, the edge weight becomes 3.0.
+        """
+        # Find which entities this session uses
+        uses_edges = self._store.find_edges(
+            source_key=session_key, edge_type=EdgeType.USES
+        )
+        entity_keys = sorted(e.target_key for e in uses_edges)
+
+        # Create pairwise co-occurrence edges (sorted to ensure stable ordering)
+        for i, key_a in enumerate(entity_keys):
+            for key_b in entity_keys[i + 1 :]:
+                edge = GraphEdge(
+                    source_key=key_a,
+                    target_key=key_b,
+                    edge_type=EdgeType.CO_OCCURS,
+                )
+                # Read existing weight and accumulate
+                existing = self._store._edges.get(edge.edge_key)
+                if existing is not None:
+                    edge = edge.model_copy(
+                        update={"weight": existing.weight + 1.0}
+                    )
+                self._store.upsert_edge(edge)
+
     # -- Step 7: Session chaining --------------------------------------------
 
     def _chain_sessions(self, session: BaseSession, session_key: str) -> None:
-        project = session.project
+        project = self._resolve_project(session.project) if session.project else ""
         if not project:
             return
 

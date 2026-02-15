@@ -569,6 +569,42 @@ def generate_journal_notes(
         unified_text = unified.render_for_prompt(focus="sessions")
         context.previous_context = unified_text if unified_text else memory.render_for_prompt()
 
+        # Append knowledge graph context if available
+        try:
+            from distill.graph.query import GraphQuery
+            from distill.graph.store import GraphStore
+
+            graph_store = GraphStore(path=output_dir)
+            if graph_store.node_count() > 0:
+                gq = GraphQuery(graph_store)
+                graph_data = gq.gather_context_data(max_hours=168.0, max_sessions=5)
+                if graph_data.get("sessions"):
+                    from distill.graph.prompts import _format_user_prompt
+
+                    graph_section = (
+                        "\n\n## Knowledge Graph Context\n"
+                        + _format_user_prompt(graph_data)
+                    )
+                    context.previous_context += graph_section
+
+                # Append structural insights (coupling, hotspots, scope warnings)
+                from distill.graph.insights import (
+                    GraphInsights,
+                    format_insights_for_prompt,
+                )
+
+                gi = GraphInsights(graph_store)
+                daily = gi.generate_daily_insights(lookback_hours=48.0)
+                insights_section = format_insights_for_prompt(daily)
+                if insights_section:
+                    context.previous_context += "\n\n" + insights_section
+
+                # Persist insights back into the graph (feedback loop)
+                gi.persist_insights(daily)
+                graph_store.save()
+        except Exception:
+            pass  # graph is optional
+
         if dry_run:
             # Dry run prints context and skips LLM
             print(context.render_text())
@@ -747,6 +783,41 @@ def generate_blog_posts(
     if trends:
         unified.inject_trends(render_trends_for_prompt(trends))
 
+    # Load knowledge graph context if available
+    graph_context = ""
+    try:
+        from distill.graph.query import GraphQuery
+        from distill.graph.store import GraphStore
+
+        graph_store = GraphStore(path=output_dir)
+        if graph_store.node_count() > 0:
+            gq = GraphQuery(graph_store)
+            graph_data = gq.gather_context_data(max_hours=336.0, max_sessions=10)
+            if graph_data.get("sessions"):
+                from distill.graph.prompts import _format_user_prompt
+
+                graph_context = (
+                    "\n\n## Knowledge Graph Context\n" + _format_user_prompt(graph_data)
+                )
+
+            # Append structural insights for blog context
+            from distill.graph.insights import (
+                GraphInsights,
+                format_insights_for_prompt,
+            )
+
+            gi = GraphInsights(graph_store)
+            daily = gi.generate_daily_insights(lookback_hours=336.0)
+            insights_section = format_insights_for_prompt(daily)
+            if insights_section:
+                graph_context += "\n\n" + insights_section
+
+            # Persist insights back into the graph (feedback loop)
+            gi.persist_insights(daily)
+            graph_store.save()
+    except Exception:
+        pass  # graph is optional
+
     written: list[Path] = []
     # Shared mutable counter for Postiz rate-limiting across all post types
     postiz_counter = [0]  # list so inner functions can mutate
@@ -773,6 +844,7 @@ def generate_blog_posts(
                 editorial_store=editorial_store,
                 postiz_limit=postiz_limit,
                 postiz_counter=postiz_counter,
+                graph_context=graph_context,
             )
         )
 
@@ -798,6 +870,7 @@ def generate_blog_posts(
                 editorial_store=editorial_store,
                 postiz_limit=postiz_limit,
                 postiz_counter=postiz_counter,
+                graph_context=graph_context,
             )
         )
 
@@ -868,6 +941,7 @@ def _generate_weekly_posts(
     editorial_store: Any | None = None,
     postiz_limit: int | None = None,
     postiz_counter: list[int] | None = None,
+    graph_context: str = "",
 ) -> list[Path]:
     """Generate weekly synthesis blog posts."""
     from distill.blog.config import Platform
@@ -907,6 +981,8 @@ def _generate_weekly_posts(
             week_entries, year, week, memory, intake_digests=intake_digests
         )
         context.project_context = project_context
+        if graph_context:
+            context.working_memory += graph_context
         if editorial_store is not None:
             context.editorial_notes = editorial_store.render_for_prompt(
                 target=f"week:{year}-W{week:02d}"
@@ -1386,6 +1462,7 @@ def _generate_thematic_posts(
     editorial_store: Any | None = None,
     postiz_limit: int | None = None,
     postiz_counter: list[int] | None = None,
+    graph_context: str = "",
 ) -> list[Path]:
     """Generate thematic deep-dive blog posts."""
     from distill.blog.config import Platform
@@ -1467,6 +1544,8 @@ def _generate_thematic_posts(
             seed_angle=seed_angles.get(theme.slug, ""),
         )
         context.project_context = project_context
+        if graph_context:
+            context.combined_evidence += graph_context
         if editorial_store is not None:
             context.editorial_notes = editorial_store.render_for_prompt(
                 target=f"theme:{theme.slug}"

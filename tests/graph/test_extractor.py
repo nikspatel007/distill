@@ -4,10 +4,16 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from distill.graph.extractor import SessionGraphExtractor
+from distill.graph.extractor import PROJECT_ALIASES, SessionGraphExtractor
 from distill.graph.models import EdgeType, NodeType
 from distill.graph.store import GraphStore
-from distill.parsers.models import BaseSession, Message, ToolCall
+from distill.parsers.models import (
+    AgentSignal,
+    BaseSession,
+    CycleInfo,
+    Message,
+    ToolCall,
+)
 
 
 def _make_session(
@@ -18,6 +24,8 @@ def _make_session(
     messages: list[Message] | None = None,
     tool_calls: list[ToolCall] | None = None,
     metadata: dict | None = None,
+    cycle_info: CycleInfo | None = None,
+    signals: list[AgentSignal] | None = None,
 ) -> BaseSession:
     """Helper to create a BaseSession with sensible defaults."""
     ts = timestamp or datetime(2026, 2, 14, 10, 0, 0, tzinfo=UTC)
@@ -29,6 +37,8 @@ def _make_session(
         messages=messages or [],
         tool_calls=tool_calls or [],
         metadata=metadata or {},
+        cycle_info=cycle_info,
+        signals=signals or [],
     )
 
 
@@ -146,9 +156,12 @@ class TestGoalNode:
     def test_goal_truncated_to_200_chars(self):
         store = GraphStore()
         extractor = SessionGraphExtractor(store)
-        long_message = "A" * 300
+        long_message = "A" * 300  # under 500 threshold, so goal created
         session = _make_session(
             messages=[Message(role="user", content=long_message)],
+            tool_calls=[
+                ToolCall(tool_name="Read", arguments={"file_path": "/a.py"}),
+            ],
         )
         extractor.extract(session)
 
@@ -725,3 +738,927 @@ class TestFullExtraction:
         # Entity nodes: pytest, ruff
         assert store.get_node("entity:pytest") is not None
         assert store.get_node("entity:ruff") is not None
+
+
+# -- Session classification -------------------------------------------------
+
+
+class TestSessionClassification:
+    def test_human_session_has_tool_calls_and_messages(self):
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            messages=[
+                Message(role="user", content="Fix the bug"),
+                Message(role="assistant", content="On it"),
+            ],
+            tool_calls=[
+                ToolCall(tool_name="Read", arguments={"file_path": "/a.py"}),
+            ],
+        )
+        extractor.extract(session)
+
+        node = store.get_node("session:sess-001")
+        assert node is not None
+        assert node.properties["session_type"] == "human"
+
+    def test_machine_session_no_tool_calls_single_turn(self):
+        """Machine session: ≤1 user message AND 0 tool calls."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            messages=[
+                Message(role="user", content="Extract named entities from this text..."),
+                Message(role="assistant", content='{"entities": ["Python", "React"]}'),
+            ],
+            tool_calls=[],
+        )
+        extractor.extract(session)
+
+        node = store.get_node("session:sess-001")
+        assert node is not None
+        assert node.properties["session_type"] == "machine"
+
+    def test_machine_session_no_messages(self):
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(messages=[], tool_calls=[])
+        extractor.extract(session)
+
+        node = store.get_node("session:sess-001")
+        assert node is not None
+        assert node.properties["session_type"] == "machine"
+
+    def test_human_session_multiple_user_turns(self):
+        """Multiple user turns = interactive = human."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            messages=[
+                Message(role="user", content="Do X"),
+                Message(role="assistant", content="Done"),
+                Message(role="user", content="Now do Y"),
+                Message(role="assistant", content="Done"),
+            ],
+            tool_calls=[],
+        )
+        extractor.extract(session)
+
+        node = store.get_node("session:sess-001")
+        assert node.properties["session_type"] == "human"
+
+    def test_human_session_with_tool_calls_short_message(self):
+        """Single turn + tool calls + short first message = human."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            messages=[
+                Message(role="user", content="Read file"),
+                Message(role="assistant", content="Here it is"),
+            ],
+            tool_calls=[
+                ToolCall(tool_name="Read", arguments={"file_path": "/a.py"}),
+            ],
+        )
+        extractor.extract(session)
+
+        node = store.get_node("session:sess-001")
+        assert node.properties["session_type"] == "human"
+
+    def test_machine_session_long_message_with_tool_calls(self):
+        """Single turn + tool calls + long first message = machine (structured prompt)."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        long_prompt = "You are writing an essay on X. " + "A" * 500
+        session = _make_session(
+            messages=[
+                Message(role="user", content=long_prompt),
+                Message(role="assistant", content="Here is the essay..."),
+            ],
+            tool_calls=[
+                ToolCall(tool_name="Read", arguments={"file_path": "/a.py"}),
+            ],
+        )
+        extractor.extract(session)
+
+        node = store.get_node("session:sess-001")
+        assert node.properties["session_type"] == "machine"
+
+
+# -- Goal filtering for machine sessions -----------------------------------
+
+
+class TestGoalFiltering:
+    def test_no_goal_for_machine_session(self):
+        """Machine sessions should not create goal nodes."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            messages=[
+                Message(role="user", content="Extract entities from this JSON blob"),
+                Message(role="assistant", content='{"result": "ok"}'),
+            ],
+            tool_calls=[],
+        )
+        extractor.extract(session)
+
+        goals = store.find_nodes(node_type=NodeType.GOAL)
+        assert len(goals) == 0
+
+    def test_no_goal_for_very_long_first_message(self):
+        """First message >500 chars is likely a structured prompt, skip goal."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        long_prompt = "A" * 501
+        session = _make_session(
+            messages=[
+                Message(role="user", content=long_prompt),
+                Message(role="assistant", content="Done"),
+            ],
+            tool_calls=[
+                ToolCall(tool_name="Read", arguments={"file_path": "/a.py"}),
+            ],
+        )
+        extractor.extract(session)
+
+        goals = store.find_nodes(node_type=NodeType.GOAL)
+        assert len(goals) == 0
+
+    def test_goal_created_for_normal_human_session(self):
+        """Normal human sessions with short first messages still get goals."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            messages=[
+                Message(role="user", content="Fix the auth bug"),
+                Message(role="assistant", content="Looking into it"),
+            ],
+            tool_calls=[
+                ToolCall(tool_name="Read", arguments={"file_path": "/a.py"}),
+            ],
+        )
+        extractor.extract(session)
+
+        goals = store.find_nodes(node_type=NodeType.GOAL)
+        assert len(goals) == 1
+        assert goals[0].name == "Fix the auth bug"
+
+    def test_goal_at_boundary_500_chars(self):
+        """Exactly 500 chars should still create a goal (boundary test)."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        boundary_msg = "A" * 500
+        session = _make_session(
+            messages=[
+                Message(role="user", content=boundary_msg),
+                Message(role="assistant", content="Done"),
+            ],
+            tool_calls=[
+                ToolCall(tool_name="Read", arguments={"file_path": "/a.py"}),
+            ],
+        )
+        extractor.extract(session)
+
+        goals = store.find_nodes(node_type=NodeType.GOAL)
+        assert len(goals) == 1
+
+
+# -- Problem detection improvements ----------------------------------------
+
+
+class TestProblemFalsePositives:
+    def test_no_problem_for_zero_errors(self):
+        """'0 errors' in output should not be flagged as a problem."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            tool_calls=[
+                ToolCall(
+                    tool_name="Bash",
+                    arguments={"command": "ruff check src/"},
+                    result="Found 0 errors in 45 files",
+                ),
+            ],
+        )
+        extractor.extract(session)
+
+        problems = store.find_nodes(node_type=NodeType.PROBLEM)
+        assert len(problems) == 0
+
+    def test_no_problem_for_no_errors(self):
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            tool_calls=[
+                ToolCall(
+                    tool_name="Bash",
+                    arguments={"command": "mypy src/"},
+                    result="Success: no errors found",
+                ),
+            ],
+        )
+        extractor.extract(session)
+
+        problems = store.find_nodes(node_type=NodeType.PROBLEM)
+        assert len(problems) == 0
+
+    def test_no_problem_for_all_tests_passed(self):
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            tool_calls=[
+                ToolCall(
+                    tool_name="Bash",
+                    arguments={"command": "pytest tests/"},
+                    result="================== 50 passed in 3.2s ==================",
+                ),
+            ],
+        )
+        extractor.extract(session)
+
+        problems = store.find_nodes(node_type=NodeType.PROBLEM)
+        assert len(problems) == 0
+
+    def test_real_error_still_detected(self):
+        """Genuine errors should still be detected."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            tool_calls=[
+                ToolCall(
+                    tool_name="Bash",
+                    arguments={"command": "pytest tests/"},
+                    result="FAILED tests/test_foo.py::test_bar - AssertionError: 1 != 2",
+                ),
+            ],
+        )
+        extractor.extract(session)
+
+        problems = store.find_nodes(node_type=NodeType.PROBLEM)
+        assert len(problems) == 1
+
+    def test_no_problem_for_error_in_filename(self):
+        """'error' appearing in a filename should not trigger a problem."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            tool_calls=[
+                ToolCall(
+                    tool_name="Bash",
+                    arguments={"command": "ls src/"},
+                    result="error_handler.py\nerror_codes.py\nmain.py",
+                ),
+            ],
+        )
+        extractor.extract(session)
+
+        problems = store.find_nodes(node_type=NodeType.PROBLEM)
+        assert len(problems) == 0
+
+    def test_problem_resolution_tracking(self):
+        """If a bash failure is followed by edits + bash success, mark resolved."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            tool_calls=[
+                ToolCall(
+                    tool_name="Bash",
+                    arguments={"command": "pytest tests/ -x"},
+                    result="FAILED tests/test_foo.py - ValueError",
+                ),
+                ToolCall(
+                    tool_name="Edit",
+                    arguments={"file_path": "/proj/src/foo.py"},
+                ),
+                ToolCall(
+                    tool_name="Bash",
+                    arguments={"command": "pytest tests/ -x"},
+                    result="All 10 tests passed",
+                ),
+            ],
+            metadata={"cwd": "/proj"},
+        )
+        extractor.extract(session)
+
+        problems = store.find_nodes(node_type=NodeType.PROBLEM)
+        assert len(problems) == 1
+        assert problems[0].properties.get("resolved") is True
+
+
+# -- Entity co-occurrence ---------------------------------------------------
+
+
+class TestEntityCoOccurrence:
+    def test_creates_co_occurs_edges_between_entities(self):
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            tool_calls=[
+                ToolCall(
+                    tool_name="Bash",
+                    arguments={"command": "pytest tests/ && mypy src/"},
+                ),
+            ],
+        )
+        extractor.extract(session)
+
+        co_edges = store.find_edges(edge_type=EdgeType.CO_OCCURS)
+        assert len(co_edges) >= 1
+
+        # Check that pytest and mypy are connected
+        edge_pairs = {(e.source_key, e.target_key) for e in co_edges}
+        assert ("entity:mypy", "entity:pytest") in edge_pairs or (
+            "entity:pytest",
+            "entity:mypy",
+        ) in edge_pairs
+
+    def test_no_co_occurs_for_single_entity(self):
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            tool_calls=[
+                ToolCall(
+                    tool_name="Bash",
+                    arguments={"command": "pytest tests/"},
+                ),
+            ],
+        )
+        extractor.extract(session)
+
+        co_edges = store.find_edges(edge_type=EdgeType.CO_OCCURS)
+        assert len(co_edges) == 0
+
+    def test_co_occurs_weight_increments(self):
+        """Multiple sessions with same entity pair should accumulate weight."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+
+        for sid in ("s1", "s2"):
+            session = _make_session(
+                session_id=sid,
+                tool_calls=[
+                    ToolCall(
+                        tool_name="Bash",
+                        arguments={"command": "pytest tests/ && ruff check src/"},
+                    ),
+                ],
+            )
+            extractor.extract(session)
+
+        co_edges = store.find_edges(edge_type=EdgeType.CO_OCCURS)
+        assert len(co_edges) >= 1
+        # Weight should be 2.0 (accumulated across 2 sessions)
+        for edge in co_edges:
+            if "pytest" in edge.source_key and "ruff" in edge.target_key:
+                assert edge.weight == 2.0
+                break
+            elif "ruff" in edge.source_key and "pytest" in edge.target_key:
+                assert edge.weight == 2.0
+                break
+
+
+# -- Project aliases --------------------------------------------------------
+
+
+class TestProjectAliases:
+    def test_alias_merges_renamed_project(self):
+        """session-insights should be mapped to distill."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+
+        s1 = _make_session(session_id="old", project="session-insights")
+        s2 = _make_session(session_id="new", project="distill")
+
+        extractor.extract(s1)
+        extractor.extract(s2)
+
+        # Should have ONE project node (distill), not two
+        projects = store.find_nodes(node_type=NodeType.PROJECT)
+        assert len(projects) == 1
+        assert projects[0].name == "distill"
+
+        # Both sessions should link to the same project
+        edges = store.find_edges(
+            target_key="project:distill",
+            edge_type=EdgeType.EXECUTES_IN,
+        )
+        assert len(edges) == 2
+
+    def test_alias_in_session_properties(self):
+        """Session properties should use canonical project name."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(session_id="s1", project="session-insights")
+        extractor.extract(session)
+
+        node = store.get_node("session:s1")
+        assert node.properties["project"] == "distill"
+
+    def test_alias_enables_cross_rename_chaining(self):
+        """Sessions across rename should still chain if within time window."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+
+        t1 = datetime(2026, 2, 14, 10, 0, 0, tzinfo=UTC)
+        t2 = t1 + timedelta(hours=2)
+
+        s1 = _make_session(
+            session_id="s1", project="session-insights", timestamp=t1
+        )
+        s2 = _make_session(session_id="s2", project="distill", timestamp=t2)
+
+        extractor.extract(s1)
+        extractor.extract(s2)
+
+        # Should chain because both resolve to "distill"
+        edges = store.find_edges(edge_type=EdgeType.LEADS_TO)
+        assert len(edges) == 1
+
+    def test_unknown_project_passes_through(self):
+        """Projects not in alias map should pass through unchanged."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(project="vermas")
+        extractor.extract(session)
+
+        assert store.get_node("project:vermas") is not None
+
+    def test_alias_map_has_session_insights(self):
+        assert "session-insights" in PROJECT_ALIASES
+        assert PROJECT_ALIASES["session-insights"] == "distill"
+
+
+# -- Entity extraction quality ---------------------------------------------
+
+
+class TestEntityExtractionQuality:
+    def test_go_not_detected_from_file_path(self):
+        """'go' in a file path like /usr/local/go/bin should NOT create entity."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            tool_calls=[
+                ToolCall(
+                    tool_name="Read",
+                    arguments={"file_path": "/usr/local/go/bin/main.go"},
+                ),
+            ],
+        )
+        extractor.extract(session)
+
+        assert store.get_node("entity:go") is None
+
+    def test_go_detected_from_bash_command(self):
+        """'go' in a bash command like 'go build' SHOULD create entity."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            tool_calls=[
+                ToolCall(
+                    tool_name="Bash",
+                    arguments={"command": "go build ./..."},
+                ),
+            ],
+        )
+        extractor.extract(session)
+
+        assert store.get_node("entity:go") is not None
+
+    def test_click_not_detected_from_read_path(self):
+        """'click' in a path like /site-packages/click/ should NOT create entity."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            tool_calls=[
+                ToolCall(
+                    tool_name="Read",
+                    arguments={"file_path": "/lib/python/site-packages/click/core.py"},
+                ),
+            ],
+        )
+        extractor.extract(session)
+
+        assert store.get_node("entity:click") is None
+
+    def test_node_not_detected_from_glob_path(self):
+        """'node' in a path like /node_modules/ should NOT create entity."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            tool_calls=[
+                ToolCall(
+                    tool_name="Glob",
+                    arguments={"path": "/proj/node_modules/react/"},
+                ),
+            ],
+        )
+        extractor.extract(session)
+
+        # node should not be detected (ambiguous in path context)
+        assert store.get_node("entity:node") is None
+        # react should still be detected (not ambiguous)
+        assert store.get_node("entity:react") is not None
+
+    def test_unambiguous_entities_still_detected_from_paths(self):
+        """Unambiguous entities like 'pytest' should be detected everywhere."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            tool_calls=[
+                ToolCall(
+                    tool_name="Read",
+                    arguments={"file_path": "/proj/.venv/lib/pytest/main.py"},
+                ),
+            ],
+        )
+        extractor.extract(session)
+
+        assert store.get_node("entity:pytest") is not None
+
+
+# -- Agent session detection ------------------------------------------------
+
+
+class TestAgentSessionDetection:
+    def test_agent_session_with_cycle_info(self):
+        """Sessions with cycle_info should be classified as 'agent'."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            messages=[
+                Message(role="user", content="Build the authentication module"),
+                Message(role="assistant", content="Working on it"),
+                Message(role="user", content="Now add tests"),
+            ],
+            tool_calls=[
+                ToolCall(tool_name="Edit", arguments={"file_path": "/a.py"}),
+            ],
+            cycle_info=CycleInfo(
+                workflow_id="wf-001",
+                mission_id="mission-001",
+                cycle=1,
+                task_name="auth-module",
+            ),
+        )
+        extractor.extract(session)
+
+        node = store.get_node("session:sess-001")
+        assert node.properties["session_type"] == "agent"
+
+    def test_agent_session_with_signals(self):
+        """Sessions with agent signals should be classified as 'agent'."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        ts = datetime(2026, 2, 14, 10, 0, 0, tzinfo=UTC)
+        session = _make_session(
+            messages=[
+                Message(role="user", content="Implement the feature"),
+                Message(role="assistant", content="Done"),
+            ],
+            tool_calls=[
+                ToolCall(tool_name="Edit", arguments={"file_path": "/a.py"}),
+            ],
+            signals=[
+                AgentSignal(
+                    signal_id="sig-1",
+                    agent_id="agent-1",
+                    role="dev",
+                    signal="done",
+                    message="Task complete",
+                    timestamp=ts,
+                    workflow_id="wf-001",
+                ),
+            ],
+        )
+        extractor.extract(session)
+
+        node = store.get_node("session:sess-001")
+        assert node.properties["session_type"] == "agent"
+
+    def test_agent_session_skips_goal(self):
+        """Agent sessions should not create goal nodes."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            messages=[
+                Message(role="user", content="Build the auth module"),
+                Message(role="assistant", content="Working on it"),
+            ],
+            tool_calls=[
+                ToolCall(tool_name="Edit", arguments={"file_path": "/a.py"}),
+            ],
+            cycle_info=CycleInfo(workflow_id="wf-001"),
+        )
+        extractor.extract(session)
+
+        goals = store.find_nodes(node_type=NodeType.GOAL)
+        assert len(goals) == 0
+
+    def test_regular_multi_turn_still_human(self):
+        """Multi-turn session without agent markers stays 'human'."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            messages=[
+                Message(role="user", content="Fix the bug"),
+                Message(role="assistant", content="Looking into it"),
+                Message(role="user", content="Also check tests"),
+            ],
+            tool_calls=[
+                ToolCall(tool_name="Read", arguments={"file_path": "/a.py"}),
+            ],
+        )
+        extractor.extract(session)
+
+        node = store.get_node("session:sess-001")
+        assert node.properties["session_type"] == "human"
+
+    def test_troopx_agent_prompt_detected(self):
+        """TroopX 'You are name (role)' pattern classified as agent."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            messages=[
+                Message(
+                    role="user",
+                    content='You are tokyo-worker-rogers (worker) in workflow wf-123. Your task is to implement...',
+                ),
+                Message(role="assistant", content="Working on it"),
+                Message(role="user", content="Continue"),
+            ],
+            tool_calls=[
+                ToolCall(tool_name="Edit", arguments={"file_path": "/a.py"}),
+            ],
+        )
+        extractor.extract(session)
+
+        node = store.get_node("session:sess-001")
+        assert node.properties["session_type"] == "agent"
+
+    def test_troopx_agent_prompt_no_goal(self):
+        """Agent prompt sessions should not create goal nodes."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            messages=[
+                Message(
+                    role="user",
+                    content="You are dev-agent-42 (developer) assigned to task...",
+                ),
+                Message(role="assistant", content="On it"),
+            ],
+            tool_calls=[
+                ToolCall(tool_name="Edit", arguments={"file_path": "/a.py"}),
+            ],
+        )
+        extractor.extract(session)
+
+        goals = store.find_nodes(node_type=NodeType.GOAL)
+        assert len(goals) == 0
+
+    def test_generic_agent_prompt_detected(self):
+        """'You are a X agent' pattern classified as agent."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            messages=[
+                Message(
+                    role="user",
+                    content="You are a testing agent responsible for running all tests...",
+                ),
+                Message(role="assistant", content="Running tests"),
+            ],
+            tool_calls=[
+                ToolCall(tool_name="Bash", arguments={"command": "pytest"}),
+            ],
+        )
+        extractor.extract(session)
+
+        node = store.get_node("session:sess-001")
+        assert node.properties["session_type"] == "agent"
+
+    def test_structured_task_header_detected(self):
+        """'## TASK' structured header classified as agent."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            messages=[
+                Message(
+                    role="user",
+                    content="## TASK\nImplement the auth module\n## CONTEXT\nThis is part of...",
+                ),
+                Message(role="assistant", content="Implementing"),
+            ],
+            tool_calls=[
+                ToolCall(tool_name="Edit", arguments={"file_path": "/a.py"}),
+            ],
+        )
+        extractor.extract(session)
+
+        node = store.get_node("session:sess-001")
+        assert node.properties["session_type"] == "agent"
+
+    def test_the_role_agent_pattern_detected(self):
+        """'You are the CEO agent' pattern classified as agent."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            messages=[
+                Message(
+                    role="user",
+                    content='You are the CEO agent. Work order wo-fizzbuzz-001 has been assigned.',
+                ),
+                Message(role="assistant", content="Processing"),
+            ],
+            tool_calls=[
+                ToolCall(tool_name="Read", arguments={"file_path": "/task.md"}),
+            ],
+        )
+        extractor.extract(session)
+
+        node = store.get_node("session:sess-001")
+        assert node.properties["session_type"] == "agent"
+
+    def test_hyphenated_agent_name_detected(self):
+        """'You are corp-planner-littlefinger.' pattern classified as agent."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            messages=[
+                Message(
+                    role="user",
+                    content="You are corp-planner-littlefinger. Read .vermas/agents/ for your role.",
+                ),
+                Message(role="assistant", content="Reading config"),
+            ],
+            tool_calls=[
+                ToolCall(tool_name="Read", arguments={"file_path": "/config.md"}),
+            ],
+        )
+        extractor.extract(session)
+
+        node = store.get_node("session:sess-001")
+        assert node.properties["session_type"] == "agent"
+
+    def test_normal_you_sentence_not_agent(self):
+        """Normal messages starting with 'You' should not be flagged as agent."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            messages=[
+                Message(role="user", content="You need to fix this bug in login.py"),
+                Message(role="assistant", content="Looking at it"),
+            ],
+            tool_calls=[
+                ToolCall(tool_name="Read", arguments={"file_path": "/login.py"}),
+            ],
+        )
+        extractor.extract(session)
+
+        node = store.get_node("session:sess-001")
+        assert node.properties["session_type"] == "human"
+
+
+# -- Summary quality -------------------------------------------------------
+
+
+class TestSummaryQuality:
+    def test_xml_tags_stripped_from_summary(self):
+        """Summaries with XML tags should be cleaned."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            summary="<system-reminder>This is a system message</system-reminder>"
+        )
+        extractor.extract(session)
+
+        node = store.get_node("session:sess-001")
+        assert "<system-reminder>" not in node.properties["summary"]
+
+    def test_very_short_summary_replaced(self):
+        """Summaries that are too short get replaced with session_id."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(summary="hi")
+        extractor.extract(session)
+
+        node = store.get_node("session:sess-001")
+        # Should fall back to session_id
+        assert node.properties["summary"] == "sess-001"
+
+    def test_slash_command_summary_replaced(self):
+        """Summaries that look like slash commands get replaced."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(summary="/analyze")
+        extractor.extract(session)
+
+        node = store.get_node("session:sess-001")
+        assert node.properties["summary"] == "sess-001"
+
+    def test_good_summary_preserved(self):
+        """Normal summaries are kept as-is."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(summary="Fix the authentication bug in login flow")
+        extractor.extract(session)
+
+        node = store.get_node("session:sess-001")
+        assert node.properties["summary"] == "Fix the authentication bug in login flow"
+
+    def test_empty_summary_uses_session_id(self):
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(summary="")
+        extractor.extract(session)
+
+        node = store.get_node("session:sess-001")
+        assert node.properties["summary"] == "sess-001"
+
+    def test_file_path_summary_replaced(self):
+        """Summary that's just a file path gets replaced."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(summary="src/main.py")
+        extractor.extract(session)
+
+        node = store.get_node("session:sess-001")
+        assert node.properties["summary"] == "sess-001"
+
+
+# -- Co-occurrence weight accumulation -------------------------------------
+
+
+class TestCoOccurrenceWeightAccumulation:
+    def test_weight_accumulates_across_sessions(self):
+        """Same entity pair across multiple sessions should have weight > 1."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+
+        for sid in ("s1", "s2", "s3"):
+            session = _make_session(
+                session_id=sid,
+                tool_calls=[
+                    ToolCall(
+                        tool_name="Bash",
+                        arguments={"command": "pytest tests/ && ruff check src/"},
+                    ),
+                ],
+            )
+            extractor.extract(session)
+
+        co_edges = store.find_edges(edge_type=EdgeType.CO_OCCURS)
+        assert len(co_edges) >= 1
+
+        # Find the pytest-ruff co-occurrence edge
+        for edge in co_edges:
+            if "pytest" in edge.source_key and "ruff" in edge.target_key:
+                assert edge.weight == 3.0
+                break
+            elif "ruff" in edge.source_key and "pytest" in edge.target_key:
+                assert edge.weight == 3.0
+                break
+        else:
+            raise AssertionError("pytest-ruff co-occurrence edge not found")
+
+    def test_single_session_co_occurrence_weight_is_one(self):
+        """First co-occurrence should have weight 1.0."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            tool_calls=[
+                ToolCall(
+                    tool_name="Bash",
+                    arguments={"command": "pytest tests/ && mypy src/"},
+                ),
+            ],
+        )
+        extractor.extract(session)
+
+        co_edges = store.find_edges(edge_type=EdgeType.CO_OCCURS)
+        for edge in co_edges:
+            assert edge.weight == 1.0
+
+    def test_reprocessing_same_session_does_not_double_count(self):
+        """Re-extracting the same session should not inflate co-occurrence weights."""
+        store = GraphStore()
+        extractor = SessionGraphExtractor(store)
+        session = _make_session(
+            session_id="idempotent-test",
+            tool_calls=[
+                ToolCall(
+                    tool_name="Bash",
+                    arguments={"command": "pytest tests/ && mypy src/"},
+                ),
+            ],
+        )
+        # Process the same session twice (simulates 2-day overlap)
+        extractor.extract(session)
+        extractor.extract(session)
+
+        co_edges = store.find_edges(edge_type=EdgeType.CO_OCCURS)
+        for edge in co_edges:
+            assert edge.weight == 1.0, (
+                f"Co-occurrence weight should be 1.0 after re-processing, "
+                f"got {edge.weight} for {edge.edge_key}"
+            )
