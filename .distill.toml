@@ -1,0 +1,31 @@
+[[projects]]
+name = "Distill"
+description = "Content pipeline that transforms raw AI coding sessions into publishable content. Ingests from 8 sources (sessions, RSS, browser, Gmail, LinkedIn, Reddit, YouTube, Substack), synthesizes journal entries and blog posts, and publishes across platforms via Postiz."
+
+[[projects]]
+name = "TroopX"
+description = "Multi-agent orchestration platform built on Temporal, FastAPI, and Claude CLI. Runs dev-QA workflow pairs with blackboard coordination, memory injection, and post-workflow analysis."
+aliases = ["vermas"]
+
+[sessions]
+sources = [ "claude", "codex" ]
+
+[graph]
+agent_prompt_patterns = [
+    '^You are [\w]+-[\w-]+\.',
+    '^You are \w+ (?:supervisor|lead)\b',
+    '^You are (?:a |the |an )?[\w ]{1,40}\.[\s\n]',
+]
+
+[blog]
+platforms = [ "obsidian", "ghost" ]
+
+[intake]
+use_defaults = true
+browser_history = true
+substack_blogs = []
+rss_feeds = [ "https://martinfowler.com/feed.atom" ]
+publishers = [ "obsidian", "ghost" ]
+
+[ghost]
+auto_publish = true

@@ -1546,9 +1546,11 @@ def run_cmd(
     """
     from datetime import timedelta
 
+    from distill.config import load_config as _load_config
     from distill.errors import PipelineReport, save_report
 
-    platform_names = [p.strip() for p in publish.split(",")] if publish else ["obsidian"]
+    _cfg = _load_config()
+    _project_context = _cfg.render_project_context()
 
     # Build Ghost config
     from distill.blog.config import GhostConfig
@@ -1560,15 +1562,18 @@ def run_cmd(
         gc.admin_api_key = ghost_key
     ghost_cfg = gc if gc.is_configured else None
 
+    # Resolve publish platforms: CLI flag > .distill.toml [blog] > default
+    if publish:
+        platform_names = [p.strip() for p in publish.split(",")]
+    else:
+        platform_names = list(_cfg.blog.platforms)
+        # Auto-add ghost when Ghost is configured and not already listed
+        if ghost_cfg and "ghost" not in platform_names:
+            platform_names.append("ghost")
+
     all_written: list[Path] = []
     errors: list[str] = []
     report = PipelineReport()
-
-    # Load project context for prompt injection
-    from distill.config import load_config as _load_config
-
-    _cfg = _load_config()
-    _project_context = _cfg.render_project_context()
 
     # Delta window: only parse sessions from the --since date or last 2 days
     if force:
