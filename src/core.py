@@ -1870,6 +1870,89 @@ def _save_daily_social_state(state: DailySocialState, output_dir: Path) -> None:
     state_path.write_text(state.model_dump_json(indent=2), encoding="utf-8")
 
 
+def _build_daily_social_context(
+    entry: Any,
+    output_dir: Path,
+    postiz_config: Any,
+) -> str:
+    """Build curated source context for daily social post generation.
+
+    1. Filter journal prose to paragraphs mentioning the focus project.
+    2. Append relevant unused seed ideas.
+    3. Append active editorial notes targeting "daily".
+
+    Falls back to the full journal prose if no project-specific content found.
+    """
+    focus_project = getattr(postiz_config, "daily_social_project", "")
+    prose = entry.prose
+
+    # --- 1. Project-filter the journal prose ---
+    if focus_project:
+        aliases = [focus_project.lower()]
+        # Also match common aliases (e.g. TroopX -> vermas/VerMAS)
+        try:
+            from distill.config import load_config
+
+            cfg = load_config()
+            for proj in cfg.projects:
+                if proj.name.lower() == focus_project.lower():
+                    aliases.extend(a.lower() for a in (proj.aliases or []))
+        except Exception:
+            pass
+
+        paragraphs = prose.split("\n\n")
+        relevant = [
+            p
+            for p in paragraphs
+            if any(alias in p.lower() for alias in aliases)
+        ]
+        if relevant:
+            prose = "\n\n".join(relevant)
+        # else: keep full prose as fallback
+
+    # --- 2. Append unused seed ideas ---
+    seeds_section = ""
+    try:
+        from distill.intake.seeds import SeedStore
+
+        store = SeedStore(output_dir)
+        unused = [s for s in store.list_active() if not s.used]
+        # Pick seeds relevant to the focus project or general ones
+        if focus_project and unused:
+            project_seeds = [
+                s
+                for s in unused
+                if any(
+                    alias in s.text.lower() or alias in " ".join(s.tags).lower()
+                    for alias in aliases
+                )
+            ]
+            if project_seeds:
+                unused = project_seeds
+        if unused:
+            seed_texts = [s.text for s in unused[:3]]  # Cap at 3
+            seeds_section = (
+                "\n\n## Seed ideas (angles you can riff on):\n"
+                + "\n".join(f"- {t}" for t in seed_texts)
+            )
+    except Exception:
+        pass
+
+    # --- 3. Append editorial notes targeting "daily" ---
+    editorial_section = ""
+    try:
+        from distill.editorial import EditorialStore
+
+        store = EditorialStore(output_dir)
+        rendered = store.render_for_prompt(target="daily")
+        if rendered:
+            editorial_section = "\n\n" + rendered
+    except Exception:
+        pass
+
+    return prose + seeds_section + editorial_section
+
+
 def generate_daily_social(
     output_dir: Path,
     *,
@@ -1954,6 +2037,9 @@ def generate_daily_social(
         print(f"  Journal entry: {today_entry.date}")
         return []
 
+    # Build curated source context (project-filtered + seeds + editorial notes)
+    source_text = _build_daily_social_context(today_entry, output_dir, postiz_config)
+
     # Synthesize per-platform content
     from distill.blog.prompts import DAILY_SOCIAL_PROMPTS
 
@@ -1969,7 +2055,7 @@ def generate_daily_social(
         prompt = DAILY_SOCIAL_PROMPTS.get(prompt_key, DAILY_SOCIAL_PROMPTS["linkedin"])
         system_prompt = day_prefix + prompt
         platform_content[platform] = synthesizer._call_claude(
-            system_prompt, today_entry.prose, f"daily-social-{platform}-{today.isoformat()}"
+            system_prompt, source_text, f"daily-social-{platform}-{today.isoformat()}"
         )
 
     written: list[Path] = []

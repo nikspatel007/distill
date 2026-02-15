@@ -124,6 +124,7 @@ class PostizSectionConfig(BaseModel):
     daily_social_platforms: list[str] = Field(default_factory=lambda: ["linkedin"])
     daily_social_enabled: bool = False
     daily_social_series_length: int = 100
+    daily_social_project: str = ""  # Focus on this project (filters journal content)
     slack_channel: str = ""
 
 
@@ -233,6 +234,7 @@ class DistillConfig(BaseModel):
             daily_social_platforms=list(self.postiz.daily_social_platforms),
             daily_social_enabled=self.postiz.daily_social_enabled,
             daily_social_series_length=self.postiz.daily_social_series_length,
+            daily_social_project=self.postiz.daily_social_project,
             slack_channel=self.postiz.slack_channel,
         )
 

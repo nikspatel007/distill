@@ -38,6 +38,7 @@ daily_social_enabled = true
 daily_social_time = "08:00"       # 8am CT every day
 daily_social_platforms = ["linkedin", "twitter", "slack"]
 daily_social_series_length = 100  # 100 days of building in public
+daily_social_project = "TroopX"   # Focus posts on this project
 
 [ghost]
 auto_publish = true

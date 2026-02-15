@@ -65,6 +65,7 @@ class PostizConfig(BaseModel):
     daily_social_platforms: list[str] = ["linkedin"]
     daily_social_enabled: bool = False
     daily_social_series_length: int = 100
+    daily_social_project: str = ""
 
     @property
     def is_configured(self) -> bool:
