@@ -1734,7 +1734,7 @@ def run_cmd(
 
     # Step 4: Daily social — short LinkedIn posts from journal entries
     postiz_cfg_for_social = _cfg.to_postiz_config()
-    if not skip_blog and getattr(postiz_cfg_for_social, "daily_social_enabled", False):
+    if getattr(postiz_cfg_for_social, "daily_social_enabled", False):
         console.print("[bold]Step 4/4: Daily Social → Postiz[/bold]")
         try:
             from distill.core import generate_daily_social
