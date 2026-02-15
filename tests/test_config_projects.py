@@ -1,6 +1,6 @@
-"""Tests for project config in DistillConfig."""
+"""Tests for project config and converter methods in DistillConfig."""
 
-from distill.config import DistillConfig, ProjectConfig, load_config
+from distill.config import DistillConfig, PostizSectionConfig, ProjectConfig, load_config
 
 
 class TestProjectConfig:
@@ -97,3 +97,55 @@ tags = ["test"]
         assert config.projects[0].description == "A test project"
         assert config.projects[0].url == "https://example.com"
         assert config.projects[0].tags == ["test"]
+
+
+class TestToPostizConfig:
+    def test_to_postiz_config_defaults(self):
+        config = DistillConfig()
+        postiz = config.to_postiz_config()
+        assert postiz.url == ""
+        assert postiz.api_key == ""
+        assert postiz.is_configured is False
+        assert postiz.timezone == "America/Chicago"
+
+    def test_to_postiz_config_from_toml(self):
+        config = DistillConfig(
+            postiz=PostizSectionConfig(
+                url="https://postiz.test/api",
+                api_key="test-key",
+                schedule_enabled=True,
+                timezone="America/Chicago",
+                weekly_day=1,
+                thematic_days=[0, 1, 2, 3, 4, 5, 6],
+            )
+        )
+        postiz = config.to_postiz_config()
+        assert postiz.url == "https://postiz.test/api"
+        assert postiz.api_key == "test-key"
+        assert postiz.is_configured is True
+        assert postiz.schedule_enabled is True
+        assert postiz.timezone == "America/Chicago"
+        assert postiz.weekly_day == 1
+        assert postiz.thematic_days == [0, 1, 2, 3, 4, 5, 6]
+
+    def test_to_postiz_config_resolve_post_type(self):
+        config = DistillConfig(
+            postiz=PostizSectionConfig(
+                url="https://postiz.test/api",
+                api_key="key",
+                schedule_enabled=True,
+            )
+        )
+        postiz = config.to_postiz_config()
+        assert postiz.resolve_post_type() == "schedule"
+
+    def test_to_postiz_config_slack_channel(self):
+        config = DistillConfig(
+            postiz=PostizSectionConfig(
+                url="https://postiz.test/api",
+                api_key="key",
+                slack_channel="distill",
+            )
+        )
+        postiz = config.to_postiz_config()
+        assert postiz.slack_channel == "distill"

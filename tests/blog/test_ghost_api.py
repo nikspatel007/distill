@@ -501,3 +501,42 @@ class TestPublishToAPIAppliesFixes:
             assert call_args[1].get("feature_image") == "https://blog.example.com/content/images/hero.png"
         finally:
             fake_image.unlink(missing_ok=True)
+
+    def test_publish_captures_post_url(self):
+        """After publishing, last_post_url and last_feature_image_url are captured."""
+        cfg = GhostConfig(
+            url="https://blog.example.com",
+            admin_api_key=f"{_TEST_KEY_ID}:{_TEST_SECRET_HEX}",
+        )
+        pub = GhostPublisher(ghost_config=cfg)
+        assert pub.last_post_url is None
+        assert pub.last_feature_image_url is None
+
+        pub._api = MagicMock()
+        pub._api.create_post.return_value = {
+            "id": "1",
+            "status": "published",
+            "url": "https://blog.example.com/test-post/",
+            "feature_image": "https://blog.example.com/content/images/hero.png",
+        }
+
+        content = '<!-- ghost-meta: {"title": "Test", "tags": []} -->\n\nBody text.'
+        pub._publish_to_api(content)
+
+        assert pub.last_post_url == "https://blog.example.com/test-post/"
+        assert pub.last_feature_image_url == "https://blog.example.com/content/images/hero.png"
+
+    def test_publish_url_none_when_not_in_response(self):
+        """last_post_url is None when API response doesn't include url."""
+        cfg = GhostConfig(
+            url="https://blog.example.com",
+            admin_api_key=f"{_TEST_KEY_ID}:{_TEST_SECRET_HEX}",
+        )
+        pub = GhostPublisher(ghost_config=cfg)
+        pub._api = MagicMock()
+        pub._api.create_post.return_value = {"id": "1", "status": "draft"}
+
+        content = '<!-- ghost-meta: {"title": "Test", "tags": []} -->\n\nBody text.'
+        pub._publish_to_api(content)
+
+        assert pub.last_post_url is None

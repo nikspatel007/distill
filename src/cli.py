@@ -1098,6 +1098,10 @@ def blog_cmd(
     # Parse platforms
     from distill.blog.config import Platform
 
+    from distill.config import load_config as _load_blog_config
+
+    _blog_cfg = _load_blog_config()
+
     if publish:
         platform_names = [p.strip() for p in publish.split(",")]
         valid_platforms = [p.value for p in Platform]
@@ -1109,7 +1113,14 @@ def blog_cmd(
         if "all" in platform_names:
             platform_names = valid_platforms
     else:
-        platform_names = ["obsidian"]
+        platform_names = list(_blog_cfg.blog.platforms)
+        # Auto-add ghost when configured and not already listed
+        if ghost_config.is_configured and "ghost" not in platform_names:
+            platform_names.append("ghost")
+        # Auto-add postiz when configured and not already listed
+        postiz_cfg = _blog_cfg.to_postiz_config()
+        if postiz_cfg.is_configured and "postiz" not in platform_names:
+            platform_names.append("postiz")
 
     # Build Ghost config from CLI options / env vars
     from distill.blog.config import GhostConfig
@@ -1570,6 +1581,10 @@ def run_cmd(
         # Auto-add ghost when Ghost is configured and not already listed
         if ghost_cfg and "ghost" not in platform_names:
             platform_names.append("ghost")
+        # Auto-add postiz when configured and not already listed
+        postiz_cfg = _cfg.to_postiz_config()
+        if postiz_cfg.is_configured and "postiz" not in platform_names:
+            platform_names.append("postiz")
 
     all_written: list[Path] = []
     errors: list[str] = []
@@ -1594,7 +1609,7 @@ def run_cmd(
 
     # Steps 0+1: Parse sessions once, use for graph build and journal
     if not skip_sessions:
-        console.print("[bold]Step 1/3: Sessions → Graph + Journal[/bold]")
+        console.print("[bold]Step 1/4: Sessions → Graph + Journal[/bold]")
         try:
             all_sessions = _discover_and_parse(
                 directory,
@@ -1652,11 +1667,11 @@ def run_cmd(
             report.add_error("journal", str(exc), error_type="stage_error", recoverable=True)
             console.print(f"  [red]Error: {exc}[/red]")
     else:
-        console.print("[dim]Step 1/3: Sessions → Journal (skipped)[/dim]")
+        console.print("[dim]Step 1/4: Sessions → Journal (skipped)[/dim]")
 
     # Step 2: Intake — ingest external content
     if not skip_intake:
-        console.print("[bold]Step 2/3: Intake → Digest[/bold]")
+        console.print("[bold]Step 2/4: Intake → Digest[/bold]")
         try:
             # Resolve feeds file for defaults
             resolved_feeds_file: str | None = None
@@ -1687,11 +1702,11 @@ def run_cmd(
             report.add_error("intake", str(exc), error_type="stage_error", recoverable=True)
             console.print(f"  [red]Error: {exc}[/red]")
     else:
-        console.print("[dim]Step 2/3: Intake → Digest (skipped)[/dim]")
+        console.print("[dim]Step 2/4: Intake → Digest (skipped)[/dim]")
 
     # Step 3: Blog — generate posts from journal + intake
     if not skip_blog:
-        console.print("[bold]Step 3/3: Blog → Publish[/bold]")
+        console.print("[bold]Step 3/4: Blog → Publish[/bold]")
         journal_dir = output / "journal"
         if journal_dir.exists():
             try:
@@ -1715,7 +1730,36 @@ def run_cmd(
         else:
             console.print("  [yellow]No journal entries yet — skipping blog[/yellow]")
     else:
-        console.print("[dim]Step 3/3: Blog → Publish (skipped)[/dim]")
+        console.print("[dim]Step 3/4: Blog → Publish (skipped)[/dim]")
+
+    # Step 4: Daily social — short LinkedIn posts from journal entries
+    postiz_cfg_for_social = _cfg.to_postiz_config()
+    if not skip_blog and getattr(postiz_cfg_for_social, "daily_social_enabled", False):
+        console.print("[bold]Step 4/4: Daily Social → Postiz[/bold]")
+        try:
+            from distill.core import generate_daily_social
+
+            social_written = generate_daily_social(
+                output,
+                postiz_config=postiz_cfg_for_social,
+                model=model,
+                dry_run=dry_run,
+                force=force,
+            )
+            all_written.extend(social_written)
+            if social_written:
+                report.items_processed["daily_social"] = len(social_written)
+                console.print(
+                    f"  [green]Generated {len(social_written)} daily social post(s)[/green]"
+                )
+            else:
+                console.print("  [dim]No new daily social post (already posted or series complete)[/dim]")
+        except Exception as exc:
+            errors.append(f"Daily social: {exc}")
+            report.add_error("daily_social", str(exc), error_type="stage_error", recoverable=True)
+            console.print(f"  [red]Error: {exc}[/red]")
+    else:
+        console.print("[dim]Step 4/4: Daily Social (disabled or skipped)[/dim]")
 
     # Update unified memory
     if not dry_run:

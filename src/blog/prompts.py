@@ -196,6 +196,36 @@ SOCIAL_PROMPTS: dict[str, str] = {
     ),
 }
 
+DAILY_SOCIAL_PROMPT: str = (
+    "Convert this developer journal entry into a short LinkedIn post.\n\n"
+    "You're building AI-powered systems and sharing daily what you learn. "
+    "This is a '100 days of building in public' series. Each post covers "
+    "ONE key thing from today: a technique, a discovery, a pattern, or a win.\n\n"
+    "FORMAT:\n"
+    "- Total: 600-1000 characters (LinkedIn sweet spot for engagement).\n"
+    "- First line: a hook. One sentence that makes someone stop scrolling. "
+    "Specific, not clickbait. Under 100 characters.\n"
+    "- Blank line after hook.\n"
+    "- 2-3 short paragraphs. One idea per paragraph.\n"
+    "- No markdown headers. No bullet lists. Just prose.\n"
+    "- End with a question that invites others to share their experience.\n\n"
+    "WHAT TO PICK:\n"
+    "- Choose the SINGLE most interesting thing from the journal entry.\n"
+    "- A technique someone else could use TODAY.\n"
+    "- A surprising result or discovery.\n"
+    "- A pattern that worked (or failed interestingly).\n"
+    "- NOT a status update. NOT 'today I did X, Y, Z'.\n\n"
+    "VOICE:\n"
+    "- First person. Direct. Confident but not arrogant.\n"
+    "- Write like you're telling a colleague about something cool over coffee.\n"
+    "- Specific details beat vague claims. Numbers, names, architectures.\n"
+    "- Positive framing: discoveries, not complaints.\n"
+    "- NEVER use em-dashes or double-hyphens. Use commas or colons.\n\n"
+    "HASHTAGS:\n"
+    "- Last line: #BuildInPublic #DistillAI plus 1-2 relevant tags.\n\n"
+    "Output ONLY the post. No meta-text, no commentary."
+)
+
 MEMORY_EXTRACTION_PROMPT = (
     "Extract the key information from this blog post as JSON.\n"
     "Return ONLY valid JSON with these fields:\n"

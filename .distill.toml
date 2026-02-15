@@ -18,7 +18,7 @@ agent_prompt_patterns = [
 ]
 
 [blog]
-platforms = [ "obsidian", "ghost" ]
+platforms = [ "obsidian", "ghost", "postiz" ]
 
 [intake]
 use_defaults = true
@@ -26,6 +26,18 @@ browser_history = true
 substack_blogs = []
 rss_feeds = [ "https://martinfowler.com/feed.atom" ]
 publishers = [ "obsidian", "ghost" ]
+
+[postiz]
+schedule_enabled = true
+timezone = "America/Chicago"
+weekly_time = "09:00"
+weekly_day = 1                    # Tuesday 9am CT (day after weekly blog generation)
+thematic_time = "09:00"
+thematic_days = [0, 1, 2, 3, 4, 5, 6]  # Any day — schedules for next day 9am CT
+daily_social_enabled = true
+daily_social_time = "08:00"       # 8am CT every day
+daily_social_platforms = ["linkedin"]
+daily_social_series_length = 100  # 100 days of building in public
 
 [ghost]
 auto_publish = true

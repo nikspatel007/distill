@@ -32,18 +32,42 @@ class PostizBlogPublisher(BlogPublisher):
         self._target_platforms = target_platforms  # None = auto-detect from Postiz
         self._used_thematic_dates: set[str] = set()
 
-    def format_weekly(self, context: Any, prose: str) -> str:
+    def format_weekly(
+        self,
+        context: Any,
+        prose: str,
+        *,
+        blog_url: str | None = None,
+        feature_image_url: str | None = None,
+    ) -> str:
         """Adapt weekly prose for social platforms and push to Postiz."""
         editorial_hint = getattr(context, "editorial_notes", "") or ""
         return self._adapt_and_push(
-            prose, context_label="weekly", post_kind="weekly", editorial_hint=editorial_hint
+            prose,
+            context_label="weekly",
+            post_kind="weekly",
+            editorial_hint=editorial_hint,
+            blog_url=blog_url,
+            feature_image_url=feature_image_url,
         )
 
-    def format_thematic(self, context: Any, prose: str) -> str:
+    def format_thematic(
+        self,
+        context: Any,
+        prose: str,
+        *,
+        blog_url: str | None = None,
+        feature_image_url: str | None = None,
+    ) -> str:
         """Adapt thematic prose for social platforms and push to Postiz."""
         editorial_hint = getattr(context, "editorial_notes", "") or ""
         return self._adapt_and_push(
-            prose, context_label="thematic", post_kind="thematic", editorial_hint=editorial_hint
+            prose,
+            context_label="thematic",
+            post_kind="thematic",
+            editorial_hint=editorial_hint,
+            blog_url=blog_url,
+            feature_image_url=feature_image_url,
         )
 
     def weekly_output_path(self, output_dir: Path, year: int, week: int) -> Path:
@@ -64,7 +88,13 @@ class PostizBlogPublisher(BlogPublisher):
         return list(self._last_post_ids)
 
     def _adapt_and_push(
-        self, prose: str, context_label: str, post_kind: str, editorial_hint: str = ""
+        self,
+        prose: str,
+        context_label: str,
+        post_kind: str,
+        editorial_hint: str = "",
+        blog_url: str | None = None,
+        feature_image_url: str | None = None,
     ) -> str:
         """Adapt prose for each target platform and push posts."""
         from distill.integrations.mapping import resolve_integration_ids
@@ -112,6 +142,12 @@ class PostizBlogPublisher(BlogPublisher):
                 except Exception:
                     logger.warning("Failed to adapt for %s, using raw prose", platform)
 
+            # Append blog link for social posts
+            adapted = self._append_blog_link(adapted, platform, blog_url)
+
+            # Build image list for the API call
+            images = [feature_image_url] if feature_image_url else []
+
             # Push post to Postiz
             try:
                 response = client.create_post(
@@ -119,6 +155,7 @@ class PostizBlogPublisher(BlogPublisher):
                     integration_ids,
                     post_type=post_type,
                     scheduled_at=scheduled_at,
+                    images=images,
                 )
                 # Capture post ID from API response
                 post_id = response.get("id", "") if isinstance(response, dict) else ""
@@ -131,6 +168,8 @@ class PostizBlogPublisher(BlogPublisher):
                     )
                 else:
                     results.append(f"Draft created (IDs: {', '.join(integration_ids)})")
+                if blog_url:
+                    results.append(f"Blog link: {blog_url}")
                 results.append("")
                 results.append(adapted)
                 results.append("")
@@ -141,6 +180,22 @@ class PostizBlogPublisher(BlogPublisher):
                 results.append("")
 
         return "\n".join(results)
+
+    @staticmethod
+    def _append_blog_link(content: str, platform: str, blog_url: str | None) -> str:
+        """Append the canonical blog URL to adapted social content."""
+        if not blog_url:
+            return content
+
+        # For X/Twitter threads, append link to the last tweet
+        if platform in ("x", "twitter"):
+            parts = content.rsplit("\n---\n", 1)
+            if len(parts) == 2:
+                return f"{parts[0]}\n---\n{parts[1].rstrip()}\n\n{blog_url}"
+            return f"{content.rstrip()}\n\n{blog_url}"
+
+        # For LinkedIn and other platforms, append a "Read more" line
+        return f"{content.rstrip()}\n\nRead the full post: {blog_url}"
 
     def _compute_schedule(self, config: Any, post_kind: str) -> str | None:
         """Compute the scheduled_at datetime based on post kind."""

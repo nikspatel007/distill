@@ -74,7 +74,7 @@ class TestPostizBlogPublisher:
             "Weekly prose", "twitter", "weekly", editorial_hint=""
         )
         mock_client.create_post.assert_called_once_with(
-            "Adapted tweet", ["int-1"], post_type="draft", scheduled_at=None
+            "Adapted tweet", ["int-1"], post_type="draft", scheduled_at=None, images=[]
         )
         assert "twitter" in result
         assert "Adapted tweet" in result
@@ -224,6 +224,81 @@ class TestPostizBlogPublisher:
         call_args = mock_client.create_post.call_args
         assert call_args[1]["post_type"] == "draft"
         assert call_args[1]["scheduled_at"] is None
+
+
+class TestAppendBlogLink:
+    """Tests for PostizBlogPublisher._append_blog_link static method."""
+
+    def test_appends_read_more_for_linkedin(self):
+        result = PostizBlogPublisher._append_blog_link(
+            "My LinkedIn post", "linkedin", "https://blog.example.com/post"
+        )
+        assert result.endswith("\n\nRead the full post: https://blog.example.com/post")
+
+    def test_appends_url_to_last_tweet_in_thread(self):
+        thread = "First tweet\n---\nSecond tweet\n---\nLast tweet"
+        result = PostizBlogPublisher._append_blog_link(
+            thread, "x", "https://blog.example.com/post"
+        )
+        assert "https://blog.example.com/post" in result
+        # URL should be in the last segment
+        parts = result.rsplit("\n---\n", 1)
+        assert "blog.example.com" in parts[-1]
+
+    def test_appends_url_for_single_tweet(self):
+        result = PostizBlogPublisher._append_blog_link(
+            "Single tweet", "twitter", "https://blog.example.com/post"
+        )
+        assert result == "Single tweet\n\nhttps://blog.example.com/post"
+
+    def test_no_url_returns_original(self):
+        result = PostizBlogPublisher._append_blog_link("Content", "linkedin", None)
+        assert result == "Content"
+
+    def test_empty_url_returns_original(self):
+        result = PostizBlogPublisher._append_blog_link("Content", "linkedin", "")
+        assert result == "Content"
+
+    @patch("distill.integrations.mapping.resolve_integration_ids")
+    @patch("distill.integrations.postiz.PostizClient")
+    def test_blog_url_included_in_push(self, mock_client_cls, mock_resolve):
+        """When blog_url is provided, it's included in the adapted content."""
+        mock_client = MagicMock()
+        mock_client_cls.return_value = mock_client
+        mock_client.create_post.return_value = {"id": "post-1"}
+        mock_resolve.return_value = {"linkedin": ["int-1"]}
+
+        config = PostizConfig(url="https://postiz.test", api_key="key")
+        pub = PostizBlogPublisher(postiz_config=config, target_platforms=["linkedin"])
+        result = pub.format_weekly(
+            MagicMock(), "Weekly prose", blog_url="https://blog.example.com/w07"
+        )
+
+        # The blog URL should appear in the result
+        assert "https://blog.example.com/w07" in result
+        # The content pushed to create_post should contain the URL
+        call_content = mock_client.create_post.call_args[0][0]
+        assert "blog.example.com" in call_content
+
+    @patch("distill.integrations.mapping.resolve_integration_ids")
+    @patch("distill.integrations.postiz.PostizClient")
+    def test_feature_image_passed_to_api(self, mock_client_cls, mock_resolve):
+        """When feature_image_url is provided, it's passed as images to create_post."""
+        mock_client = MagicMock()
+        mock_client_cls.return_value = mock_client
+        mock_client.create_post.return_value = {}
+        mock_resolve.return_value = {"linkedin": ["int-1"]}
+
+        config = PostizConfig(url="https://postiz.test", api_key="key")
+        pub = PostizBlogPublisher(postiz_config=config, target_platforms=["linkedin"])
+        pub.format_weekly(
+            MagicMock(),
+            "Weekly prose",
+            feature_image_url="https://ghost.example.com/image.png",
+        )
+
+        call_kwargs = mock_client.create_post.call_args[1]
+        assert call_kwargs["images"] == ["https://ghost.example.com/image.png"]
 
 
 class TestPostizIntakePublisher:

@@ -208,6 +208,8 @@ class GhostPublisher(BlogPublisher):
     def __init__(self, ghost_config: GhostConfig | None = None) -> None:
         self._config = ghost_config
         self._api: GhostAPIClient | None = None
+        self.last_post_url: str | None = None
+        self.last_feature_image_url: str | None = None
         if ghost_config and ghost_config.is_configured:
             self._api = GhostAPIClient(ghost_config)
 
@@ -377,7 +379,6 @@ class GhostPublisher(BlogPublisher):
                 )
                 post = self._api.publish_with_newsletter(post["id"], self._config.newsletter_slug)
                 logger.info("Published '%s' to Ghost with newsletter", title)
-                return post
             else:
                 # Single step: create as published or draft
                 status = "published" if self._config.auto_publish else "draft"
@@ -385,7 +386,10 @@ class GhostPublisher(BlogPublisher):
                     title, prose, tags, status=status, feature_image=feature_image_url
                 )
                 logger.info("Published '%s' to Ghost as %s", title, status)
-                return post
+            # Capture canonical URL and feature image for downstream publishers
+            self.last_post_url = post.get("url") or None
+            self.last_feature_image_url = post.get("feature_image") or feature_image_url
+            return post
         except (urllib.error.URLError, Exception):
             logger.warning("Failed to publish '%s' to Ghost API", title, exc_info=True)
             return None

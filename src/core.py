@@ -742,15 +742,13 @@ def generate_blog_posts(
     if platforms is None:
         platforms = ["obsidian"]
 
-    # Load Postiz config once for all publisher calls
-    postiz_config = None
-    if "postiz" in platforms:
-        from distill.integrations.postiz import PostizConfig as _PostizConfig
-
-        postiz_config = _PostizConfig.from_env()
-
     # Load project context and editorial store
     distill_config = load_config()
+
+    # Load Postiz config from TOML (with env var overlay) once for all publisher calls
+    postiz_config = None
+    if "postiz" in platforms:
+        postiz_config = distill_config.to_postiz_config()
     project_context = distill_config.render_project_context()
     editorial_store = EditorialStore(output_dir)
 
@@ -1011,20 +1009,16 @@ def _generate_weekly_posts(
         except Exception:
             logger.warning("Blog memory extraction failed for %s", slug)
 
-        # Publish to each platform
+        # Two-phase publishing: content publishers first, then social
+        # Phase 1: File + CMS publishers (captures Ghost URL for social linking)
+        ghost_post_url: str | None = None
+        ghost_feature_image_url: str | None = None
         for platform_name in platforms:
-            # Dedup: skip if already published to this platform
+            if platform_name == "postiz":
+                continue  # handled in phase 2
             if not force and blog_memory.is_published_to(slug, platform_name):
                 logger.debug("Already published %s to %s, skipping", slug, platform_name)
                 continue
-
-            # Rate-limit Postiz pushes
-            if platform_name == "postiz" and postiz_limit is not None:
-                current = postiz_counter[0] if postiz_counter else 0
-                if current >= postiz_limit:
-                    logger.info("Postiz limit reached (%d), skipping %s", postiz_limit, slug)
-                    continue
-
             try:
                 p = Platform(platform_name)
                 publisher = create_publisher(
@@ -1041,10 +1035,40 @@ def _generate_weekly_posts(
                 _atomic_write(out_path, content)
                 written.append(out_path)
                 blog_memory.mark_published(slug, platform_name)
-                if platform_name == "postiz" and postiz_counter is not None:
-                    postiz_counter[0] += 1
+                # Capture Ghost URL for social publishers
+                if platform_name == "ghost":
+                    ghost_post_url = getattr(publisher, "last_post_url", None)
+                    ghost_feature_image_url = getattr(publisher, "last_feature_image_url", None)
             except Exception:
                 logger.warning("Failed to publish %s to %s", slug, platform_name, exc_info=True)
+
+        # Phase 2: Social publishers (Postiz) — with blog URL + image
+        if "postiz" in platforms:
+            if not force and blog_memory.is_published_to(slug, "postiz"):
+                logger.debug("Already published %s to postiz, skipping", slug)
+            elif postiz_limit is not None and postiz_counter and postiz_counter[0] >= postiz_limit:
+                logger.info("Postiz limit reached (%d), skipping %s", postiz_limit, slug)
+            else:
+                try:
+                    publisher = create_publisher(
+                        Platform("postiz"),
+                        synthesizer=synthesizer,
+                        postiz_config=postiz_config,
+                    )
+                    content = publisher.format_weekly(
+                        context,
+                        prose,
+                        blog_url=ghost_post_url,
+                        feature_image_url=ghost_feature_image_url,
+                    )
+                    out_path = publisher.weekly_output_path(output_dir, year, week)
+                    _atomic_write(out_path, content)
+                    written.append(out_path)
+                    blog_memory.mark_published(slug, "postiz")
+                    if postiz_counter is not None:
+                        postiz_counter[0] += 1
+                except Exception:
+                    logger.warning("Failed to publish %s to postiz", slug, exc_info=True)
 
         state.mark_generated(
             BlogPostRecord(
@@ -1628,20 +1652,16 @@ def _generate_thematic_posts(
         except Exception:
             logger.warning("Blog memory extraction failed for %s", theme.slug)
 
-        # Publish to each platform
+        # Two-phase publishing: content publishers first, then social
+        # Phase 1: File + CMS publishers
+        ghost_post_url: str | None = None
+        ghost_feature_image_url: str | None = None
         for platform_name in platforms:
-            # Dedup: skip if already published to this platform
+            if platform_name == "postiz":
+                continue  # handled in phase 2
             if not force and blog_memory.is_published_to(theme.slug, platform_name):
                 logger.debug("Already published %s to %s, skipping", theme.slug, platform_name)
                 continue
-
-            # Rate-limit Postiz pushes
-            if platform_name == "postiz" and postiz_limit is not None:
-                current = postiz_counter[0] if postiz_counter else 0
-                if current >= postiz_limit:
-                    logger.info("Postiz limit reached (%d), skipping %s", postiz_limit, theme.slug)
-                    continue
-
             try:
                 p = Platform(platform_name)
                 publisher = create_publisher(
@@ -1658,12 +1678,41 @@ def _generate_thematic_posts(
                 _atomic_write(out_path, content)
                 written.append(out_path)
                 blog_memory.mark_published(theme.slug, platform_name)
-                if platform_name == "postiz" and postiz_counter is not None:
-                    postiz_counter[0] += 1
+                if platform_name == "ghost":
+                    ghost_post_url = getattr(publisher, "last_post_url", None)
+                    ghost_feature_image_url = getattr(publisher, "last_feature_image_url", None)
             except Exception:
                 logger.warning(
                     "Failed to publish %s to %s", theme.slug, platform_name, exc_info=True
                 )
+
+        # Phase 2: Social publishers (Postiz) — with blog URL + image
+        if "postiz" in platforms:
+            if not force and blog_memory.is_published_to(theme.slug, "postiz"):
+                logger.debug("Already published %s to postiz, skipping", theme.slug)
+            elif postiz_limit is not None and postiz_counter and postiz_counter[0] >= postiz_limit:
+                logger.info("Postiz limit reached (%d), skipping %s", postiz_limit, theme.slug)
+            else:
+                try:
+                    publisher = create_publisher(
+                        Platform("postiz"),
+                        synthesizer=synthesizer,
+                        postiz_config=postiz_config,
+                    )
+                    content = publisher.format_thematic(
+                        context,
+                        prose,
+                        blog_url=ghost_post_url,
+                        feature_image_url=ghost_feature_image_url,
+                    )
+                    out_path = publisher.thematic_output_path(output_dir, theme.slug)
+                    _atomic_write(out_path, content)
+                    written.append(out_path)
+                    blog_memory.mark_published(theme.slug, "postiz")
+                    if postiz_counter is not None:
+                        postiz_counter[0] += 1
+                except Exception:
+                    logger.warning("Failed to publish %s to postiz", theme.slug, exc_info=True)
 
         state.mark_generated(
             BlogPostRecord(
@@ -1785,5 +1834,184 @@ def _generate_reading_list_posts(
                 file_path=str(written[-1]) if written else "",
             )
         )
+
+    return written
+
+
+# --- Daily social post generation ---
+
+DAILY_SOCIAL_STATE_FILENAME = ".daily-social-state.json"
+
+
+class DailySocialState(BaseModel):
+    """Tracks the day counter for the daily social series."""
+
+    day_number: int = 0
+    last_posted_date: str = ""  # YYYY-MM-DD
+    series_name: str = "100 days of building in public"
+
+
+def _load_daily_social_state(output_dir: Path) -> DailySocialState:
+    state_path = output_dir / "blog" / DAILY_SOCIAL_STATE_FILENAME
+    if not state_path.exists():
+        return DailySocialState()
+    try:
+        import json
+
+        data = json.loads(state_path.read_text(encoding="utf-8"))
+        return DailySocialState.model_validate(data)
+    except (Exception,):
+        return DailySocialState()
+
+
+def _save_daily_social_state(state: DailySocialState, output_dir: Path) -> None:
+    state_path = output_dir / "blog" / DAILY_SOCIAL_STATE_FILENAME
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.write_text(state.model_dump_json(indent=2), encoding="utf-8")
+
+
+def generate_daily_social(
+    output_dir: Path,
+    *,
+    postiz_config: Any | None = None,
+    model: str | None = None,
+    dry_run: bool = False,
+    force: bool = False,
+    target_date: date | None = None,
+) -> list[Path]:
+    """Generate a daily social post from today's journal entry.
+
+    Reads the most recent journal entry and adapts it into a short LinkedIn
+    post using the DAILY_SOCIAL_PROMPT. Pushes to Postiz as a scheduled post
+    for the next morning.
+
+    The day counter persists across runs via .daily-social-state.json.
+
+    Args:
+        output_dir: Root output directory (contains journal/ and blog/).
+        postiz_config: PostizConfig for scheduling. If None, daily social is skipped.
+        model: Optional Claude model override.
+        dry_run: Preview without calling LLM or Postiz.
+        force: Regenerate even if already posted today.
+        target_date: Specific date to generate for (defaults to today).
+
+    Returns:
+        List of written file paths.
+    """
+    from distill.blog.config import BlogConfig
+    from distill.blog.prompts import DAILY_SOCIAL_PROMPT
+    from distill.blog.reader import JournalReader
+    from distill.blog.synthesizer import BlogSynthesizer
+
+    if postiz_config is None:
+        return []
+
+    if not getattr(postiz_config, "daily_social_enabled", False):
+        return []
+
+    today = target_date or date.today()
+    state = _load_daily_social_state(output_dir)
+
+    # Skip if already posted today (unless forced)
+    if not force and state.last_posted_date == today.isoformat():
+        logger.debug("Daily social already posted for %s", today)
+        return []
+
+    series_length = getattr(postiz_config, "daily_social_series_length", 100)
+    if state.day_number >= series_length:
+        logger.info("Daily social series complete (%d days)", series_length)
+        return []
+
+    # Read today's journal entry
+    reader = JournalReader()
+    journal_dir = output_dir / "journal"
+    entries = reader.read_all(journal_dir)
+    if not entries:
+        logger.warning("No journal entries found for daily social")
+        return []
+
+    # Find entry for target date, or the most recent one
+    today_entry = None
+    for entry in reversed(entries):
+        if entry.date == today:
+            today_entry = entry
+            break
+    if today_entry is None:
+        # Fall back to most recent entry
+        today_entry = entries[-1]
+        if (today - today_entry.date).days > 2:
+            logger.warning("No recent journal entry for daily social (latest: %s)", today_entry.date)
+            return []
+
+    day_number = state.day_number + 1
+
+    if dry_run:
+        print(f"[DRY RUN] Would generate daily social post: Day {day_number}/{series_length}")
+        print(f"  Journal entry: {today_entry.date}")
+        return []
+
+    # Synthesize the daily social post
+    config = BlogConfig(model=model)
+    synthesizer = BlogSynthesizer(config)
+
+    # Build prompt with day counter
+    system_prompt = (
+        f"Day {day_number}/{series_length} of the series.\n\n"
+        f"{DAILY_SOCIAL_PROMPT}"
+    )
+    post_content = synthesizer._call_claude(
+        system_prompt, today_entry.prose, f"daily-social-{today.isoformat()}"
+    )
+
+    written: list[Path] = []
+
+    # Write to file
+    slug = f"daily-social-{today.isoformat()}"
+    out_dir = output_dir / "blog" / "daily-social"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"{slug}.md"
+    _atomic_write(out_path, post_content)
+    written.append(out_path)
+
+    # Push to Postiz if configured
+    if postiz_config.is_configured and postiz_config.schedule_enabled:
+        try:
+            from distill.integrations.mapping import resolve_integration_ids
+            from distill.integrations.postiz import PostizClient
+            from distill.integrations.scheduling import next_daily_social_slot
+
+            client = PostizClient(postiz_config)
+            platforms = getattr(postiz_config, "daily_social_platforms", ["linkedin"])
+            integration_map = resolve_integration_ids(client, platforms)
+
+            all_ids: list[str] = []
+            for ids in integration_map.values():
+                all_ids.extend(ids)
+
+            if all_ids:
+                scheduled_at = next_daily_social_slot(postiz_config)
+                client.create_post(
+                    post_content,
+                    all_ids,
+                    post_type="schedule",
+                    scheduled_at=scheduled_at,
+                )
+                logger.info(
+                    "Daily social Day %d scheduled for %s to %s",
+                    day_number,
+                    scheduled_at,
+                    platforms,
+                )
+            else:
+                logger.warning(
+                    "No Postiz integrations found for daily social platforms: %s", platforms
+                )
+        except Exception:
+            logger.warning("Failed to push daily social to Postiz", exc_info=True)
+
+    # Update state
+    state.day_number = day_number
+    state.last_posted_date = today.isoformat()
+    _save_daily_social_state(state, output_dir)
 
     return written

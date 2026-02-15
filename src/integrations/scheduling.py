@@ -114,6 +114,30 @@ def next_thematic_slot(
     return fallback.isoformat()
 
 
+def next_daily_social_slot(config: PostizConfig, reference: datetime | None = None) -> str:
+    """Compute the next daily social post slot.
+
+    Schedules for tomorrow at ``config.daily_social_time``, always looking
+    one day ahead so content posted today goes out the next morning.
+
+    Args:
+        config: Postiz configuration with scheduling fields.
+        reference: Reference datetime (defaults to now in config timezone).
+
+    Returns:
+        ISO 8601 datetime string with timezone offset.
+    """
+    tz = ZoneInfo(config.timezone)
+    now = reference or datetime.now(tz)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=tz)
+
+    target_time = _parse_time(config.daily_social_time)
+    slot = now + timedelta(days=1)
+    slot = slot.replace(hour=target_time.hour, minute=target_time.minute, second=0, microsecond=0)
+    return slot.isoformat()
+
+
 def next_intake_slot(config: PostizConfig, reference: datetime | None = None) -> str:
     """Compute the next intake digest slot (same-day evening or next day).
 

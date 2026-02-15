@@ -55,12 +55,16 @@ class PostizConfig(BaseModel):
     default_type: str = "draft"  # "draft" | "schedule" | "now"
     slack_channel: str = ""  # Slack channel name (optional)
     schedule_enabled: bool = False
-    timezone: str = "America/New_York"
+    timezone: str = "America/Chicago"
     weekly_time: str = "09:00"
     weekly_day: int = 0  # Monday
     thematic_time: str = "09:00"
     thematic_days: list[int] = [1, 2, 3]  # Tue, Wed, Thu
     intake_time: str = "17:00"
+    daily_social_time: str = "08:00"
+    daily_social_platforms: list[str] = ["linkedin"]
+    daily_social_enabled: bool = False
+    daily_social_series_length: int = 100
 
     @property
     def is_configured(self) -> bool:
@@ -83,18 +87,34 @@ class PostizConfig(BaseModel):
         if thematic_days_raw:
             thematic_days = [int(d.strip()) for d in thematic_days_raw.split(",") if d.strip()]
 
+        daily_social_raw = os.environ.get("POSTIZ_DAILY_SOCIAL_ENABLED", "")
+        daily_social_enabled = daily_social_raw.lower() in ("true", "1", "yes")
+
+        daily_social_platforms_raw = os.environ.get("POSTIZ_DAILY_SOCIAL_PLATFORMS", "")
+        daily_social_platforms = ["linkedin"]
+        if daily_social_platforms_raw:
+            daily_social_platforms = [
+                p.strip() for p in daily_social_platforms_raw.split(",") if p.strip()
+            ]
+
         return cls(
             url=os.environ.get("POSTIZ_URL", ""),
             api_key=os.environ.get("POSTIZ_API_KEY", ""),
             default_type=os.environ.get("POSTIZ_DEFAULT_TYPE", "draft"),
             slack_channel=os.environ.get("POSTIZ_SLACK_CHANNEL", ""),
             schedule_enabled=schedule_enabled,
-            timezone=os.environ.get("POSTIZ_TIMEZONE", "America/New_York"),
+            timezone=os.environ.get("POSTIZ_TIMEZONE", "America/Chicago"),
             weekly_time=os.environ.get("POSTIZ_WEEKLY_TIME", "09:00"),
             weekly_day=int(os.environ.get("POSTIZ_WEEKLY_DAY", "0")),
             thematic_time=os.environ.get("POSTIZ_THEMATIC_TIME", "09:00"),
             thematic_days=thematic_days,
             intake_time=os.environ.get("POSTIZ_INTAKE_TIME", "17:00"),
+            daily_social_time=os.environ.get("POSTIZ_DAILY_SOCIAL_TIME", "08:00"),
+            daily_social_platforms=daily_social_platforms,
+            daily_social_enabled=daily_social_enabled,
+            daily_social_series_length=int(
+                os.environ.get("POSTIZ_DAILY_SOCIAL_SERIES_LENGTH", "100")
+            ),
         )
 
 
@@ -163,6 +183,7 @@ class PostizClient:
         post_type: str | None = None,
         scheduled_at: str | None = None,
         provider_type: str | None = None,
+        images: list[str] | None = None,
     ) -> dict[str, object]:
         """Create a post (draft, scheduled, or immediate).
 
@@ -201,7 +222,11 @@ class PostizClient:
                 if channel:
                     settings["channel"] = channel
             # X threads: split numbered tweets into separate value entries
-            value = _split_thread(content) if prov == "x" else [{"content": content, "image": []}]
+            img_list = list(images) if images else []
+            value = _split_thread(content) if prov == "x" else [{"content": content, "image": img_list}]
+            # Attach images to the first entry of threads
+            if prov == "x" and value and img_list:
+                value[0]["image"] = img_list
             post: dict[str, object] = {
                 "integration": {"id": iid},
                 "value": value,

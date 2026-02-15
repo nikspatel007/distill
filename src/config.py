@@ -78,6 +78,12 @@ class IntakeSectionConfig(BaseModel):
     publishers: list[str] = Field(default_factory=lambda: ["obsidian"])
 
 
+class GraphSectionConfig(BaseModel):
+    """[graph] section."""
+
+    agent_prompt_patterns: list[str] = Field(default_factory=list)
+
+
 class GhostSectionConfig(BaseModel):
     """[ghost] section."""
 
@@ -108,12 +114,16 @@ class PostizSectionConfig(BaseModel):
     api_key: str = ""
     default_type: str = "draft"
     schedule_enabled: bool = False
-    timezone: str = "America/New_York"
+    timezone: str = "America/Chicago"
     weekly_time: str = "09:00"
     weekly_day: int = 0
     thematic_time: str = "09:00"
     thematic_days: list[int] = Field(default_factory=lambda: [1, 2, 3])
     intake_time: str = "17:00"
+    daily_social_time: str = "08:00"
+    daily_social_platforms: list[str] = Field(default_factory=lambda: ["linkedin"])
+    daily_social_enabled: bool = False
+    daily_social_series_length: int = 100
     slack_channel: str = ""
 
 
@@ -138,6 +148,7 @@ class DistillConfig(BaseModel):
     journal: JournalSectionConfig = Field(default_factory=JournalSectionConfig)
     blog: BlogSectionConfig = Field(default_factory=BlogSectionConfig)
     intake: IntakeSectionConfig = Field(default_factory=IntakeSectionConfig)
+    graph: GraphSectionConfig = Field(default_factory=GraphSectionConfig)
     ghost: GhostSectionConfig = Field(default_factory=GhostSectionConfig)
     reddit: RedditSectionConfig = Field(default_factory=RedditSectionConfig)
     youtube: YouTubeSectionConfig = Field(default_factory=YouTubeSectionConfig)
@@ -201,6 +212,28 @@ class DistillConfig(BaseModel):
             admin_api_key=self.ghost.admin_api_key,
             newsletter_slug=self.ghost.newsletter_slug,
             auto_publish=self.ghost.auto_publish,
+        )
+
+    def to_postiz_config(self) -> object:
+        """Convert to PostizConfig for the Postiz integration."""
+        from distill.integrations.postiz import PostizConfig
+
+        return PostizConfig(
+            url=self.postiz.url,
+            api_key=self.postiz.api_key,
+            default_type=self.postiz.default_type,
+            schedule_enabled=self.postiz.schedule_enabled,
+            timezone=self.postiz.timezone,
+            weekly_time=self.postiz.weekly_time,
+            weekly_day=self.postiz.weekly_day,
+            thematic_time=self.postiz.thematic_time,
+            thematic_days=list(self.postiz.thematic_days),
+            intake_time=self.postiz.intake_time,
+            daily_social_time=self.postiz.daily_social_time,
+            daily_social_platforms=list(self.postiz.daily_social_platforms),
+            daily_social_enabled=self.postiz.daily_social_enabled,
+            daily_social_series_length=self.postiz.daily_social_series_length,
+            slack_channel=self.postiz.slack_channel,
         )
 
     def to_notification_config(self) -> NotificationConfig:
@@ -350,6 +383,7 @@ def _apply_env_vars(config: DistillConfig) -> DistillConfig:
         ("POSTIZ_WEEKLY_TIME", "weekly_time"),
         ("POSTIZ_THEMATIC_TIME", "thematic_time"),
         ("POSTIZ_INTAKE_TIME", "intake_time"),
+        ("POSTIZ_DAILY_SOCIAL_TIME", "daily_social_time"),
     ]:
         val = os.environ.get(key)
         if val is not None:
@@ -362,6 +396,18 @@ def _apply_env_vars(config: DistillConfig) -> DistillConfig:
         data["postiz"]["thematic_days"] = [
             int(d.strip()) for d in tdays_raw.split(",") if d.strip()
         ]
+
+    daily_enabled_raw = os.environ.get("POSTIZ_DAILY_SOCIAL_ENABLED")
+    if daily_enabled_raw is not None:
+        data["postiz"]["daily_social_enabled"] = daily_enabled_raw.lower() in ("true", "1", "yes")
+    daily_platforms_raw = os.environ.get("POSTIZ_DAILY_SOCIAL_PLATFORMS")
+    if daily_platforms_raw is not None:
+        data["postiz"]["daily_social_platforms"] = [
+            p.strip() for p in daily_platforms_raw.split(",") if p.strip()
+        ]
+    daily_length_raw = os.environ.get("POSTIZ_DAILY_SOCIAL_SERIES_LENGTH")
+    if daily_length_raw is not None:
+        data["postiz"]["daily_social_series_length"] = int(daily_length_raw)
 
     # Global model env var overrides all sections
     global_model = os.environ.get("DISTILL_MODEL")

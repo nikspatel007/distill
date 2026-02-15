@@ -50,7 +50,7 @@ class TestPostizConfig:
         assert cfg.url == ""
         assert cfg.default_type == "draft"
         assert cfg.schedule_enabled is False
-        assert cfg.timezone == "America/New_York"
+        assert cfg.timezone == "America/Chicago"
 
     def test_schedule_fields(self):
         cfg = PostizConfig(
