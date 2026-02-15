@@ -1000,6 +1000,9 @@ def _generate_weekly_posts(
         if config.include_diagrams:
             prose = clean_diagrams(prose)
 
+        # Generate images for the blog post
+        feature_image_path = _generate_blog_images(prose, output_dir, slug)
+
         # Extract blog memory from canonical prose
         try:
             title = f"Week {year}-W{week:02d}"
@@ -1030,7 +1033,10 @@ def _generate_weekly_posts(
                     ghost_config=ghost_config,
                     postiz_config=postiz_config,
                 )
-                content = publisher.format_weekly(context, prose)
+                kwargs: dict = {}
+                if platform_name == "ghost" and feature_image_path:
+                    kwargs["feature_image_path"] = feature_image_path
+                content = publisher.format_weekly(context, prose, **kwargs)
                 out_path = publisher.weekly_output_path(output_dir, year, week)
                 _atomic_write(out_path, content)
                 written.append(out_path)
@@ -1096,6 +1102,55 @@ def generate_images(
             paths[idx] = f"images/{filename}"
 
     return prompts, paths
+
+
+def _generate_blog_images(
+    prose: str,
+    output_dir: Path,
+    slug: str,
+) -> Path | None:
+    """Generate images for a blog post and insert them into the prose.
+
+    Extracts image prompts via Claude, generates via Google Gemini,
+    and returns the hero image path for use as Ghost feature image.
+    Returns None if image generation is not configured or fails.
+    """
+    try:
+        from distill.images import ImageGenerator
+        from distill.intake.images import extract_image_prompts, insert_images_into_prose
+
+        generator = ImageGenerator()
+        if not generator.is_configured():
+            return None
+
+        prompts = extract_image_prompts(prose)
+        if not prompts:
+            return None
+
+        images_dir = output_dir / "blog" / "images"
+        paths: dict[int, str] = {}
+        hero_path: Path | None = None
+
+        for idx, prompt in enumerate(prompts):
+            suffix = "hero" if prompt.role == "hero" else str(idx)
+            filename = f"{slug}-{suffix}.png"
+            aspect = "16:9" if prompt.role == "hero" else "3:2"
+
+            result = generator.generate(
+                prompt.prompt,
+                output_path=images_dir / filename,
+                aspect_ratio=aspect,
+                mood=getattr(prompt, "mood", None),
+            )
+            if result:
+                paths[idx] = f"images/{filename}"
+                if prompt.role == "hero":
+                    hero_path = result
+
+        return hero_path
+    except Exception:
+        logger.warning("Blog image generation failed for %s", slug, exc_info=True)
+        return None
 
 
 def generate_intake(
@@ -1563,6 +1618,9 @@ def _generate_thematic_posts(
         if config.include_diagrams:
             prose = clean_diagrams(prose)
 
+        # Generate images for the blog post
+        feature_image_path = _generate_blog_images(prose, output_dir, theme.slug)
+
         # Extract blog memory
         try:
             summary = synthesizer.extract_blog_memory(prose, theme.slug, theme.title, "thematic")
@@ -1592,7 +1650,10 @@ def _generate_thematic_posts(
                     ghost_config=ghost_config,
                     postiz_config=postiz_config,
                 )
-                content = publisher.format_thematic(context, prose)
+                kwargs_t: dict = {}
+                if platform_name == "ghost" and feature_image_path:
+                    kwargs_t["feature_image_path"] = feature_image_path
+                content = publisher.format_thematic(context, prose, **kwargs_t)
                 out_path = publisher.thematic_output_path(output_dir, theme.slug)
                 _atomic_write(out_path, content)
                 written.append(out_path)

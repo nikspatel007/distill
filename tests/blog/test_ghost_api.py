@@ -361,3 +361,143 @@ class TestCreatePublisherWithGhostConfig:
         pub = create_publisher("obsidian", ghost_config=cfg)
         # ObsidianPublisher should work fine, ghost_config is ignored
         assert not isinstance(pub, GhostPublisher)
+
+
+# ── H1 stripping (title dedup fix) ──────────────────────────────────────
+
+
+class TestStripLeadingH1:
+    def test_strips_h1_from_beginning(self):
+        pub = GhostPublisher()
+        prose = "# My Great Title\n\nSome body text.\n\n## Section\n\nMore text."
+        result = pub._strip_leading_h1(prose)
+        assert not result.startswith("# My Great Title")
+        assert "Some body text." in result
+        assert "## Section" in result
+
+    def test_preserves_h2_headings(self):
+        pub = GhostPublisher()
+        prose = "## Not an H1\n\nBody text."
+        result = pub._strip_leading_h1(prose)
+        assert result == prose
+
+    def test_handles_blank_lines_before_h1(self):
+        pub = GhostPublisher()
+        prose = "\n\n# Title After Blanks\n\nBody."
+        result = pub._strip_leading_h1(prose)
+        assert "# Title After Blanks" not in result
+        assert "Body." in result
+
+    def test_no_h1_returns_unchanged(self):
+        pub = GhostPublisher()
+        prose = "Just some text without any heading."
+        result = pub._strip_leading_h1(prose)
+        assert result == prose
+
+    def test_does_not_strip_later_h1(self):
+        """Only the leading H1 should be stripped, not H1s in the body."""
+        pub = GhostPublisher()
+        prose = "Intro paragraph.\n\n# Later H1\n\nBody."
+        result = pub._strip_leading_h1(prose)
+        assert "# Later H1" in result
+
+
+# ── Mermaid conversion ───────────────────────────────────────────────────
+
+
+class TestConvertMermaidToImages:
+    def test_converts_mermaid_block_to_image(self):
+        pub = GhostPublisher()
+        prose = "Before\n\n```mermaid\ngraph LR\n    A --> B\n```\n\nAfter"
+        result = pub._convert_mermaid_to_images(prose)
+        assert "```mermaid" not in result
+        assert "mermaid.ink/img/" in result
+        assert "![diagram](" in result
+        assert "Before" in result
+        assert "After" in result
+
+    def test_converts_multiple_mermaid_blocks(self):
+        pub = GhostPublisher()
+        prose = (
+            "```mermaid\ngraph LR\n    A --> B\n```\n\n"
+            "Text between.\n\n"
+            "```mermaid\nsequenceDiagram\n    A->>B: Hello\n```"
+        )
+        result = pub._convert_mermaid_to_images(prose)
+        assert result.count("mermaid.ink/img/") == 2
+        assert "```mermaid" not in result
+
+    def test_no_mermaid_returns_unchanged(self):
+        pub = GhostPublisher()
+        prose = "No diagrams here.\n\n```python\nprint('hello')\n```"
+        result = pub._convert_mermaid_to_images(prose)
+        assert result == prose
+
+    def test_mermaid_url_is_valid_base64(self):
+        import base64
+
+        pub = GhostPublisher()
+        code = "graph LR\n    A --> B"
+        prose = f"```mermaid\n{code}\n```"
+        result = pub._convert_mermaid_to_images(prose)
+        # Extract the base64 from the URL
+        url_match = result.split("mermaid.ink/img/")[1].split(")")[0]
+        decoded = base64.urlsafe_b64decode(url_match).decode("utf-8")
+        assert decoded == code
+
+
+# ── API publish applies fixes ────────────────────────────────────────────
+
+
+class TestPublishToAPIAppliesFixes:
+    """Verify that _publish_to_api strips H1 and converts mermaid."""
+
+    def test_api_receives_stripped_h1_and_converted_mermaid(self):
+        cfg = GhostConfig(
+            url="https://blog.example.com",
+            admin_api_key=f"{_TEST_KEY_ID}:{_TEST_SECRET_HEX}",
+        )
+        pub = GhostPublisher(ghost_config=cfg)
+        pub._api = MagicMock()
+        pub._api.create_post.return_value = {"id": "1", "status": "draft"}
+
+        content = (
+            '<!-- ghost-meta: {"title": "Test Post", "tags": ["test"]} -->\n\n'
+            "# Test Post\n\n"
+            "Intro paragraph.\n\n"
+            "```mermaid\ngraph LR\n    A --> B\n```\n\n"
+            "Conclusion."
+        )
+        pub._publish_to_api(content)
+
+        call_args = pub._api.create_post.call_args
+        markdown_sent = call_args[0][1]  # second positional arg
+        # H1 should be stripped
+        assert "# Test Post" not in markdown_sent
+        # Mermaid should be converted
+        assert "```mermaid" not in markdown_sent
+        assert "mermaid.ink/img/" in markdown_sent
+        # Content should remain
+        assert "Intro paragraph." in markdown_sent
+        assert "Conclusion." in markdown_sent
+
+    def test_api_receives_feature_image(self):
+        cfg = GhostConfig(
+            url="https://blog.example.com",
+            admin_api_key=f"{_TEST_KEY_ID}:{_TEST_SECRET_HEX}",
+        )
+        pub = GhostPublisher(ghost_config=cfg)
+        pub._api = MagicMock()
+        pub._api.create_post.return_value = {"id": "1", "status": "draft"}
+        pub._api.upload_image.return_value = "https://blog.example.com/content/images/hero.png"
+
+        content = '<!-- ghost-meta: {"title": "Test", "tags": []} -->\n\nBody text.'
+        fake_image = Path("/tmp/test-hero.png")
+        fake_image.write_bytes(b"fake-png-data")
+        try:
+            pub._publish_to_api(content, feature_image_path=fake_image)
+            pub._api.upload_image.assert_called_once_with(fake_image)
+            call_args = pub._api.create_post.call_args
+            assert call_args[1].get("feature_image") == "https://blog.example.com/content/images/hero.png"
+        finally:
+            fake_image.unlink(missing_ok=True)

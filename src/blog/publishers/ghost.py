@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
+import re
 import time
 import urllib.error
 import urllib.request
@@ -209,16 +211,28 @@ class GhostPublisher(BlogPublisher):
         if ghost_config and ghost_config.is_configured:
             self._api = GhostAPIClient(ghost_config)
 
-    def format_weekly(self, context: WeeklyBlogContext, prose: str) -> str:
+    def format_weekly(
+        self,
+        context: WeeklyBlogContext,
+        prose: str,
+        *,
+        feature_image_path: Path | None = None,
+    ) -> str:
         meta = self._weekly_meta(context)
         content = meta + prose + "\n"
-        self._publish_to_api(content)
+        self._publish_to_api(content, feature_image_path=feature_image_path)
         return content
 
-    def format_thematic(self, context: ThematicBlogContext, prose: str) -> str:
+    def format_thematic(
+        self,
+        context: ThematicBlogContext,
+        prose: str,
+        *,
+        feature_image_path: Path | None = None,
+    ) -> str:
         meta = self._thematic_meta(context)
         content = meta + prose + "\n"
-        self._publish_to_api(content)
+        self._publish_to_api(content, feature_image_path=feature_image_path)
         return content
 
     def weekly_output_path(self, output_dir: Path, year: int, week: int) -> Path:
@@ -287,8 +301,49 @@ class GhostPublisher(BlogPublisher):
         except (IndexError, json.JSONDecodeError):
             return {}
 
-    def _publish_to_api(self, content: str) -> dict | None:
+    @staticmethod
+    def _strip_leading_h1(prose: str) -> str:
+        """Remove the first H1 heading line from prose.
+
+        Ghost renders the title from API metadata, so leaving the H1 in the
+        markdown body causes the title to appear twice.
+        """
+        lines = prose.split("\n")
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if stripped.startswith("# ") and not stripped.startswith("## "):
+                return "\n".join(lines[:i] + lines[i + 1 :]).lstrip("\n")
+            break  # first non-blank line is not H1, stop
+        return prose
+
+    _MERMAID_RE = re.compile(r"```mermaid\s*\n(.*?)```", re.DOTALL)
+
+    @classmethod
+    def _convert_mermaid_to_images(cls, prose: str) -> str:
+        """Replace ```mermaid blocks with mermaid.ink image URLs.
+
+        Ghost doesn't render mermaid natively, so we convert each block
+        to an image via the mermaid.ink service (base64-encoded).
+        """
+
+        def _replace(match: re.Match[str]) -> str:
+            code = match.group(1).strip()
+            encoded = base64.urlsafe_b64encode(code.encode("utf-8")).decode("ascii")
+            url = f"https://mermaid.ink/img/{encoded}"
+            return f"![diagram]({url})"
+
+        return cls._MERMAID_RE.sub(_replace, prose)
+
+    def _publish_to_api(
+        self, content: str, *, feature_image_path: Path | None = None
+    ) -> dict | None:
         """Publish content to Ghost API if configured.
+
+        Args:
+            content: Full post content with ghost-meta comment.
+            feature_image_path: Optional local image to upload as feature image.
 
         Returns the API response dict, or None if not configured or on error.
         """
@@ -304,18 +359,31 @@ class GhostPublisher(BlogPublisher):
 
         # Strip the ghost-meta comment from content before publishing
         prose = content.split("-->\n\n", 1)[-1] if "-->\n\n" in content else content
+        # Strip H1 heading (Ghost renders title from metadata)
+        prose = self._strip_leading_h1(prose)
+        # Convert mermaid code blocks to rendered images
+        prose = self._convert_mermaid_to_images(prose)
+
+        # Upload feature image if provided
+        feature_image_url: str | None = None
+        if feature_image_path and feature_image_path.exists():
+            feature_image_url = self._api.upload_image(feature_image_path)
 
         try:
             if self._config.newsletter_slug:
                 # Two-step: create draft, then publish with newsletter
-                post = self._api.create_post(title, prose, tags, status="draft")
+                post = self._api.create_post(
+                    title, prose, tags, status="draft", feature_image=feature_image_url
+                )
                 post = self._api.publish_with_newsletter(post["id"], self._config.newsletter_slug)
                 logger.info("Published '%s' to Ghost with newsletter", title)
                 return post
             else:
                 # Single step: create as published or draft
                 status = "published" if self._config.auto_publish else "draft"
-                post = self._api.create_post(title, prose, tags, status=status)
+                post = self._api.create_post(
+                    title, prose, tags, status=status, feature_image=feature_image_url
+                )
                 logger.info("Published '%s' to Ghost as %s", title, status)
                 return post
         except (urllib.error.URLError, Exception):
