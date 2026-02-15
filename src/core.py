@@ -1943,37 +1943,48 @@ def generate_daily_social(
             logger.warning("No recent journal entry for daily social (latest: %s)", today_entry.date)
             return []
 
-    day_number = state.day_number + 1
+    # When forcing a re-run for the same date, reuse the existing day number
+    if force and state.last_posted_date == today.isoformat():
+        day_number = state.day_number
+    else:
+        day_number = state.day_number + 1
 
     if dry_run:
         print(f"[DRY RUN] Would generate daily social post: Day {day_number}/{series_length}")
         print(f"  Journal entry: {today_entry.date}")
         return []
 
-    # Synthesize the daily social post
+    # Synthesize per-platform content
+    from distill.blog.prompts import DAILY_SOCIAL_PROMPTS
+
     config = BlogConfig(model=model)
     synthesizer = BlogSynthesizer(config)
+    platforms = getattr(postiz_config, "daily_social_platforms", ["linkedin"])
 
-    # Build prompt with day counter
-    system_prompt = (
-        f"Day {day_number}/{series_length} of the series.\n\n"
-        f"{DAILY_SOCIAL_PROMPT}"
-    )
-    post_content = synthesizer._call_claude(
-        system_prompt, today_entry.prose, f"daily-social-{today.isoformat()}"
-    )
+    day_prefix = f"Day {day_number}/{series_length} of the series.\n\n"
+    platform_content: dict[str, str] = {}
+    for platform in platforms:
+        # Map Postiz provider names to prompt keys
+        prompt_key = {"x": "twitter"}.get(platform, platform)
+        prompt = DAILY_SOCIAL_PROMPTS.get(prompt_key, DAILY_SOCIAL_PROMPTS["linkedin"])
+        system_prompt = day_prefix + prompt
+        platform_content[platform] = synthesizer._call_claude(
+            system_prompt, today_entry.prose, f"daily-social-{platform}-{today.isoformat()}"
+        )
 
     written: list[Path] = []
 
-    # Write to file
+    # Write files per platform
     slug = f"daily-social-{today.isoformat()}"
     out_dir = output_dir / "blog" / "daily-social"
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"{slug}.md"
-    _atomic_write(out_path, post_content)
-    written.append(out_path)
+    for platform, content in platform_content.items():
+        suffix = f"-{platform}" if len(platforms) > 1 else ""
+        out_path = out_dir / f"{slug}{suffix}.md"
+        _atomic_write(out_path, content)
+        written.append(out_path)
 
-    # Push to Postiz if configured
+    # Push to Postiz per platform (separate calls so each gets its own content)
     if postiz_config.is_configured and postiz_config.schedule_enabled:
         try:
             from distill.integrations.mapping import resolve_integration_ids
@@ -1981,30 +1992,28 @@ def generate_daily_social(
             from distill.integrations.scheduling import next_daily_social_slot
 
             client = PostizClient(postiz_config)
-            platforms = getattr(postiz_config, "daily_social_platforms", ["linkedin"])
             integration_map = resolve_integration_ids(client, platforms)
+            scheduled_at = next_daily_social_slot(postiz_config)
 
-            all_ids: list[str] = []
-            for ids in integration_map.values():
-                all_ids.extend(ids)
-
-            if all_ids:
-                scheduled_at = next_daily_social_slot(postiz_config)
+            for platform in platforms:
+                ids = integration_map.get(platform, [])
+                if not ids:
+                    logger.warning("No Postiz integration for %s, skipping", platform)
+                    continue
+                content = platform_content.get(platform, "")
+                if not content:
+                    continue
                 client.create_post(
-                    post_content,
-                    all_ids,
+                    content,
+                    ids,
                     post_type="schedule",
                     scheduled_at=scheduled_at,
                 )
                 logger.info(
-                    "Daily social Day %d scheduled for %s to %s",
+                    "Daily social Day %d (%s) scheduled for %s",
                     day_number,
+                    platform,
                     scheduled_at,
-                    platforms,
-                )
-            else:
-                logger.warning(
-                    "No Postiz integrations found for daily social platforms: %s", platforms
                 )
         except Exception:
             logger.warning("Failed to push daily social to Postiz", exc_info=True)

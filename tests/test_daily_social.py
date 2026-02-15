@@ -175,7 +175,8 @@ class TestGenerateDailySocial:
         )
 
         # The prompt is the last positional arg to subprocess.run's first arg (the cmd list)
-        call_args = mock_run.call_args[0][0]  # cmd list
+        # With multi-platform, there may be multiple calls; check the first one
+        call_args = mock_run.call_args_list[0][0][0]  # first call, cmd list
         full_prompt = call_args[-1]  # last element is the prompt
         assert "Day 42/100" in full_prompt
 
@@ -228,6 +229,10 @@ class TestGenerateDailySocial:
         )
 
         assert len(result) == 1
+
+        # Day counter should NOT increment on force re-gen of same date
+        updated = _load_daily_social_state(tmp_path)
+        assert updated.day_number == 5
 
     @patch("distill.blog.synthesizer.subprocess.run")
     def test_falls_back_to_recent_entry(self, mock_run, tmp_path):
