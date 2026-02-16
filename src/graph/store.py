@@ -58,9 +58,15 @@ class GraphStore:
             self._nodes[key] = node
             return node
 
-        # Merge timestamps
-        first_seen = min(existing.first_seen, node.first_seen)
-        last_seen = max(existing.last_seen, node.last_seen)
+        # Merge timestamps (ensure both are tz-aware for comparison)
+        from datetime import UTC
+
+        e_first = existing.first_seen if existing.first_seen.tzinfo else existing.first_seen.replace(tzinfo=UTC)
+        n_first = node.first_seen if node.first_seen.tzinfo else node.first_seen.replace(tzinfo=UTC)
+        e_last = existing.last_seen if existing.last_seen.tzinfo else existing.last_seen.replace(tzinfo=UTC)
+        n_last = node.last_seen if node.last_seen.tzinfo else node.last_seen.replace(tzinfo=UTC)
+        first_seen = min(e_first, n_first)
+        last_seen = max(e_last, n_last)
 
         # Merge properties (existing + new, new wins on conflict)
         merged_props = {**existing.properties, **node.properties}

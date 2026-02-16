@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import logging
-import subprocess
 
 from distill.intake.config import IntakeConfig
 from distill.intake.context import DailyIntakeContext
 from distill.intake.prompts import get_daily_intake_prompt, get_unified_intake_prompt
+from distill.llm import LLMError, call_claude
 
 logger = logging.getLogger(__name__)
 
@@ -41,11 +41,15 @@ class IntakeSynthesizer:
                 memory_context=memory_context,
                 has_sessions=context.has_sessions,
                 has_seeds=context.has_seeds,
+                user_name=self._config.user_name,
+                user_role=self._config.user_role,
             )
         else:
             system_prompt = get_daily_intake_prompt(
                 target_word_count=self._config.target_word_count,
                 memory_context=memory_context,
+                user_name=self._config.user_name,
+                user_role=self._config.user_role,
             )
         user_prompt = context.combined_text
         return self._call_claude(system_prompt, user_prompt, f"intake {context.date.isoformat()}")
@@ -53,36 +57,16 @@ class IntakeSynthesizer:
     def _call_claude(self, system_prompt: str, user_prompt: str, label: str) -> str:
         """Call Claude CLI with prompt piped via stdin.
 
-        Uses stdin to avoid OS argument length limits when the prompt
-        is very large (e.g. hundreds of RSS articles).
+        Delegates to the shared call_claude() and translates LLMError
+        to IntakeSynthesisError.
         """
-        full_prompt = f"{system_prompt}\n\n---\n\n{user_prompt}"
-
-        cmd: list[str] = ["claude", "-p"]
-        if self._config.model:
-            cmd.extend(["--model", self._config.model])
-
-        logger.debug("Calling Claude CLI for intake synthesis (%s)", label)
-
         try:
-            result = subprocess.run(
-                cmd,
-                input=full_prompt,
-                capture_output=True,
-                text=True,
+            return call_claude(
+                system_prompt,
+                user_prompt,
+                model=self._config.model,
                 timeout=self._config.claude_timeout,
+                label=label,
             )
-        except FileNotFoundError as e:
-            raise IntakeSynthesisError("Claude CLI not found -- is 'claude' on the PATH?") from e
-        except subprocess.TimeoutExpired as e:
-            raise IntakeSynthesisError(
-                f"Claude CLI timed out after {self._config.claude_timeout}s"
-            ) from e
-        except OSError as e:
-            raise IntakeSynthesisError(f"Failed to run Claude CLI: {e}") from e
-
-        if result.returncode != 0:
-            err_text = result.stderr.strip() if result.stderr else ""
-            raise IntakeSynthesisError(f"Claude CLI exited {result.returncode}: {err_text}")
-
-        return result.stdout.strip()
+        except LLMError as exc:
+            raise IntakeSynthesisError(str(exc)) from exc

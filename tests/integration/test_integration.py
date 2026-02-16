@@ -1,4 +1,4 @@
-"""Integration tests for the session-insights CLI and pipeline."""
+"""Integration tests for the distill CLI and pipeline."""
 
 import json
 import os
@@ -312,7 +312,7 @@ class TestCLIExitCodes:
         # Allow either 0 or 1 (typer raises Exit on version)
         assert result.returncode in (0, 1)
         # Should contain version info
-        assert "session-insights" in _strip_ansi(result.stdout) or "0.1.0" in _strip_ansi(result.stdout)
+        assert "distill" in _strip_ansi(result.stdout) or "0.1.0" in _strip_ansi(result.stdout)
 
     def test_cli_default_output(self, cli_path: Path, tmp_path: Path) -> None:
         """Test CLI exits cleanly when no sessions found in empty directory."""

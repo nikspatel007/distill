@@ -1,9 +1,10 @@
 """Configuration models for blog generation."""
 
-import os
 from enum import StrEnum
 
 from pydantic import BaseModel, Field
+
+from distill.integrations.ghost import GhostConfig  # noqa: F401 — re-export
 
 
 class BlogPostType(StrEnum):
@@ -24,28 +25,6 @@ class Platform(StrEnum):
     LINKEDIN = "linkedin"
     REDDIT = "reddit"
     POSTIZ = "postiz"
-
-
-class GhostConfig(BaseModel):
-    """Configuration for Ghost CMS publishing."""
-
-    url: str = ""
-    admin_api_key: str = ""
-    newsletter_slug: str = ""
-    auto_publish: bool = True
-
-    @property
-    def is_configured(self) -> bool:
-        return bool(self.url and self.admin_api_key)
-
-    @classmethod
-    def from_env(cls) -> "GhostConfig":
-        """Create config from environment variables."""
-        return cls(
-            url=os.environ.get("GHOST_URL", ""),
-            admin_api_key=os.environ.get("GHOST_ADMIN_API_KEY", ""),
-            newsletter_slug=os.environ.get("GHOST_NEWSLETTER_SLUG", ""),
-        )
 
 
 class BlogConfig(BaseModel):

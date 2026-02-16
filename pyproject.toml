@@ -25,6 +25,7 @@ dependencies = [
     "pyjwt>=2.0",
     "feedparser>=6.0",
     "trafilatura>=1.6",
+    "python-dotenv>=1.0",
 ]
 
 [project.urls]
@@ -76,9 +77,11 @@ build-backend = "setuptools.build_meta"
 packages = [
     "distill",
     "distill.analyzers",
+    "distill.pipeline",
     "distill.blog",
     "distill.blog.publishers",
     "distill.formatters",
+    "distill.graph",
     "distill.intake",
     "distill.intake.parsers",
     "distill.intake.publishers",

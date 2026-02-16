@@ -2,7 +2,7 @@
 
 import json
 from datetime import date
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -17,6 +17,7 @@ from distill.journal.memory import (
     save_memory,
 )
 from distill.journal.synthesizer import JournalSynthesizer, SynthesisError
+from distill.llm import LLMError
 
 
 def _make_entry(day: int = 5, **kwargs) -> DailyMemoryEntry:
@@ -271,26 +272,22 @@ class TestContextInjection:
 class TestExtractMemory:
     """Tests for JournalSynthesizer.extract_memory()."""
 
-    @patch("distill.journal.synthesizer.subprocess.run")
-    def test_extracts_valid_memory(self, mock_run):
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout=json.dumps({
-                "themes": ["debugging", "recovery"],
-                "key_insights": ["Direct merges are safer"],
-                "decisions_made": ["Switch to direct-to-main"],
-                "open_questions": ["Rate limiting?"],
-                "tomorrow_intentions": ["Start recovery"],
-                "threads": [
-                    {
-                        "name": "merge-issue",
-                        "summary": "Merges drop code",
-                        "status": "open",
-                    }
-                ],
-            }),
-            stderr="",
-        )
+    @patch("distill.llm.call_claude")
+    def test_extracts_valid_memory(self, mock_call):
+        mock_call.return_value = json.dumps({
+            "themes": ["debugging", "recovery"],
+            "key_insights": ["Direct merges are safer"],
+            "decisions_made": ["Switch to direct-to-main"],
+            "open_questions": ["Rate limiting?"],
+            "tomorrow_intentions": ["Start recovery"],
+            "threads": [
+                {
+                    "name": "merge-issue",
+                    "summary": "Merges drop code",
+                    "status": "open",
+                }
+            ],
+        })
         config = JournalConfig()
         synthesizer = JournalSynthesizer(config)
         entry, threads = synthesizer.extract_memory(
@@ -304,71 +301,56 @@ class TestExtractMemory:
         assert threads[0].name == "merge-issue"
         assert threads[0].first_mentioned == date(2026, 2, 5)
 
-    @patch("distill.journal.synthesizer.subprocess.run")
-    def test_strips_markdown_fences(self, mock_run):
+    @patch("distill.llm.call_claude")
+    def test_strips_markdown_fences(self, mock_call):
         fenced = '```json\n{"themes": ["test"], "key_insights": [], "decisions_made": [], "open_questions": [], "tomorrow_intentions": [], "threads": []}\n```'
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout=fenced, stderr=""
-        )
+        mock_call.return_value = fenced
         config = JournalConfig()
         synthesizer = JournalSynthesizer(config)
         entry, threads = synthesizer.extract_memory("prose", date(2026, 2, 5))
         assert entry.themes == ["test"]
 
-    @patch("distill.journal.synthesizer.subprocess.run")
-    def test_invalid_json_raises(self, mock_run):
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="not json at all", stderr=""
-        )
+    @patch("distill.llm.call_claude")
+    def test_invalid_json_raises(self, mock_call):
+        mock_call.return_value = "not json at all"
         config = JournalConfig()
         synthesizer = JournalSynthesizer(config)
         with pytest.raises(SynthesisError, match="invalid JSON"):
             synthesizer.extract_memory("prose", date(2026, 2, 5))
 
-    @patch("distill.journal.synthesizer.subprocess.run")
-    def test_cli_failure_raises(self, mock_run):
-        mock_run.return_value = MagicMock(
-            returncode=1, stdout="", stderr="error"
-        )
+    @patch("distill.llm.call_claude")
+    def test_cli_failure_raises(self, mock_call):
+        mock_call.side_effect = LLMError("Claude CLI failed (exit 1): error")
         config = JournalConfig()
         synthesizer = JournalSynthesizer(config)
-        with pytest.raises(SynthesisError, match="exited 1"):
+        with pytest.raises(SynthesisError, match="exit 1"):
             synthesizer.extract_memory("prose", date(2026, 2, 5))
 
-    @patch("distill.journal.synthesizer.subprocess.run")
-    def test_empty_threads(self, mock_run):
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout=json.dumps({
-                "themes": ["testing"],
-                "key_insights": [],
-                "decisions_made": [],
-                "open_questions": [],
-                "tomorrow_intentions": [],
-                "threads": [],
-            }),
-            stderr="",
-        )
+    @patch("distill.llm.call_claude")
+    def test_empty_threads(self, mock_call):
+        mock_call.return_value = json.dumps({
+            "themes": ["testing"],
+            "key_insights": [],
+            "decisions_made": [],
+            "open_questions": [],
+            "tomorrow_intentions": [],
+            "threads": [],
+        })
         config = JournalConfig()
         synthesizer = JournalSynthesizer(config)
         entry, threads = synthesizer.extract_memory("prose", date(2026, 2, 5))
         assert entry.themes == ["testing"]
         assert threads == []
 
-    @patch("distill.journal.synthesizer.subprocess.run")
-    def test_passes_model_flag(self, mock_run):
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout=json.dumps({
-                "themes": [], "key_insights": [], "decisions_made": [],
-                "open_questions": [], "tomorrow_intentions": [], "threads": [],
-            }),
-            stderr="",
-        )
+    @patch("distill.llm.call_claude")
+    def test_passes_model_flag(self, mock_call):
+        mock_call.return_value = json.dumps({
+            "themes": [], "key_insights": [], "decisions_made": [],
+            "open_questions": [], "tomorrow_intentions": [], "threads": [],
+        })
         config = JournalConfig(model="claude-haiku-4-5-20251001")
         synthesizer = JournalSynthesizer(config)
         synthesizer.extract_memory("prose", date(2026, 2, 5))
 
-        cmd = mock_run.call_args[0][0]
-        assert "--model" in cmd
-        assert "claude-haiku-4-5-20251001" in cmd
+        _, kwargs = mock_call.call_args
+        assert kwargs["model"] == "claude-haiku-4-5-20251001"

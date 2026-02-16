@@ -1,4 +1,4 @@
-"""End-to-end CLI subprocess tests for session-insights.
+"""End-to-end CLI subprocess tests for Distill.
 
 These tests invoke the CLI as a real subprocess and validate output,
 exit codes, and generated filesystem artifacts.
@@ -27,7 +27,7 @@ SRC_DIR = str(Path(__file__).parents[2] / "src")
 
 
 def _run_cli(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
-    """Run the session-insights CLI as a subprocess.
+    """Run the distill CLI as a subprocess.
 
     Args:
         *args: CLI arguments (e.g., "analyze", "--dir", "/tmp/x").
@@ -86,7 +86,7 @@ def sample_claude_history(tmp_path: Path) -> Path:
 
 
 class TestCLIEndToEnd:
-    """End-to-end subprocess tests for the session-insights CLI."""
+    """End-to-end subprocess tests for the distill CLI."""
 
     def test_help_output(self, tmp_path: Path) -> None:
         """Verify --help returns expected commands."""

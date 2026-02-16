@@ -8,7 +8,7 @@ import re
 from datetime import date
 from pathlib import Path
 
-from distill.blog.config import GhostConfig
+from distill.integrations.ghost import GhostConfig
 from distill.intake.context import DailyIntakeContext
 from distill.intake.publishers.base import IntakePublisher
 
@@ -40,7 +40,7 @@ class GhostIntakePublisher(IntakePublisher):
         self._output_dir = output_dir
         self._api: object | None = None
         if ghost_config and ghost_config.is_configured:
-            from distill.blog.publishers.ghost import GhostAPIClient
+            from distill.integrations.ghost import GhostAPIClient
 
             self._api = GhostAPIClient(ghost_config)
 

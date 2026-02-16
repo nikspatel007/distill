@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import subprocess
 from datetime import date
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -15,6 +14,7 @@ from distill.intake.publishers.twitter import (
     TWITTER_SYSTEM_PROMPT,
     TwitterIntakePublisher,
 )
+from distill.llm import LLMError
 
 
 def _ctx() -> DailyIntakeContext:
@@ -46,79 +46,55 @@ class TestTwitterIntakePublisher:
         path = pub.daily_output_path(Path("/output"), date(2025, 12, 31))
         assert path == Path("/output/intake/social/twitter/twitter-2025-12-31.md")
 
-    @patch("distill.intake.publishers.twitter.subprocess.run")
-    def test_format_daily_calls_claude_cli(self, mock_run: MagicMock):
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout="1/ Hook tweet\n\n2/ Second tweet\n\n3/ Final tweet with CTA",
-            stderr="",
-        )
+    @patch("distill.llm.call_claude")
+    def test_format_daily_calls_claude(self, mock_call: MagicMock):
+        mock_call.return_value = "1/ Hook tweet\n\n2/ Second tweet\n\n3/ Final tweet with CTA"
         pub = TwitterIntakePublisher()
         result = pub.format_daily(_ctx(), "Some digest prose.")
 
-        mock_run.assert_called_once()
-        call_args = mock_run.call_args
-        assert call_args[0][0] == ["claude", "-p"]
-        assert call_args[1]["text"] is True
-        assert call_args[1]["capture_output"] is True
-        assert TWITTER_SYSTEM_PROMPT in call_args[1]["input"]
-        assert "Some digest prose." in call_args[1]["input"]
+        mock_call.assert_called_once()
+        args = mock_call.call_args[0]
+        assert TWITTER_SYSTEM_PROMPT in args[0]
+        assert "Some digest prose." in args[1]
         assert result == "1/ Hook tweet\n\n2/ Second tweet\n\n3/ Final tweet with CTA"
 
-    @patch("distill.intake.publishers.twitter.subprocess.run")
-    def test_format_daily_strips_output(self, mock_run: MagicMock):
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout="  1/ Thread content  \n\n",
-            stderr="",
-        )
+    @patch("distill.llm.call_claude")
+    def test_format_daily_returns_output(self, mock_call: MagicMock):
+        mock_call.return_value = "1/ Thread content"
         pub = TwitterIntakePublisher()
         result = pub.format_daily(_ctx(), "Prose.")
         assert result == "1/ Thread content"
 
-    @patch("distill.intake.publishers.twitter.subprocess.run")
-    def test_format_daily_returns_empty_on_nonzero_exit(self, mock_run: MagicMock):
-        mock_run.return_value = MagicMock(
-            returncode=1,
-            stdout="",
-            stderr="Error: something went wrong",
-        )
+    @patch("distill.llm.call_claude")
+    def test_format_daily_returns_empty_on_llm_error(self, mock_call: MagicMock):
+        mock_call.side_effect = LLMError("Claude CLI failed (exit 1): Error")
         pub = TwitterIntakePublisher()
         result = pub.format_daily(_ctx(), "Prose.")
         assert result == ""
 
-    @patch("distill.intake.publishers.twitter.subprocess.run")
-    def test_format_daily_returns_empty_on_file_not_found(self, mock_run: MagicMock):
-        mock_run.side_effect = FileNotFoundError("claude not found")
+    @patch("distill.llm.call_claude")
+    def test_format_daily_returns_empty_on_file_not_found(self, mock_call: MagicMock):
+        mock_call.side_effect = LLMError("Claude CLI not found")
         pub = TwitterIntakePublisher()
         result = pub.format_daily(_ctx(), "Prose.")
         assert result == ""
 
-    @patch("distill.intake.publishers.twitter.subprocess.run")
-    def test_format_daily_returns_empty_on_timeout(self, mock_run: MagicMock):
-        mock_run.side_effect = subprocess.TimeoutExpired(cmd="claude", timeout=120)
+    @patch("distill.llm.call_claude")
+    def test_format_daily_returns_empty_on_timeout(self, mock_call: MagicMock):
+        mock_call.side_effect = LLMError("Claude CLI timed out after 120s")
         pub = TwitterIntakePublisher()
         result = pub.format_daily(_ctx(), "Prose.")
         assert result == ""
 
-    @patch("distill.intake.publishers.twitter.subprocess.run")
-    def test_format_daily_returns_empty_on_os_error(self, mock_run: MagicMock):
-        mock_run.side_effect = OSError("permission denied")
-        pub = TwitterIntakePublisher()
-        result = pub.format_daily(_ctx(), "Prose.")
-        assert result == ""
-
-    @patch("distill.intake.publishers.twitter.subprocess.run")
-    def test_format_daily_prompt_contains_system_and_prose(self, mock_run: MagicMock):
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout="1/ Thread",
-            stderr="",
-        )
+    @patch("distill.llm.call_claude")
+    def test_format_daily_prompt_contains_system_and_prose(self, mock_call: MagicMock):
+        mock_call.return_value = "1/ Thread"
         pub = TwitterIntakePublisher()
         pub.format_daily(_ctx(), "My digest content here.")
 
-        sent_input = mock_run.call_args[1]["input"]
-        assert "Convert this daily research digest" in sent_input
-        assert "280 characters" in sent_input
-        assert "My digest content here." in sent_input
+        args = mock_call.call_args[0]
+        system_prompt = args[0]
+        user_prompt = args[1]
+        assert "Convert this daily research digest" in system_prompt
+        assert "280 characters" in system_prompt
+        assert "My digest content here." in user_prompt

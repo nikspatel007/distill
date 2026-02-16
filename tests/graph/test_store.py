@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from distill.graph.models import EdgeType, GraphEdge, GraphNode, NodeType
 from distill.graph.store import GRAPH_STORE_FILENAME, GraphStore
@@ -21,9 +21,9 @@ class TestUpsertNode:
 
     def test_updates_last_seen_keeps_earliest_first_seen(self):
         store = GraphStore()
-        early = datetime(2026, 1, 1)
-        mid = datetime(2026, 1, 15)
-        late = datetime(2026, 2, 1)
+        early = datetime(2026, 1, 1, tzinfo=UTC)
+        mid = datetime(2026, 1, 15, tzinfo=UTC)
+        late = datetime(2026, 2, 1, tzinfo=UTC)
 
         node1 = GraphNode(
             node_type=NodeType.ENTITY,

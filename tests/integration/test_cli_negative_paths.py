@@ -1,4 +1,4 @@
-"""Negative-path CLI tests for session-insights robustness.
+"""Negative-path CLI tests for distill robustness.
 
 Tests cover: malformed input files, missing directories, permission errors,
 empty session files, edge cases, and --global flag discovery behavior.

@@ -1,3 +1,11 @@
+[user]
+name = "Nik"
+role = "solo founder"
+
+[social]
+brand_hashtags = ["#TroopX", "#BuildInPublic"]
+secondary_hashtags = ["#AgenticAI", "#DistillAI"]
+
 [[projects]]
 name = "Distill"
 description = "Content pipeline that transforms raw AI coding sessions into publishable content. Ingests from 8 sources (sessions, RSS, browser, Gmail, LinkedIn, Reddit, YouTube, Substack), synthesizes journal entries and blog posts, and publishes across platforms via Postiz."
@@ -42,3 +50,4 @@ daily_social_project = "TroopX"   # Focus posts on this project
 
 [ghost]
 auto_publish = true
+blog_as_draft = true             # weekly/thematic blog posts land as drafts; intake digests still auto-publish

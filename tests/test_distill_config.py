@@ -51,6 +51,18 @@ class TestDistillConfigDefaults:
 class TestLoadConfig:
     """Test load_config with TOML files."""
 
+    @pytest.fixture(autouse=True)
+    def _clean_env(self, monkeypatch):
+        """Remove env vars that _apply_env_vars reads so tests see TOML values."""
+        for key in (
+            "GHOST_URL", "GHOST_ADMIN_API_KEY", "GHOST_NEWSLETTER_SLUG",
+            "REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET", "REDDIT_USERNAME",
+            "YOUTUBE_API_KEY", "DISTILL_OUTPUT_DIR", "DISTILL_MODEL",
+            "DISTILL_SLACK_WEBHOOK", "DISTILL_NTFY_URL", "DISTILL_NTFY_TOPIC",
+            "POSTIZ_URL", "POSTIZ_API_KEY", "POSTIZ_SLACK_CHANNEL",
+        ):
+            monkeypatch.delenv(key, raising=False)
+
     def test_load_from_explicit_path(self, tmp_path):
         toml_path = tmp_path / ".distill.toml"
         toml_path.write_text(

@@ -412,6 +412,7 @@ export const ProjectDetailSchema = z.object({
 	journals: z.array(JournalEntrySchema),
 	blogs: z.array(BlogPostSchema),
 	projectNoteContent: z.string().nullable(),
+	projectJournals: z.array(JournalEntrySchema).default([]),
 });
 
 // --- Save (edit) ---

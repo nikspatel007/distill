@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from distill.intake.publishers.base import IntakePublisher
 
 if TYPE_CHECKING:
-    from distill.blog.config import GhostConfig
+    from distill.integrations.ghost import GhostConfig
 
 
 def create_intake_publisher(

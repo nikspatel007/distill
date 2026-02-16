@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import subprocess
 from datetime import date
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -12,6 +11,7 @@ import pytest
 from distill.intake.context import DailyIntakeContext
 from distill.intake.publishers.base import IntakePublisher
 from distill.intake.publishers.reddit import REDDIT_SYSTEM_PROMPT, RedditIntakePublisher
+from distill.llm import LLMError
 
 
 def _ctx() -> DailyIntakeContext:
@@ -43,64 +43,42 @@ class TestRedditIntakePublisher:
         path = pub.daily_output_path(Path("/out"), date(2025, 12, 31))
         assert path == Path("/out/intake/social/reddit/reddit-2025-12-31.md")
 
-    @patch("distill.intake.publishers.reddit.subprocess.run")
-    def test_format_daily_calls_subprocess(self, mock_run: MagicMock):
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout="**TL;DR** Great stuff\n\nReddit post body.",
-            stderr="",
-        )
+    @patch("distill.llm.call_claude")
+    def test_format_daily_calls_claude(self, mock_call: MagicMock):
+        mock_call.return_value = "**TL;DR** Great stuff\n\nReddit post body."
         pub = RedditIntakePublisher()
         result = pub.format_daily(_ctx(), "Daily digest prose.")
 
-        mock_run.assert_called_once_with(
-            ["claude", "-p"],
-            input=f"{REDDIT_SYSTEM_PROMPT}\n\n---\n\nDaily digest prose.",
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
+        mock_call.assert_called_once()
+        args = mock_call.call_args[0]
+        assert REDDIT_SYSTEM_PROMPT in args[0]
+        assert "Daily digest prose." in args[1]
         assert result == "**TL;DR** Great stuff\n\nReddit post body."
 
-    @patch("distill.intake.publishers.reddit.subprocess.run")
-    def test_format_daily_returns_stripped_output(self, mock_run: MagicMock):
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout="  Reddit post with whitespace  \n\n",
-            stderr="",
-        )
+    @patch("distill.llm.call_claude")
+    def test_format_daily_returns_output(self, mock_call: MagicMock):
+        mock_call.return_value = "Reddit post with whitespace"
         pub = RedditIntakePublisher()
         result = pub.format_daily(_ctx(), "Prose.")
         assert result == "Reddit post with whitespace"
 
-    @patch("distill.intake.publishers.reddit.subprocess.run")
-    def test_format_daily_nonzero_exit_returns_empty(self, mock_run: MagicMock):
-        mock_run.return_value = MagicMock(
-            returncode=1,
-            stdout="",
-            stderr="Error: something went wrong",
-        )
+    @patch("distill.llm.call_claude")
+    def test_format_daily_llm_error_returns_empty(self, mock_call: MagicMock):
+        mock_call.side_effect = LLMError("Claude CLI failed (exit 1): Error")
         pub = RedditIntakePublisher()
         result = pub.format_daily(_ctx(), "Prose.")
         assert result == ""
 
-    @patch("distill.intake.publishers.reddit.subprocess.run")
-    def test_format_daily_file_not_found_returns_empty(self, mock_run: MagicMock):
-        mock_run.side_effect = FileNotFoundError("claude not found")
+    @patch("distill.llm.call_claude")
+    def test_format_daily_file_not_found_returns_empty(self, mock_call: MagicMock):
+        mock_call.side_effect = LLMError("Claude CLI not found")
         pub = RedditIntakePublisher()
         result = pub.format_daily(_ctx(), "Prose.")
         assert result == ""
 
-    @patch("distill.intake.publishers.reddit.subprocess.run")
-    def test_format_daily_timeout_returns_empty(self, mock_run: MagicMock):
-        mock_run.side_effect = subprocess.TimeoutExpired(cmd="claude", timeout=120)
-        pub = RedditIntakePublisher()
-        result = pub.format_daily(_ctx(), "Prose.")
-        assert result == ""
-
-    @patch("distill.intake.publishers.reddit.subprocess.run")
-    def test_format_daily_os_error_returns_empty(self, mock_run: MagicMock):
-        mock_run.side_effect = OSError("permission denied")
+    @patch("distill.llm.call_claude")
+    def test_format_daily_timeout_returns_empty(self, mock_call: MagicMock):
+        mock_call.side_effect = LLMError("Claude CLI timed out after 120s")
         pub = RedditIntakePublisher()
         result = pub.format_daily(_ctx(), "Prose.")
         assert result == ""

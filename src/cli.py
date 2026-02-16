@@ -1,13 +1,19 @@
-"""CLI interface for session-insights."""
+"""CLI interface for Distill."""
 
 import contextlib
 import json
+import logging
 from collections.abc import Generator
 from datetime import date, datetime
 from pathlib import Path
 from typing import Annotated
 
 import typer
+
+logging.basicConfig(
+    level=logging.WARNING,
+    format="%(levelname)s: %(message)s",
+)
 from distill.core import (
     AnalysisResult,
     analyze,
@@ -27,8 +33,8 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 app = typer.Typer(
-    name="session-insights",
-    help="Analyze AI coding assistant sessions and generate Obsidian notes.",
+    name="distill",
+    help="Content pipeline: sessions → journal → blog → social.",
 )
 
 console = Console()
@@ -54,7 +60,7 @@ def version_callback(value: bool) -> None:
     if value:
         from distill import __version__
 
-        console.print(f"session-insights {__version__}")
+        console.print(f"distill {__version__}")
         raise typer.Exit()
 
 
@@ -172,11 +178,17 @@ def _run_bare_command(
 @app.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context,
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Enable verbose/debug logging.",
+    ),
     version: Annotated[
         bool,
         typer.Option(
             "--version",
-            "-v",
+            "-V",
             help="Show version and exit.",
             callback=version_callback,
             is_eager=True,
@@ -226,6 +238,21 @@ def main(
     When run without a subcommand, initializes config, runs the full pipeline,
     and starts the web dashboard.
     """
+    # Load .env before any config is read
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except ImportError:
+        pass
+
+    if verbose:
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format="%(levelname)s: %(name)s: %(message)s",
+            force=True,
+        )
+
     if ctx.invoked_subcommand is not None:
         return
 
@@ -1102,6 +1129,11 @@ def blog_cmd(
 
     _blog_cfg = _load_blog_config()
 
+    # Build Ghost config from CLI options / env vars
+    from distill.integrations.ghost import GhostConfig
+
+    ghost_config = GhostConfig.from_env()
+
     if publish:
         platform_names = [p.strip() for p in publish.split(",")]
         valid_platforms = [p.value for p in Platform]
@@ -1121,11 +1153,6 @@ def blog_cmd(
         postiz_cfg = _blog_cfg.to_postiz_config()
         if postiz_cfg.is_configured and "postiz" not in platform_names:
             platform_names.append("postiz")
-
-    # Build Ghost config from CLI options / env vars
-    from distill.blog.config import GhostConfig
-
-    ghost_config = GhostConfig.from_env()
     if ghost_url:
         ghost_config.url = ghost_url
     if ghost_key:
@@ -1375,7 +1402,7 @@ def intake_cmd(
     publisher_list = [p.strip() for p in publish.split(",")] if publish else None
 
     # Build Ghost config from CLI options / env vars
-    from distill.blog.config import GhostConfig
+    from distill.integrations.ghost import GhostConfig
 
     gc = GhostConfig.from_env()
     if ghost_url:
@@ -1564,7 +1591,7 @@ def run_cmd(
     _project_context = _cfg.render_project_context()
 
     # Build Ghost config
-    from distill.blog.config import GhostConfig
+    from distill.integrations.ghost import GhostConfig
 
     gc = GhostConfig.from_env()
     if ghost_url:
@@ -1718,6 +1745,7 @@ def run_cmd(
                     platforms=platform_names,
                     ghost_config=ghost_cfg,
                     report=report,
+                    postiz_limit=2,  # cap Postiz pushes per run to avoid flooding
                 )
                 all_written.extend(written)
                 report.items_processed["blog"] = len(written)

@@ -6,6 +6,8 @@ from __future__ import annotations
 def get_daily_intake_prompt(
     target_word_count: int = 800,
     memory_context: str = "",
+    user_name: str = "",
+    user_role: str = "software engineer",
 ) -> str:
     """Build the system prompt for daily intake synthesis."""
     memory_section = ""
@@ -21,8 +23,10 @@ a forced callback.
 {memory_context}
 """
 
+    identity = f"You are {user_name}, a {user_role}" if user_name else f"You are a {user_role}"
+
     return f"""You are writing a personal essay about today's reading.
-You are Nik, a software engineer and builder. This is your reading log,
+{identity} and builder. This is your reading log,
 written for an audience of peers who care about software, AI, and
 building things.
 
@@ -89,6 +93,8 @@ def get_unified_intake_prompt(
     memory_context: str = "",
     has_sessions: bool = False,
     has_seeds: bool = False,
+    user_name: str = "",
+    user_role: str = "software engineer",
 ) -> str:
     """Build the system prompt for unified daily synthesis.
 
@@ -127,8 +133,10 @@ naturally when relevant, not as a forced callback.
     if content_guidance:
         guidance_block = "\n## Today's Material\n\n" + "\n\n".join(content_guidance) + "\n"
 
-    return f"""You are writing a personal daily essay. You are Nik, a software
-engineer who builds things, reads widely, and thinks out loud.
+    identity = f"You are {user_name}, a {user_role}" if user_name else f"You are a {user_role}"
+
+    return f"""You are writing a personal daily essay. {identity}
+who builds things, reads widely, and thinks out loud.
 This is your daily log, written for an audience of peers.
 
 ## Task

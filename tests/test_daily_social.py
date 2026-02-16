@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from distill.core import (
+from distill.pipeline.social import (
     DAILY_SOCIAL_STATE_FILENAME,
     DailySocialState,
     _load_daily_social_state,
@@ -125,13 +125,11 @@ class TestGenerateDailySocial:
         assert "DRY RUN" in captured.out
         assert "Day 1/100" in captured.out
 
-    @patch("distill.blog.synthesizer.subprocess.run")
+    @patch("distill.llm.call_claude")
     def test_generates_post_and_writes_file(self, mock_run, tmp_path):
         config = self._make_config(schedule_enabled=False)
         self._setup_journal(tmp_path)
-        mock_run.return_value = _make_subprocess_result(
-            "Today I learned about pipelines.\n\n#BuildInPublic"
-        )
+        mock_run.return_value = "Today I learned about pipelines.\n\n#BuildInPublic"
 
         result = generate_daily_social(
             tmp_path, postiz_config=config, target_date=date(2026, 2, 15)
@@ -143,11 +141,11 @@ class TestGenerateDailySocial:
         content = result[0].read_text(encoding="utf-8")
         assert "pipelines" in content
 
-    @patch("distill.blog.synthesizer.subprocess.run")
+    @patch("distill.llm.call_claude")
     def test_increments_day_counter(self, mock_run, tmp_path):
         config = self._make_config(schedule_enabled=False)
         self._setup_journal(tmp_path)
-        mock_run.return_value = _make_subprocess_result()
+        mock_run.return_value = "Post content"
 
         # Pre-set state at day 5
         state = DailySocialState(day_number=5, last_posted_date="2026-02-14")
@@ -161,11 +159,11 @@ class TestGenerateDailySocial:
         assert updated.day_number == 6
         assert updated.last_posted_date == "2026-02-15"
 
-    @patch("distill.blog.synthesizer.subprocess.run")
+    @patch("distill.llm.call_claude")
     def test_day_counter_in_prompt(self, mock_run, tmp_path):
         config = self._make_config(schedule_enabled=False)
         self._setup_journal(tmp_path)
-        mock_run.return_value = _make_subprocess_result()
+        mock_run.return_value = "Post content"
 
         state = DailySocialState(day_number=41, last_posted_date="2026-02-14")
         _save_daily_social_state(state, tmp_path)
@@ -174,18 +172,19 @@ class TestGenerateDailySocial:
             tmp_path, postiz_config=config, target_date=date(2026, 2, 15)
         )
 
-        # The prompt is the last positional arg to subprocess.run's first arg (the cmd list)
-        # With multi-platform, there may be multiple calls; check the first one
-        call_args = mock_run.call_args_list[0][0][0]  # first call, cmd list
-        full_prompt = call_args[-1]  # last element is the prompt
+        # call_claude receives (system_prompt, user_prompt, ...) — check positional args
+        call_args = mock_run.call_args_list[0][0]  # first call, positional args
+        system_prompt = call_args[0]
+        user_prompt = call_args[1]
+        full_prompt = f"{system_prompt}\n{user_prompt}"
         assert "Day 42/100" in full_prompt
 
     @patch("distill.integrations.postiz.urllib.request.urlopen")
-    @patch("distill.blog.synthesizer.subprocess.run")
+    @patch("distill.llm.call_claude")
     def test_pushes_to_postiz(self, mock_run, mock_urlopen, tmp_path):
         config = self._make_config()
         self._setup_journal(tmp_path)
-        mock_run.return_value = _make_subprocess_result("LinkedIn post content")
+        mock_run.return_value = "LinkedIn post content"
 
         # Mock urlopen for both list_integrations and create_post calls
         # First call: list_integrations, second+: create_post
@@ -214,11 +213,11 @@ class TestGenerateDailySocial:
         # Verify at least 2 urlopen calls (list_integrations + create_post)
         assert mock_urlopen.call_count >= 2
 
-    @patch("distill.blog.synthesizer.subprocess.run")
+    @patch("distill.llm.call_claude")
     def test_force_regenerates(self, mock_run, tmp_path):
         config = self._make_config(schedule_enabled=False)
         self._setup_journal(tmp_path)
-        mock_run.return_value = _make_subprocess_result("Regenerated content")
+        mock_run.return_value = "Regenerated content"
 
         # Already posted today
         state = DailySocialState(day_number=5, last_posted_date="2026-02-15")
@@ -234,12 +233,12 @@ class TestGenerateDailySocial:
         updated = _load_daily_social_state(tmp_path)
         assert updated.day_number == 5
 
-    @patch("distill.blog.synthesizer.subprocess.run")
+    @patch("distill.llm.call_claude")
     def test_falls_back_to_recent_entry(self, mock_run, tmp_path):
         config = self._make_config(schedule_enabled=False)
         # Create an entry for yesterday, not today
         self._setup_journal(tmp_path, entry_date="2026-02-14")
-        mock_run.return_value = _make_subprocess_result()
+        mock_run.return_value = "Post content"
 
         result = generate_daily_social(
             tmp_path, postiz_config=config, target_date=date(2026, 2, 15)
@@ -247,12 +246,12 @@ class TestGenerateDailySocial:
 
         assert len(result) == 1
 
-    @patch("distill.blog.synthesizer.subprocess.run")
+    @patch("distill.llm.call_claude")
     def test_skips_stale_entry(self, mock_run, tmp_path):
         config = self._make_config(schedule_enabled=False)
         # Create an entry from a week ago
         self._setup_journal(tmp_path, entry_date="2026-02-08")
-        mock_run.return_value = _make_subprocess_result()
+        mock_run.return_value = "Post content"
 
         result = generate_daily_social(
             tmp_path, postiz_config=config, target_date=date(2026, 2, 15)

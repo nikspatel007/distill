@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
-import type { ProjectDetail } from "../../shared/schemas.js";
+import { useState } from "react";
+import type { JournalEntry, ProjectDetail } from "../../shared/schemas.js";
 import { DateBadge } from "../components/shared/DateBadge.js";
 import { MarkdownRenderer } from "../components/shared/MarkdownRenderer.js";
 import { TagBadge } from "../components/shared/TagBadge.js";
@@ -20,7 +21,7 @@ export default function ProjectDetailPage() {
 	if (error) return <div className="text-red-500">Error: {error.message}</div>;
 	if (!data) return null;
 
-	const { summary, journals, blogs, projectNoteContent } = data;
+	const { summary, journals, blogs, projectNoteContent, projectJournals } = data;
 
 	return (
 		<div className="space-y-6">
@@ -76,10 +77,25 @@ export default function ProjectDetailPage() {
 				</section>
 			)}
 
+			{/* Project-specific journal entries */}
+			{projectJournals.length > 0 && (
+				<section>
+					<h3 className="mb-3 text-lg font-semibold">Project Journal ({projectJournals.length})</h3>
+					<p className="mb-2 text-sm text-zinc-500">
+						Focused entries covering only {summary.name} work
+					</p>
+					<div className="space-y-2">
+						{projectJournals.map((entry) => (
+							<ProjectJournalCard key={entry.filename} entry={entry} projectName={summary.name} />
+						))}
+					</div>
+				</section>
+			)}
+
 			{/* Journal entries */}
 			{journals.length > 0 && (
 				<section>
-					<h3 className="mb-3 text-lg font-semibold">Journal Entries ({journals.length})</h3>
+					<h3 className="mb-3 text-lg font-semibold">Journal Mentions ({journals.length})</h3>
 					<div className="space-y-2">
 						{journals.map((entry) => (
 							<Link
@@ -134,9 +150,55 @@ export default function ProjectDetailPage() {
 
 function StatCard({ label, value }: { label: string; value: number | string }) {
 	return (
-		<div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800" aria-label={`${label}: ${value}`}>
+		<div
+			className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
+			aria-label={`${label}: ${value}`}
+		>
 			<div className="text-2xl font-bold">{value}</div>
 			<div className="text-sm text-zinc-500">{label}</div>
+		</div>
+	);
+}
+
+function ProjectJournalCard({ entry, projectName }: { entry: JournalEntry; projectName: string }) {
+	const [expanded, setExpanded] = useState(false);
+	const { data } = useQuery({
+		queryKey: ["project-journal", projectName, entry.date],
+		queryFn: async () => {
+			const res = await fetch(
+				`/api/projects/${encodeURIComponent(projectName)}/journal/${entry.date}`,
+			);
+			if (!res.ok) return null;
+			return res.json() as Promise<{ content: string }>;
+		},
+		enabled: expanded,
+	});
+
+	return (
+		<div className="rounded-lg border border-zinc-200 dark:border-zinc-800">
+			<button
+				type="button"
+				onClick={() => setExpanded(!expanded)}
+				className="flex w-full items-center justify-between p-3 text-left transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900"
+			>
+				<div className="flex items-center gap-3">
+					<DateBadge date={entry.date} />
+					<span className="text-xs text-zinc-500">
+						{entry.sessionsCount} sessions, {entry.durationMinutes}m
+					</span>
+				</div>
+				<span className="text-zinc-400">{expanded ? "\u25B2" : "\u25BC"}</span>
+			</button>
+			{expanded && data?.content && (
+				<div className="border-t border-zinc-200 p-4 dark:border-zinc-800">
+					<MarkdownRenderer content={data.content} />
+				</div>
+			)}
+			{expanded && !data && (
+				<div className="border-t border-zinc-200 p-4 text-zinc-400 dark:border-zinc-800">
+					Loading...
+				</div>
+			)}
 		</div>
 	);
 }

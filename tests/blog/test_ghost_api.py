@@ -93,7 +93,7 @@ class TestGhostAPIClientJWT:
     def test_generate_token_deterministic_with_fixed_time(self):
         client = GhostAPIClient(_TEST_CONFIG)
         fixed_time = 1700000000
-        with patch("distill.blog.publishers.ghost.time") as mock_time:
+        with patch("distill.integrations.ghost.time") as mock_time:
             mock_time.time.return_value = fixed_time
             token = client._generate_token()
 

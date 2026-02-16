@@ -8,13 +8,12 @@ from __future__ import annotations
 
 import json
 import logging
-import subprocess
 from datetime import date
 
 from distill.blog.blog_memory import BlogPostSummary
 from distill.blog.config import BlogConfig, BlogPostType
 from distill.blog.context import ThematicBlogContext, WeeklyBlogContext
-from distill.blog.prompts import MEMORY_EXTRACTION_PROMPT, SOCIAL_PROMPTS, get_blog_prompt
+from distill.blog.prompts import MEMORY_EXTRACTION_PROMPT, get_blog_prompt, get_social_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -74,8 +73,17 @@ class BlogSynthesizer:
         user_prompt = _render_thematic_prompt(context)
         return self._call_claude(system_prompt, user_prompt, context.theme.slug)
 
+    def synthesize_raw(self, system_prompt: str, user_prompt: str) -> str:
+        """Synthesize content from raw system and user prompts."""
+        return self._call_claude(system_prompt, user_prompt, "raw-synthesis")
+
     def adapt_for_platform(
-        self, prose: str, platform: str, slug: str, editorial_hint: str = ""
+        self,
+        prose: str,
+        platform: str,
+        slug: str,
+        editorial_hint: str = "",
+        hashtags: str = "",
     ) -> str:
         """Adapt blog prose for a specific platform.
 
@@ -84,17 +92,18 @@ class BlogSynthesizer:
             platform: Target platform key (e.g., "twitter", "linkedin", "reddit").
             slug: Post slug for logging.
             editorial_hint: Optional editorial direction to prepend.
+            hashtags: Space-separated hashtags for the closing line.
 
         Returns:
             Platform-adapted text.
 
         Raises:
             BlogSynthesisError: If the CLI call fails.
-            KeyError: If platform is not in SOCIAL_PROMPTS.
+            KeyError: If platform is not a known social prompt key.
         """
         # Map Postiz provider names to prompt keys (e.g. "x" → "twitter")
         prompt_key = {"x": "twitter"}.get(platform, platform)
-        system_prompt = SOCIAL_PROMPTS[prompt_key]
+        system_prompt = get_social_prompt(prompt_key, hashtags=hashtags)
         input_text = prose
         if editorial_hint:
             input_text = f"EDITORIAL DIRECTION: {editorial_hint}\n\n{prose}"
@@ -139,51 +148,25 @@ class BlogSynthesizer:
 
     def _call_claude(self, system_prompt: str, user_prompt: str, label: str) -> str:
         """Call Claude CLI with combined prompt."""
-        full_prompt = f"{system_prompt}\n\n---\n\n{user_prompt}"
-
-        cmd: list[str] = ["claude", "-p"]
-        if self._config.model:
-            cmd.extend(["--model", self._config.model])
-        cmd.append(full_prompt)
-
-        logger.debug("Calling Claude CLI for blog synthesis (%s)", label)
+        from distill.llm import LLMError, call_claude
 
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
+            return call_claude(
+                system_prompt,
+                user_prompt,
+                model=self._config.model,
                 timeout=self._config.claude_timeout,
+                label=label,
             )
-        except FileNotFoundError as e:
-            raise BlogSynthesisError("Claude CLI not found -- is 'claude' on the PATH?") from e
-        except subprocess.TimeoutExpired as e:
-            raise BlogSynthesisError(
-                f"Claude CLI timed out after {self._config.claude_timeout}s"
-            ) from e
-        except OSError as e:
-            raise BlogSynthesisError(f"Failed to run Claude CLI: {e}") from e
-
-        if result.returncode != 0:
-            err_text = result.stderr.strip() if result.stderr else ""
-            raise BlogSynthesisError(f"Claude CLI exited {result.returncode}: {err_text}")
-
-        return result.stdout.strip()
+        except LLMError as exc:
+            raise BlogSynthesisError(str(exc)) from exc
 
 
 def _strip_json_fences(text: str) -> str:
     """Strip markdown code fences and preamble from LLM JSON output."""
-    import re
+    from distill.llm import strip_json_fences
 
-    # Try to extract content from ```json ... ``` or ``` ... ``` blocks
-    m = re.search(r"```(?:json)?\s*\n(.*?)```", text, re.DOTALL)
-    if m:
-        return m.group(1).strip()
-    # Try to find raw JSON object
-    m = re.search(r"\{.*\}", text, re.DOTALL)
-    if m:
-        return m.group(0)
-    return text
+    return strip_json_fences(text)
 
 
 def _render_weekly_prompt(context: WeeklyBlogContext) -> str:

@@ -12,7 +12,31 @@ _OUTPUT_INSTRUCTION = (
     ' annotations, no "Should I save this?". Just the post.'
 )
 
-SOCIAL_PROMPTS: dict[str, str] = {
+def get_social_prompt(platform: str, hashtags: str = "") -> str:
+    """Get the social adaptation prompt for a given platform.
+
+    Args:
+        platform: Target platform key (e.g. "twitter", "linkedin", "reddit").
+        hashtags: Space-separated hashtags for the closing line.
+            Falls back to sensible defaults when empty.
+
+    Returns:
+        The system prompt string.
+
+    Raises:
+        KeyError: If platform is not a known social prompt key.
+    """
+    return _SOCIAL_PROMPTS_TEMPLATES[platform].format(
+        hashtags=hashtags or _SOCIAL_HASHTAG_DEFAULTS.get(platform, ""),
+    )
+
+
+_SOCIAL_HASHTAG_DEFAULTS: dict[str, str] = {
+    "twitter": "#AgenticAI #DevTools #BuildInPublic",
+    "linkedin": "#AgenticAI #SoftwareEngineering #BuildInPublic",
+}
+
+_SOCIAL_PROMPTS_TEMPLATES: dict[str, str] = {
     "twitter": (
         "Convert this blog post into a Twitter/X thread.\n\n"
         "You're building cool AI systems and sharing what you're "
@@ -56,8 +80,7 @@ SOCIAL_PROMPTS: dict[str, str] = {
         " punctuation. Use commas, colons, or rewrite the"
         " sentence instead.\n\n"
         "HASHTAGS:\n"
-        "- Last tweet: always include #DistillAI plus 1-2 relevant "
-        "ones like #AgenticAI #DevTools #BuildInPublic.\n\n"
+        "- Last tweet: include relevant hashtags such as {hashtags}.\n\n"
         "Output ONLY the tweets separated by ---. Nothing else."
     ),
     "linkedin": (
@@ -99,8 +122,7 @@ SOCIAL_PROMPTS: dict[str, str] = {
         " punctuation. Use commas, colons, or rewrite the"
         " sentence instead.\n\n"
         "HASHTAGS:\n"
-        "- Last line: always include #DistillAI plus 2-4 relevant "
-        "ones like #AgenticAI #SoftwareEngineering #BuildInPublic.\n\n"
+        "- Last line: include relevant hashtags such as {hashtags}.\n\n"
         "Output ONLY the post. No commentary, no meta-text."
     ),
     "reddit": (
@@ -196,79 +218,154 @@ SOCIAL_PROMPTS: dict[str, str] = {
     ),
 }
 
-DAILY_SOCIAL_PROMPTS: dict[str, str] = {
+# Backwards-compat: dict that returns default-parameterized prompts
+SOCIAL_PROMPTS: dict[str, str] = {
+    k: v.format(hashtags=_SOCIAL_HASHTAG_DEFAULTS.get(k, ""))
+    if "{hashtags}" in v
+    else v
+    for k, v in _SOCIAL_PROMPTS_TEMPLATES.items()
+}
+
+
+def get_daily_social_prompt(
+    platform: str,
+    project_name: str = "",
+    project_description: str = "",
+    hashtags: str = "",
+) -> str:
+    """Get the daily social prompt for a given platform.
+
+    Args:
+        platform: Target platform (e.g. "linkedin", "twitter", "slack").
+        project_name: Primary project name for the post's framing.
+        project_description: Short description of the project.
+        hashtags: Space-separated hashtags for the closing line.
+
+    Returns:
+        The system prompt string.
+    """
+    template = _DAILY_SOCIAL_TEMPLATES.get(platform)
+    if template is None:
+        template = _DAILY_SOCIAL_TEMPLATES["linkedin"]
+    return template.format(
+        project_intro=_build_project_intro(project_name, project_description),
+        hashtags=hashtags or _DAILY_SOCIAL_HASHTAG_DEFAULTS.get(platform, ""),
+    )
+
+
+def _build_project_intro(project_name: str, project_description: str) -> str:
+    """Build a project framing sentence for daily social prompts."""
+    if project_name and project_description:
+        return f"building {project_name}, {project_description}"
+    if project_name:
+        return f"building {project_name}"
+    return "building software"
+
+
+_DAILY_SOCIAL_HASHTAG_DEFAULTS: dict[str, str] = {
+    "linkedin": "#BuildInPublic",
+    "twitter": "#BuildInPublic",
+}
+
+
+_DAILY_SOCIAL_TEMPLATES: dict[str, str] = {
     "linkedin": (
-        "Convert this developer journal entry into a punchy LinkedIn post.\n\n"
-        "You are a solo founder building TroopX, a multi-agent orchestration "
-        "platform where AI agents coordinate through shared blackboards, "
-        "routers, and workflows. The post should be about building TroopX "
-        "or lessons learned from it, NOT about analytics tools or content "
-        "pipelines you use to track your work.\n\n"
+        "Write a LinkedIn post from a developer who is {project_intro}. "
+        "The post is about what they are building or lessons learned "
+        "from it.\n\n"
+        "VOICE: You are talking to a smart friend over coffee. First-person, "
+        "casual, specific. You present findings from your own experiments, "
+        "not universal prescriptions. Sentence fragments and dashes are "
+        "fine. Imperfect grammar feels human. Confident but not preachy.\n\n"
+        "LENGTH: 1200-1500 characters. This is the engagement sweet spot "
+        "on LinkedIn. Shorter feels throwaway, longer gets skimmed.\n\n"
+        "STRUCTURE (blank line between EVERY section):\n\n"
+        "HOOK (first 140 characters, before the fold):\n"
+        "One or two sentences max. Must create a reason to click 'see more'. "
+        "Use one of these patterns:\n"
+        "- Specific number: 'I ran 20 dev-QA cycles today. One of them "
+        "surprised me.'\n"
+        "- Confession: 'I almost mass-deleted my test suite last Tuesday.'\n"
+        "- Contrarian: 'Everyone says you need a manager for QA. My agents "
+        "just need a whiteboard.'\n"
+        "- Curiosity gap: 'I built a feature nobody asked for. It became "
+        "the most-used part of the system.'\n"
+        "Never start with 'I am excited' or 'I am thrilled'. Never use a "
+        "question as the hook.\n\n"
+        "[blank line]\n\n"
+        "BODY (3-4 short paragraphs, 1-3 sentences each):\n"
+        "Tell a STORY. What happened, what went wrong or right, what you "
+        "learned. Each paragraph connects to the one before it. Build a "
+        "narrative arc:\n"
+        "- Setup: what you were doing and why\n"
+        "- Tension: the specific moment something interesting happened\n"
+        "- Resolution: what you did about it\n"
+        "- Insight: the non-obvious lesson, framed as a discovery not a rule\n\n"
+        "Use specific details: numbers, durations, tool names the reader "
+        "knows (not your internal ones). 'Seven minutes, zero hand-holding' "
+        "is better than 'it was fast'. Show the work.\n\n"
+        "[blank line]\n\n"
+        "CLOSER:\n"
+        "A genuine question related to your story. Something a reader "
+        "with similar experience would actually want to answer. "
+        "'Have you seen X happen in your setup?' is good. "
+        "'What do you think?' is lazy.\n\n"
+        "HASHTAGS: Last line, 2-3 total. Always include {hashtags}. "
+        "One more if relevant (e.g. #MultiAgent, "
+        "#AIEngineering, #IndieHacker).\n\n"
+        "BANNED WORDS AND PATTERNS (these flag AI-generated content):\n"
+        "- delve, robust, pivotal, utilize, leverage, transformative, "
+        "innovative, crucial, furthermore, realm, embark, testament, "
+        "beacon, tapestry, landscape, unlock the potential, at the "
+        "forefront, it is important to note, in today's fast-paced, "
+        "not only but also\n"
+        "- 'I am excited to announce', 'I am thrilled to share', "
+        "'So grateful for this incredible journey'\n"
+        "- The rule-of-three list: 'Speed, efficiency, and innovation'\n"
+        "- Perfectly parallel sentence construction\n"
+        "- Every paragraph being the same length\n"
+        "- Emoji as bullet points (rocket, sparkle, star, checkmark)\n\n"
         "HARD RULES:\n"
-        "- 600-900 characters TOTAL.\n"
         "- NEVER use backticks, markdown, code formatting, or file names. "
-        "This is LinkedIn, not GitHub. Say 'the config layer' not `config.py`.\n"
-        "- NEVER use em-dashes, double-hyphens, or semicolons.\n"
-        "- No bullet lists. No headers. Plain text only.\n"
-        "- NEVER start a paragraph with 'The' or 'This'. Vary your openers.\n"
-        "- Do NOT repeat the same fact twice in the post.\n\n"
-        "STRUCTURE (use blank lines between EVERY section):\n"
-        "1. Hook: one sentence, under 80 characters. A surprising number, "
-        "a counterintuitive finding, or a bold claim. Not a question. "
-        "Make people stop scrolling.\n"
-        "\n"
-        "[blank line]\n"
-        "\n"
-        "2. Body: 2-3 short PARAGRAPHS (1-2 sentences each). "
-        "Put a blank line between each paragraph. "
-        "Each paragraph MUST connect to the one before it. Build a "
-        "narrative arc: setup, then a specific example, then the insight "
-        "or lesson. Do NOT introduce a new unrelated topic mid-post. "
-        "If paragraph 2 is about QA catching a bug, paragraph 3 should "
-        "be about what that taught you, not a random implementation detail. "
-        "Go deeper than surface level. Share the WHY, the tradeoff, "
-        "the unexpected part. What would make a senior engineer nod? "
-        "Write for someone who has NEVER seen your project.\n"
-        "\n"
-        "[blank line]\n"
-        "\n"
-        "3. Closer: a question that invites replies OR a one-line takeaway.\n\n"
-        "CRITICAL: You MUST put a blank line between hook, body, and closer. "
-        "Three distinct visual blocks. LinkedIn readers scan, they do not read walls of text.\n\n"
-        "EXAMPLES OF GOOD HOOKS:\n"
-        "'78% of my coding sessions with 5+ files hit errors.'\n"
-        "'I stopped writing tests first and my bug rate dropped.'\n"
-        "'My agents now coordinate through a shared blackboard. Here is what went wrong.'\n\n"
-        "WHAT NOT TO DO:\n"
-        "- Do NOT summarize your whole day. Pick ONE thing.\n"
-        "- Do NOT say 'today I worked on' or 'I built a thing that does X, Y, Z'.\n"
-        "- Do NOT explain architecture. Share the result.\n"
-        "- Do NOT write a mini blog post. This is social media.\n"
-        "- Do NOT use the word 'journey' or 'excited'.\n"
-        "- Do NOT reference internal tools, dashboards, graphs, or metrics "
-        "that the reader has never heard of. If the journal mentions 'the "
-        "knowledge graph surfaced X', translate that into a universal "
-        "developer insight. Say WHAT you learned, not HOW your tooling "
-        "told you. 'I noticed X pattern across my commits' beats 'My "
-        "graph surfaced X as trending.'\n"
-        "- Do NOT list entity names, API names, or services unless they "
-        "are the POINT of the post. 'LinkedIn, X, Zoom, OpenAI showed up "
-        "as trending' is meaningless to the reader.\n\n"
-        "HASHTAGS: last line, always: #BuildInPublic #TroopX plus 1-2 more.\n\n"
+        "Say 'the config layer' not `config.py`.\n"
+        "- NEVER use em-dashes (--) or semicolons.\n"
+        "- No bullet lists, no headers. Plain text only.\n"
+        "- Do NOT repeat the same fact twice.\n"
+        "- Do NOT summarize your whole day. Pick ONE story.\n"
+        "- Do NOT reference internal tools, dashboards, or metrics the "
+        "reader has never heard of. Translate insights for outsiders.\n"
+        "- Do NOT list entity names or services unless they are the "
+        "point of the post.\n"
+        "- Do NOT write like a press release or a keynote speech.\n"
+        "- Write the way you talk. If it sounds like it belongs in a "
+        "corporate memo, delete it.\n\n"
         "Output ONLY the post text. Nothing else."
     ),
     "twitter": (
-        "Convert this developer journal entry into a single tweet.\n\n"
-        "You are a solo founder building AI developer tools.\n\n"
+        "Convert this developer journal entry into a Twitter/X thread.\n\n"
+        "You are a developer {project_intro}. Share what you built and "
+        "what you learned like you are talking to other developers.\n\n"
+        "FORMAT:\n"
+        "- 4-6 tweets. Each MUST be under 280 characters including "
+        "spaces. Count carefully.\n"
+        "- Do NOT number tweets. No '1/', '2/', etc.\n"
+        "- Separate each tweet with a line containing only '---'.\n"
+        "- First tweet is the hook. Make it punchy and specific.\n"
+        "- Last tweet ends with {hashtags}\n\n"
+        "WHAT TO SHARE:\n"
+        "- Lead with a specific result or surprise, not 'Today I...'\n"
+        "- Share concrete details: numbers, durations, what broke.\n"
+        "- Each tweet should stand on its own but build the story.\n"
+        "- End with what you learned, not a sales pitch.\n\n"
         "HARD RULES:\n"
-        "- MUST be under 280 characters total. Count every character.\n"
-        "- One insight, one result, or one lesson. Nothing more.\n"
-        "- Lead with the interesting part, not 'Today I...'.\n"
         "- No backticks, no markdown, no code formatting.\n"
         "- No em-dashes or double-hyphens.\n"
-        "- End with #BuildInPublic #TroopX\n"
-        "- No threads. No numbering. One tweet.\n\n"
-        "Output ONLY the tweet. Nothing else."
+        "- No AI words: delve, robust, leverage, innovative, pivotal.\n"
+        "- CRITICAL: Your response must start DIRECTLY with the first "
+        "tweet. No preamble, no 'Here is the thread', no meta-commentary "
+        "about what you are writing, no 'Let me craft this'. The very "
+        "first line of your output IS the first tweet.\n\n"
+        "Output ONLY the thread tweets separated by ---. Nothing else."
     ),
     "slack": (
         "Convert this developer journal entry into a brief Slack update.\n\n"
@@ -281,6 +378,15 @@ DAILY_SOCIAL_PROMPTS: dict[str, str] = {
         "- No em-dashes or double-hyphens.\n\n"
         "Output ONLY the Slack message. Nothing else."
     ),
+}
+
+# Backwards-compat: dict that returns default-parameterized prompts
+DAILY_SOCIAL_PROMPTS: dict[str, str] = {
+    k: v.format(
+        project_intro=_build_project_intro("", ""),
+        hashtags=_DAILY_SOCIAL_HASHTAG_DEFAULTS.get(k, ""),
+    )
+    for k, v in _DAILY_SOCIAL_TEMPLATES.items()
 }
 
 # Backwards compat alias

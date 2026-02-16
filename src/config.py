@@ -91,6 +91,7 @@ class GhostSectionConfig(BaseModel):
     admin_api_key: str = ""
     newsletter_slug: str = ""
     auto_publish: bool = True
+    blog_as_draft: bool = False
 
 
 class RedditSectionConfig(BaseModel):
@@ -141,6 +142,27 @@ class NotificationConfig(BaseModel):
         return self.enabled and bool(self.slack_webhook or self.ntfy_url)
 
 
+class UserConfig(BaseModel):
+    """[user] section — identity for LLM prompts."""
+
+    name: str = ""
+    role: str = "software engineer"
+    bio: str = ""
+
+
+class SocialConfig(BaseModel):
+    """[social] section — branding for social posts."""
+
+    brand_hashtags: list[str] = Field(default_factory=list)
+    secondary_hashtags: list[str] = Field(default_factory=list)
+
+
+class IntelligenceConfig(BaseModel):
+    """[intelligence] section."""
+
+    model: str = "claude-haiku-4-5-20251001"
+
+
 class DistillConfig(BaseModel):
     """Top-level configuration model for the entire distill pipeline."""
 
@@ -155,7 +177,10 @@ class DistillConfig(BaseModel):
     youtube: YouTubeSectionConfig = Field(default_factory=YouTubeSectionConfig)
     postiz: PostizSectionConfig = Field(default_factory=PostizSectionConfig)
     notifications: NotificationConfig = Field(default_factory=NotificationConfig)
+    intelligence: IntelligenceConfig = Field(default_factory=IntelligenceConfig)
     projects: list[ProjectConfig] = Field(default_factory=list)
+    user: UserConfig = Field(default_factory=UserConfig)
+    social: SocialConfig = Field(default_factory=SocialConfig)
 
     def render_project_context(self) -> str:
         """Render project descriptions for LLM prompt injection."""
@@ -202,17 +227,20 @@ class DistillConfig(BaseModel):
             ),
             model=self.intake.model,
             target_word_count=self.intake.target_word_count,
+            user_name=self.user.name,
+            user_role=self.user.role,
         )
 
     def to_ghost_config(self) -> object:
         """Convert to GhostConfig for Ghost CMS publishing."""
-        from distill.blog.config import GhostConfig
+        from distill.integrations.ghost import GhostConfig
 
         return GhostConfig(
             url=self.ghost.url,
             admin_api_key=self.ghost.admin_api_key,
             newsletter_slug=self.ghost.newsletter_slug,
             auto_publish=self.ghost.auto_publish,
+            blog_as_draft=self.ghost.blog_as_draft,
         )
 
     def to_postiz_config(self) -> object:

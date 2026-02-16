@@ -223,7 +223,14 @@ class PostizClient:
                 if channel:
                     settings["channel"] = channel
             # X threads: split numbered tweets into separate value entries
-            img_list = list(images) if images else []
+            # Postiz expects images as MediaDto objects: {id: str, path: str}
+            img_list: list[dict[str, str]] = []
+            if images:
+                for idx, img in enumerate(images):
+                    if isinstance(img, dict):
+                        img_list.append(img)
+                    else:
+                        img_list.append({"id": f"img-{idx}", "path": str(img)})
             value = _split_thread(content) if prov == "x" else [{"content": content, "image": img_list}]
             # Attach images to the first entry of threads
             if prov == "x" and value and img_list:

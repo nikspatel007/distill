@@ -139,6 +139,7 @@ class ContextScorer:
         focus_key: str | None = None,
         top_k: int | None = None,
         min_score: float = 0.0,
+        exclude_keys: set[str] | None = None,
     ) -> list[ContextScore]:
         """Score every node and return sorted results.
 
@@ -151,6 +152,8 @@ class ContextScorer:
             Maximum number of results to return.
         min_score:
             Exclude nodes below this combined score.
+        exclude_keys:
+            Node keys to skip entirely (e.g., machine sessions).
 
         Returns
         -------
@@ -160,12 +163,17 @@ class ContextScorer:
         now = self._resolve_now(None)
         all_nodes = self._store.find_nodes()
         results: list[ContextScore] = []
+        skip = exclude_keys or set()
 
         for node in all_nodes:
             key = node.node_key
 
             # Skip the focus node itself.
             if key == focus_key:
+                continue
+
+            # Skip excluded keys
+            if key in skip:
                 continue
 
             temporal = self.temporal_score(key, now=now)

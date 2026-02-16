@@ -37,7 +37,7 @@ SRC_DIR = str(Path(__file__).parents[2] / "src")
 
 
 def _run_cli(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
-    """Run the session-insights CLI as a subprocess."""
+    """Run the distill CLI as a subprocess."""
     return subprocess.run(
         [sys.executable, "-m", "distill", *args],
         capture_output=True,
@@ -429,4 +429,4 @@ class TestAnalyzeSubcommand:
         result = _run_cli("--version", cwd=tmp_path)
         # Typer may exit 0 or raise Exit(0)
         assert result.returncode in (0, 1)
-        assert "session-insights" in _strip_ansi(result.stdout) or "0.1.0" in _strip_ansi(result.stdout)
+        assert "distill" in _strip_ansi(result.stdout) or "0.1.0" in _strip_ansi(result.stdout)

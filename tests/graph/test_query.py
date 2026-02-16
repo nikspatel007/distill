@@ -416,3 +416,56 @@ class TestFindNodeByName:
         assert node is not None
         assert node.node_type == NodeType.PROJECT
         assert node.name == "test"
+
+
+# -- Summary display --------------------------------------------------------
+
+
+class TestSummaryDisplay:
+    def test_timeline_includes_summary(
+        self, populated_store: GraphStore, now: datetime
+    ):
+        query = GraphQuery(populated_store, now=now)
+        result = query.timeline()
+
+        assert len(result) >= 2
+        # Sessions should have summary field from properties
+        assert "summary" in result[0]
+        assert result[0]["summary"] == "Build RSS parser"
+        assert result[1]["summary"] == "Fix RSS parser bug"
+
+    def test_render_context_uses_summary_for_sessions(
+        self, populated_store: GraphStore, now: datetime
+    ):
+        query = GraphQuery(populated_store, now=now)
+        result = query.render_context()
+
+        # Session names in rendered context should show summaries, not UUIDs
+        if "## Sessions" in result:
+            # Session lines should contain human-readable summaries
+            lines = result.split("\n")
+            session_lines = []
+            in_sessions = False
+            for line in lines:
+                if line.startswith("## Sessions"):
+                    in_sessions = True
+                    continue
+                if line.startswith("## ") and in_sessions:
+                    break
+                if in_sessions and line.startswith("- "):
+                    session_lines.append(line)
+            # Session lines should NOT contain bare UUIDs like "s1", "s2"
+            # but instead show summaries
+            for line in session_lines:
+                assert "Build RSS parser" in line or "Fix RSS parser bug" in line
+
+    def test_about_focus_includes_summary(
+        self, populated_store: GraphStore, now: datetime
+    ):
+        query = GraphQuery(populated_store, now=now)
+        result = query.about("s1")
+
+        assert result["focus"] is not None
+        # The focus should have a summary field
+        assert "summary" in result["focus"]
+        assert result["focus"]["summary"] == "Build RSS parser"
