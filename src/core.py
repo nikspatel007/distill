@@ -1874,10 +1874,12 @@ def _build_daily_social_context(
     entry: Any,
     output_dir: Path,
     postiz_config: Any,
+    recent_entries: list[Any] | None = None,
 ) -> str:
     """Build curated source context for daily social post generation.
 
     1. Filter journal prose to paragraphs mentioning the focus project.
+       If today's entry has no relevant content, pull from recent entries.
     2. Append relevant unused seed ideas.
     3. Append active editorial notes targeting "daily".
 
@@ -1887,9 +1889,10 @@ def _build_daily_social_context(
     prose = entry.prose
 
     # --- 1. Project-filter the journal prose ---
+    aliases: list[str] = []
     if focus_project:
         aliases = [focus_project.lower()]
-        # Also match common aliases (e.g. TroopX -> vermas/VerMAS)
+        # Also match common aliases and related keywords
         try:
             from distill.config import load_config
 
@@ -1897,18 +1900,39 @@ def _build_daily_social_context(
             for proj in cfg.projects:
                 if proj.name.lower() == focus_project.lower():
                     aliases.extend(a.lower() for a in (proj.aliases or []))
+                    # Extract key terms from project description
+                    desc = (proj.description or "").lower()
+                    for term in ["agent", "orchestrat", "blackboard", "roster",
+                                 "squad", "spawn", "workflow", "temporal"]:
+                        if term in desc:
+                            aliases.append(term)
         except Exception:
             pass
 
+        # Collect project-relevant paragraphs from today
         paragraphs = prose.split("\n\n")
         relevant = [
-            p
-            for p in paragraphs
+            p for p in paragraphs
             if any(alias in p.lower() for alias in aliases)
         ]
+
+        # If today is thin, pull from recent entries too
+        if len(relevant) < 2 and recent_entries:
+            for older in recent_entries:
+                if older.date == entry.date:
+                    continue
+                older_paras = older.prose.split("\n\n")
+                older_relevant = [
+                    p for p in older_paras
+                    if any(alias in p.lower() for alias in aliases)
+                ]
+                if older_relevant:
+                    relevant.extend(older_relevant)
+                if len(relevant) >= 4:
+                    break
+
         if relevant:
             prose = "\n\n".join(relevant)
-        # else: keep full prose as fallback
 
     # --- 2. Append unused seed ideas ---
     seeds_section = ""
@@ -2038,7 +2062,11 @@ def generate_daily_social(
         return []
 
     # Build curated source context (project-filtered + seeds + editorial notes)
-    source_text = _build_daily_social_context(today_entry, output_dir, postiz_config)
+    # Pass recent entries so we can pull from the last few days if today is thin
+    recent = [e for e in entries if (today - e.date).days <= 3]
+    source_text = _build_daily_social_context(
+        today_entry, output_dir, postiz_config, recent_entries=recent
+    )
 
     # Synthesize per-platform content
     from distill.blog.prompts import DAILY_SOCIAL_PROMPTS

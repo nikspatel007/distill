@@ -199,9 +199,11 @@ SOCIAL_PROMPTS: dict[str, str] = {
 DAILY_SOCIAL_PROMPTS: dict[str, str] = {
     "linkedin": (
         "Convert this developer journal entry into a punchy LinkedIn post.\n\n"
-        "You are a solo founder building AI-powered developer tools. "
-        "Your main project is TroopX, a multi-agent orchestration platform. "
-        "You also build other tools across your coding sessions.\n\n"
+        "You are a solo founder building TroopX, a multi-agent orchestration "
+        "platform where AI agents coordinate through shared blackboards, "
+        "routers, and workflows. The post should be about building TroopX "
+        "or lessons learned from it, NOT about analytics tools or content "
+        "pipelines you use to track your work.\n\n"
         "HARD RULES:\n"
         "- 600-900 characters TOTAL.\n"
         "- NEVER use backticks, markdown, code formatting, or file names. "
