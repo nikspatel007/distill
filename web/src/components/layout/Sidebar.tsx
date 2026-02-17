@@ -3,6 +3,7 @@ import type { LucideIcon } from "lucide-react";
 import {
 	BookMarked,
 	BookOpen,
+	CalendarDays,
 	FolderKanban,
 	LayoutDashboard,
 	PenLine,
@@ -16,6 +17,7 @@ const navItems: { to: string; label: string; icon: LucideIcon }[] = [
 	{ to: "/journal", label: "Journal", icon: BookOpen },
 	{ to: "/blog", label: "Blog", icon: PenLine },
 	{ to: "/reading", label: "Reading", icon: BookMarked },
+	{ to: "/calendar", label: "Calendar", icon: CalendarDays },
 	{ to: "/publish", label: "Publish", icon: Send },
 	{ to: "/settings", label: "Settings", icon: Settings },
 ];

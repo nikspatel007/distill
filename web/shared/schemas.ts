@@ -415,6 +415,25 @@ export const ProjectDetailSchema = z.object({
 	projectJournals: z.array(JournalEntrySchema).default([]),
 });
 
+// --- Content Calendar ---
+
+export const ContentIdeaSchema = z.object({
+	title: z.string(),
+	angle: z.string(),
+	source_url: z.string(),
+	platform: z.string(),
+	rationale: z.string(),
+	pillars: z.array(z.string()).default([]),
+	tags: z.array(z.string()).default([]),
+	status: z.string().default("pending"),
+	ghost_post_id: z.string().nullable().default(null),
+});
+
+export const ContentCalendarSchema = z.object({
+	date: z.string(),
+	ideas: z.array(ContentIdeaSchema).default([]),
+});
+
 // --- Save (edit) ---
 
 export const SaveMarkdownSchema = z.object({
@@ -468,5 +487,7 @@ export type PipelineStatus = z.infer<typeof PipelineStatusSchema>;
 export type PipelineRunResponse = z.infer<typeof PipelineRunResponseSchema>;
 export type ProjectSummary = z.infer<typeof ProjectSummarySchema>;
 export type ProjectDetail = z.infer<typeof ProjectDetailSchema>;
+export type ContentIdea = z.infer<typeof ContentIdeaSchema>;
+export type ContentCalendar = z.infer<typeof ContentCalendarSchema>;
 export type ContentItem = z.infer<typeof ContentItemSchema>;
 export type ContentItemsResponse = z.infer<typeof ContentItemsResponseSchema>;
