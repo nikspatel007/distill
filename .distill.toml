@@ -48,6 +48,23 @@ daily_social_platforms = ["linkedin", "twitter", "slack"]
 daily_social_series_length = 100  # 100 days of building in public
 daily_social_project = "TroopX"   # Focus posts on this project
 
+[brainstorm]
+pillars = [
+  "Building multi-agent systems",
+  "AI architecture patterns",
+  "Human-AI collaboration",
+  "Evals and verification",
+  "Running an autonomous company",
+]
+followed_people = [
+  "https://simonwillison.net/atom/everything/",
+  "https://martinfowler.com/feed.atom",
+]
+manual_links = []
+arxiv_categories = ["cs.AI", "cs.SE", "cs.MA"]
+hacker_news = true
+hn_min_points = 50
+
 [ghost]
 auto_publish = true
 blog_as_draft = true             # weekly/thematic blog posts land as drafts; intake digests still auto-publish

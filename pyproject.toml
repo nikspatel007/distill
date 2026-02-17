@@ -90,6 +90,7 @@ packages = [
     "distill.models",
     "distill.parsers",
     "distill.integrations",
+    "distill.brainstorm",
 ]
 
 [tool.setuptools.package-dir]

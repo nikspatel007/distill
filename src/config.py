@@ -12,6 +12,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from distill.brainstorm.config import BrainstormConfig
+
 logger = logging.getLogger(__name__)
 
 CONFIG_FILENAME = ".distill.toml"
@@ -181,6 +183,7 @@ class DistillConfig(BaseModel):
     projects: list[ProjectConfig] = Field(default_factory=list)
     user: UserConfig = Field(default_factory=UserConfig)
     social: SocialConfig = Field(default_factory=SocialConfig)
+    brainstorm: BrainstormConfig = Field(default_factory=BrainstormConfig)
 
     def render_project_context(self) -> str:
         """Render project descriptions for LLM prompt injection."""
