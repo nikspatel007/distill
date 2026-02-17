@@ -2099,6 +2099,81 @@ def note_list(
         console.print(f"    [dim]ID: {note.id} | {note.created_at.date()}[/dim]")
 
 
+@app.command()
+def brainstorm(
+    output: Path = typer.Option(Path("./insights"), help="Output directory"),
+) -> None:
+    """Brainstorm daily content ideas from research sources."""
+    from datetime import datetime, timezone
+
+    from distill.brainstorm.analyst import analyze_research, score_against_pillars
+    from distill.brainstorm.publisher import publish_calendar
+    from distill.brainstorm.sources import (
+        fetch_arxiv,
+        fetch_followed_feeds,
+        fetch_hacker_news,
+        fetch_manual_links,
+    )
+    from distill.config import load_config
+
+    config = load_config()
+    bc = config.brainstorm
+    today = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d")
+
+    typer.echo(f"Brainstorming content ideas for {today}...")
+
+    # Gather
+    items = []
+    if bc.hacker_news:
+        items.extend(fetch_hacker_news(min_points=bc.hn_min_points))
+    items.extend(fetch_arxiv(categories=bc.arxiv_categories))
+    items.extend(fetch_followed_feeds(bc.followed_people))
+    items.extend(fetch_manual_links(bc.manual_links))
+
+    typer.echo(f"Found {len(items)} research items")
+
+    if not items:
+        typer.echo("No research items found, skipping analysis.")
+        return
+
+    # Pre-filter
+    relevant = score_against_pillars(items, bc.pillars) if bc.pillars else items
+    typer.echo(f"{len(relevant)} items match content pillars")
+
+    # Read journal context
+    journal_context = ""
+    journal_dir = output / "journal"
+    if journal_dir.exists():
+        recent = sorted(journal_dir.glob("*.md"), reverse=True)[:3]
+        journal_context = "\n---\n".join(
+            f.read_text(encoding="utf-8")[:1000] for f in recent
+        )
+
+    # Analyze
+    ideas = analyze_research(
+        items=relevant,
+        pillars=bc.pillars,
+        journal_context=journal_context,
+        existing_seeds=[],
+        published_titles=[],
+    )
+
+    if not ideas:
+        typer.echo("No content ideas generated.")
+        return
+
+    # Publish
+    calendar = publish_calendar(
+        ideas=ideas,
+        date=today,
+        output_dir=output,
+    )
+
+    typer.echo(f"Published {len(calendar.ideas)} content ideas:")
+    for idea in calendar.ideas:
+        typer.echo(f"  - {idea.title} ({idea.platform})")
+
+
 @app.command(name="serve")
 def serve(
     output: Annotated[
