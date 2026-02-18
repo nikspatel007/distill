@@ -96,16 +96,16 @@ class TestGetReadyThemes:
             _make_entry(day=5, prose="Normal work."),
         ]
         # Monkey-patch THEMES for this test
-        import distill.blog.themes as themes_mod
-        original = themes_mod.THEMES
-        themes_mod.THEMES = [theme]
+        import distill.blog.services as services_mod
+        original = services_mod.THEMES
+        services_mod.THEMES = [theme]
         try:
             ready = get_ready_themes(entries, BlogState())
             assert len(ready) == 1
             assert ready[0][0].slug == "ready-theme"
             assert len(ready[0][1]) == 2
         finally:
-            themes_mod.THEMES = original
+            services_mod.THEMES = original
 
     def test_skips_already_generated(self):
         theme = ThemeDefinition(
@@ -130,14 +130,14 @@ class TestGetReadyThemes:
             )
         )
 
-        import distill.blog.themes as themes_mod
-        original = themes_mod.THEMES
-        themes_mod.THEMES = [theme]
+        import distill.blog.services as services_mod
+        original = services_mod.THEMES
+        services_mod.THEMES = [theme]
         try:
             ready = get_ready_themes(entries, state)
             assert len(ready) == 0
         finally:
-            themes_mod.THEMES = original
+            services_mod.THEMES = original
 
     def test_skips_themes_below_threshold(self):
         theme = ThemeDefinition(
@@ -151,11 +151,11 @@ class TestGetReadyThemes:
             _make_entry(day=3, prose="special-keyword found"),
             _make_entry(day=4, prose="special-keyword again"),
         ]
-        import distill.blog.themes as themes_mod
-        original = themes_mod.THEMES
-        themes_mod.THEMES = [theme]
+        import distill.blog.services as services_mod
+        original = services_mod.THEMES
+        services_mod.THEMES = [theme]
         try:
             ready = get_ready_themes(entries, BlogState())
             assert len(ready) == 0
         finally:
-            themes_mod.THEMES = original
+            services_mod.THEMES = original
