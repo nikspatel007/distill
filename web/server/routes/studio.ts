@@ -1,12 +1,15 @@
+import { spawn } from "node:child_process";
 import { basename, join } from "node:path";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { z } from "zod";
 import {
 	BlogFrontmatterSchema,
+	type ChatMessage,
 	ChatMessageSchema,
 	type PlatformContent,
 	type ReviewItem,
+	StudioChatRequestSchema,
 	StudioPublishRequestSchema,
 } from "../../shared/schemas.js";
 import { getConfig } from "../lib/config.js";
@@ -282,6 +285,117 @@ app.put("/api/studio/items/:slug/chat", zValidator("json", ChatHistoryBodySchema
 	item.chat_history = chat_history;
 	await upsertReviewItem(item);
 	return c.json({ success: true });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/studio/chat — Claude-powered content adaptation
+// ---------------------------------------------------------------------------
+
+const PLATFORM_PROMPTS: Record<string, string> = {
+	x: `You are adapting a blog post for X/Twitter. Create a thread of 6-10 tweets.
+Rules:
+- Each tweet MUST be under 280 characters
+- Separate tweets with "---" on its own line
+- First tweet hooks the reader
+- Last tweet links back or has a call to action
+- Use conversational, punchy tone
+- No hashtags in tweets`,
+
+	linkedin: `You are adapting a blog post for LinkedIn. Write a single post of 1200-1800 characters.
+Rules:
+- Open with a hook (question, bold claim, or surprising stat)
+- Write in first person, conversational but professional
+- Use short paragraphs (1-2 sentences)
+- Add line breaks between paragraphs for readability
+- End with a question or call to action
+- No emojis in the first line`,
+
+	slack: `You are adapting a blog post for a Slack channel. Write a concise summary of 800-1400 characters.
+Rules:
+- Use Slack mrkdwn: *bold*, _italic_, \`code\`, > quote
+- Start with a one-line summary
+- Break into bullet points for key insights
+- Keep it scannable
+- End with a discussion question`,
+
+	ghost: `You are helping refine a blog post for Ghost (newsletter/website).
+Rules:
+- Maintain the essay structure
+- Suggest improvements to clarity, flow, and engagement
+- The content should work as a standalone newsletter
+- Keep the author's voice intact`,
+};
+
+app.post("/api/studio/chat", zValidator("json", StudioChatRequestSchema), async (c) => {
+	const body = c.req.valid("json");
+	const { content, platform, message, history } = body;
+
+	const platformPrompt =
+		PLATFORM_PROMPTS[platform] ?? `You are adapting a blog post for ${platform}.`;
+
+	let historyBlock = "";
+	if (history.length > 0) {
+		const formatted = history
+			.map((msg: ChatMessage) => {
+				const role = msg.role === "user" ? "Human" : "Assistant";
+				return `${role}: ${msg.content}`;
+			})
+			.join("\n\n");
+		historyBlock = `\nPrevious conversation:\n${formatted}\n`;
+	}
+
+	const fullPrompt = `${platformPrompt}
+
+Here is the blog post to work with:
+
+---
+${content}
+---
+${historyBlock}
+User's direction: ${message}
+
+Respond with two sections:
+1. RESPONSE: Your conversational response to the user
+2. ADAPTED_CONTENT: The full adapted content for this platform
+
+Format:
+RESPONSE:
+<your response>
+
+ADAPTED_CONTENT:
+<the adapted content>`;
+
+	try {
+		const result = await new Promise<string>((resolve, reject) => {
+			const proc = spawn("claude", ["-p", fullPrompt], {
+				stdio: ["pipe", "pipe", "pipe"],
+				timeout: 120_000,
+			});
+			let stdout = "";
+			let stderr = "";
+			proc.stdout.on("data", (data: Buffer) => {
+				stdout += data.toString();
+			});
+			proc.stderr.on("data", (data: Buffer) => {
+				stderr += data.toString();
+			});
+			proc.on("close", (code: number | null) => {
+				if (code === 0) resolve(stdout);
+				else reject(new Error(`claude exited with code ${code}: ${stderr}`));
+			});
+			proc.on("error", reject);
+		});
+
+		const responseMatch = result.match(/RESPONSE:\s*([\s\S]*?)(?=ADAPTED_CONTENT:|$)/);
+		const contentMatch = result.match(/ADAPTED_CONTENT:\s*([\s\S]*?)$/);
+		const response = responseMatch?.[1]?.trim() ?? result.trim();
+		const adaptedContent = contentMatch?.[1]?.trim() ?? "";
+
+		return c.json({ response, adapted_content: adaptedContent });
+	} catch (err) {
+		const errMessage = err instanceof Error ? err.message : "Unknown error";
+		return c.json({ error: `Chat failed: ${errMessage}` }, 500);
+	}
 });
 
 export default app;

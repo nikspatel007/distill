@@ -198,6 +198,32 @@ describe("PUT /api/studio/items/:slug/platform/:platform", () => {
 	});
 });
 
+describe("POST /api/studio/chat", () => {
+	test("rejects invalid request body", async () => {
+		const res = await app.request("/api/studio/chat", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ invalid: true }),
+		});
+		expect(res.status).toBe(400);
+	});
+
+	test("accepts valid chat request shape", async () => {
+		const res = await app.request("/api/studio/chat", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				content: "Blog post text",
+				platform: "linkedin",
+				message: "Make it punchier",
+				history: [],
+			}),
+		});
+		// 200 if claude is available, 500 if not — but NOT 400
+		expect([200, 500]).toContain(res.status);
+	});
+});
+
 describe("PUT /api/studio/items/:slug/chat", () => {
 	test("saves chat history", async () => {
 		await setupBlogFiles(tempDir);
