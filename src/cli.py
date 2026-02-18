@@ -887,7 +887,7 @@ def journal_cmd(
     Use --force to regenerate entries that are already cached.
     Use --project to generate a project-scoped journal.
     """
-    from distill.journal.config import JournalStyle
+    from distill.journal import JournalStyle
 
     # Validate style
     valid_styles = [s.value for s in JournalStyle]
@@ -1134,8 +1134,8 @@ def blog_cmd(
         raise typer.Exit(1)
 
     # Parse platforms
-    from distill.blog.config import Platform
-    from distill.config import load_config as _load_blog_config
+    from distill.blog import Platform
+    from distill.shared.config import load_config as _load_blog_config
 
     _blog_cfg = _load_blog_config()
 
@@ -1599,8 +1599,8 @@ def run_cmd(
     """
     from datetime import timedelta
 
-    from distill.config import load_config as _load_config
-    from distill.errors import PipelineReport, save_report
+    from distill.shared.config import load_config as _load_config
+    from distill.shared.errors import PipelineReport, save_report
 
     _cfg = _load_config()
     _project_context = _cfg.render_project_context()
@@ -1827,8 +1827,8 @@ def run_cmd(
 
         # Send notifications if configured
         with contextlib.suppress(Exception):
-            from distill.config import load_config
-            from distill.notifications import send_notification
+            from distill.shared.config import load_config
+            from distill.shared.notifications import send_notification
 
             cfg = load_config()
             if cfg.notifications.is_configured:
@@ -1862,8 +1862,8 @@ def status_cmd(
     Displays last run info, journal/blog/intake counts, memory stats,
     content store size, and configured source status.
     """
-    from distill.errors import load_report
     from distill.memory import MEMORY_FILENAME
+    from distill.shared.errors import load_report
 
     # Last run report
     report = load_report(output)
@@ -1939,7 +1939,7 @@ def status_cmd(
         console.print("Memory:  [dim]not initialized[/dim]")
 
     # Content store
-    from distill.store import JSON_STORE_FILENAME
+    from distill.shared.store import JSON_STORE_FILENAME
 
     store_path = output / JSON_STORE_FILENAME
     if store_path.exists():
@@ -1960,7 +1960,7 @@ def status_cmd(
         "substack": False,
     }
     # Check config for more sources
-    from distill.config import load_config
+    from distill.shared.config import load_config
 
     with contextlib.suppress(Exception):
         cfg = load_config()
@@ -2003,7 +2003,7 @@ def seed_add(
     ] = Path("./insights"),
 ) -> None:
     """Add a seed idea — a raw thought or headline for your next digest."""
-    from distill.intake.seeds import SeedStore
+    from distill.intake import SeedStore
 
     store = SeedStore(output)
     tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
@@ -2033,7 +2033,7 @@ def seed_list(
     ] = False,
 ) -> None:
     """List your pending seed ideas."""
-    from distill.intake.seeds import SeedStore
+    from distill.intake import SeedStore
 
     store = SeedStore(output)
     seeds = store.list_all() if show_all else store.list_unused()
@@ -2072,7 +2072,7 @@ def note_add(
     ] = Path("./insights"),
 ) -> None:
     """Add an editorial note to guide content generation."""
-    from distill.editorial import EditorialStore
+    from distill.shared.editorial import EditorialStore
 
     store = EditorialStore(output)
     note = store.add(text, target=target)
@@ -2101,7 +2101,7 @@ def note_list(
     ] = False,
 ) -> None:
     """List active editorial notes."""
-    from distill.editorial import EditorialStore
+    from distill.shared.editorial import EditorialStore
 
     store = EditorialStore(output)
     notes = store.list_all() if show_all else store.list_active()
@@ -2132,7 +2132,7 @@ def brainstorm(
         fetch_hacker_news,
         fetch_manual_links,
     )
-    from distill.config import load_config
+    from distill.shared.config import load_config
 
     config = load_config()
     bc = config.brainstorm
@@ -2326,7 +2326,7 @@ def graph_build(
         console.print(f"[green]Found {len(sessions)} session(s)[/green]")
 
     # Build graph
-    from distill.config import load_config
+    from distill.shared.config import load_config
 
     cfg = load_config()
     output.mkdir(parents=True, exist_ok=True)

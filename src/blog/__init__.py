@@ -22,9 +22,9 @@ from distill.blog.models import (
 )
 from distill.blog.prompts import get_blog_prompt, get_daily_social_prompt
 from distill.blog.services import (
+    THEMES,
     BlogSynthesizer,
     JournalReader,
-    THEMES,
     clean_diagrams,
     detect_series_candidates,
     gather_evidence,
