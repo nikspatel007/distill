@@ -7,8 +7,8 @@ import {
 	FolderKanban,
 	LayoutDashboard,
 	PenLine,
-	Send,
 	Settings,
+	Wand2,
 } from "lucide-react";
 
 const navItems: { to: string; label: string; icon: LucideIcon }[] = [
@@ -18,7 +18,7 @@ const navItems: { to: string; label: string; icon: LucideIcon }[] = [
 	{ to: "/blog", label: "Blog", icon: PenLine },
 	{ to: "/reading", label: "Reading", icon: BookMarked },
 	{ to: "/calendar", label: "Calendar", icon: CalendarDays },
-	{ to: "/publish", label: "Publish", icon: Send },
+	{ to: "/studio", label: "Studio", icon: Wand2 },
 	{ to: "/settings", label: "Settings", icon: Settings },
 ];
 
