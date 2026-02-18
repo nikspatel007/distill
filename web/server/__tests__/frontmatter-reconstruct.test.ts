@@ -68,7 +68,7 @@ title: "Test Post"
 tags:
   - one
   - two
-projects: [distill, vermas]
+projects: [distill]
 ---
 
 Body`;
@@ -76,7 +76,7 @@ Body`;
 		const result = reconstructMarkdown(raw, "Updated body");
 		expect(result).toContain('title: "Test Post"');
 		expect(result).toContain("  - one");
-		expect(result).toContain("projects: [distill, vermas]");
+		expect(result).toContain("projects: [distill]");
 		expect(result).toContain("Updated body");
 	});
 });

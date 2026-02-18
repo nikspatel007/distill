@@ -113,7 +113,7 @@ def _extract_session_summary(session: BaseSession) -> SessionSummaryForLLM:
     # Outcomes as strings
     outcomes = [o.description for o in session.outcomes if o.description]
 
-    # Cycle outcome for VerMAS sessions
+    # Cycle outcome (workflow sessions)
     cycle_outcome = None
     if session.cycle_info:
         cycle_outcome = session.cycle_info.outcome

@@ -22,7 +22,7 @@ def _make_entry(
         sessions_count=3,
         duration_minutes=60.0,
         tags=tags or [],
-        projects=["vermas"],
+        projects=["distill"],
         prose=prose,
     )
 

@@ -9,8 +9,10 @@ import logging
 import os
 import tomllib
 from pathlib import Path
+from typing import Any
 
-from pydantic import BaseModel, Field
+from distill.brainstorm.config import BrainstormConfig
+from pydantic import BaseModel, Field, model_validator
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +53,7 @@ class JournalSectionConfig(BaseModel):
     target_word_count: int = 600
     model: str | None = None
     memory_window_days: int = 7
+    claude_timeout: int = 120
 
 
 class BlogSectionConfig(BaseModel):
@@ -59,6 +62,7 @@ class BlogSectionConfig(BaseModel):
     target_word_count: int = 1200
     include_diagrams: bool = True
     model: str | None = None
+    claude_timeout: int = 360
     platforms: list[str] = Field(default_factory=lambda: ["obsidian"])
 
 
@@ -76,13 +80,115 @@ class IntakeSectionConfig(BaseModel):
     publishers: list[str] = Field(default_factory=lambda: ["obsidian"])
 
 
-class GhostSectionConfig(BaseModel):
-    """[ghost] section."""
+class GraphSectionConfig(BaseModel):
+    """[graph] section."""
+
+    agent_prompt_patterns: list[str] = Field(default_factory=list)
+
+
+class GhostTargetConfig(BaseModel):
+    """A single named Ghost target (e.g. [ghost.personal])."""
 
     url: str = ""
     admin_api_key: str = ""
     newsletter_slug: str = ""
+    auto_publish: bool | None = None
+    blog_as_draft: bool | None = None
+
+
+class GhostSectionConfig(BaseModel):
+    """[ghost] section with optional named targets.
+
+    Supports two formats:
+
+    Legacy flat (single target)::
+
+        [ghost]
+        url = "https://ghost.example"
+        admin_api_key = "id:secret"
+
+    Named targets::
+
+        [ghost]
+        default = "troopx"
+        auto_publish = true
+
+        [ghost.troopx]
+        url = "https://troopx-ghost.example"
+
+        [ghost.personal]
+        url = "https://blog.nik-patel.com"
+    """
+
+    default: str = ""
+    url: str = ""
+    admin_api_key: str = ""
+    newsletter_slug: str = ""
     auto_publish: bool = True
+    blog_as_draft: bool = False
+    targets: dict[str, GhostTargetConfig] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _extract_targets(cls, data: Any) -> Any:
+        """Extract named sub-dicts as targets before validation."""
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)  # shallow copy
+        known = {
+            "default", "url", "admin_api_key", "newsletter_slug",
+            "auto_publish", "blog_as_draft", "targets",
+        }
+        targets: dict[str, object] = {}
+        for key in list(data.keys()):
+            if key not in known and isinstance(data[key], dict):
+                targets[key] = data.pop(key)
+        if targets:
+            existing = data.get("targets", {})
+            if isinstance(existing, dict):
+                existing.update(targets)
+                data["targets"] = existing
+            else:
+                data["targets"] = targets
+        return data
+
+    def get_target(self, name: str | None = None) -> GhostTargetConfig:
+        """Resolve a named target, falling back to top-level config.
+
+        Args:
+            name: Target name (e.g. "personal", "troopx").
+                  If None, uses ``self.default``. If no default,
+                  returns the top-level flat config.
+
+        Returns:
+            Resolved GhostTargetConfig with inherited defaults.
+        """
+        target_name = name or self.default
+        if target_name and target_name in self.targets:
+            t = self.targets[target_name]
+            return GhostTargetConfig(
+                url=t.url or self.url,
+                admin_api_key=t.admin_api_key or self.admin_api_key,
+                newsletter_slug=t.newsletter_slug or self.newsletter_slug,
+                auto_publish=t.auto_publish if t.auto_publish is not None else self.auto_publish,
+                blog_as_draft=(
+                    t.blog_as_draft
+                    if t.blog_as_draft is not None
+                    else self.blog_as_draft
+                ),
+            )
+        return GhostTargetConfig(
+            url=self.url,
+            admin_api_key=self.admin_api_key,
+            newsletter_slug=self.newsletter_slug,
+            auto_publish=self.auto_publish,
+            blog_as_draft=self.blog_as_draft,
+        )
+
+    @property
+    def target_names(self) -> list[str]:
+        """List all named targets."""
+        return list(self.targets.keys())
 
 
 class RedditSectionConfig(BaseModel):
@@ -106,12 +212,17 @@ class PostizSectionConfig(BaseModel):
     api_key: str = ""
     default_type: str = "draft"
     schedule_enabled: bool = False
-    timezone: str = "America/New_York"
+    timezone: str = "America/Chicago"
     weekly_time: str = "09:00"
     weekly_day: int = 0
     thematic_time: str = "09:00"
     thematic_days: list[int] = Field(default_factory=lambda: [1, 2, 3])
     intake_time: str = "17:00"
+    daily_social_time: str = "08:00"
+    daily_social_platforms: list[str] = Field(default_factory=lambda: ["linkedin"])
+    daily_social_enabled: bool = False
+    daily_social_series_length: int = 100
+    daily_social_project: str = ""  # Focus on this project (filters journal content)
     slack_channel: str = ""
 
 
@@ -128,6 +239,27 @@ class NotificationConfig(BaseModel):
         return self.enabled and bool(self.slack_webhook or self.ntfy_url)
 
 
+class UserConfig(BaseModel):
+    """[user] section — identity for LLM prompts."""
+
+    name: str = ""
+    role: str = "software engineer"
+    bio: str = ""
+
+
+class SocialConfig(BaseModel):
+    """[social] section — branding for social posts."""
+
+    brand_hashtags: list[str] = Field(default_factory=list)
+    secondary_hashtags: list[str] = Field(default_factory=list)
+
+
+class IntelligenceConfig(BaseModel):
+    """[intelligence] section."""
+
+    model: str = "claude-haiku-4-5-20251001"
+
+
 class DistillConfig(BaseModel):
     """Top-level configuration model for the entire distill pipeline."""
 
@@ -136,12 +268,17 @@ class DistillConfig(BaseModel):
     journal: JournalSectionConfig = Field(default_factory=JournalSectionConfig)
     blog: BlogSectionConfig = Field(default_factory=BlogSectionConfig)
     intake: IntakeSectionConfig = Field(default_factory=IntakeSectionConfig)
+    graph: GraphSectionConfig = Field(default_factory=GraphSectionConfig)
     ghost: GhostSectionConfig = Field(default_factory=GhostSectionConfig)
     reddit: RedditSectionConfig = Field(default_factory=RedditSectionConfig)
     youtube: YouTubeSectionConfig = Field(default_factory=YouTubeSectionConfig)
     postiz: PostizSectionConfig = Field(default_factory=PostizSectionConfig)
     notifications: NotificationConfig = Field(default_factory=NotificationConfig)
+    intelligence: IntelligenceConfig = Field(default_factory=IntelligenceConfig)
     projects: list[ProjectConfig] = Field(default_factory=list)
+    user: UserConfig = Field(default_factory=UserConfig)
+    social: SocialConfig = Field(default_factory=SocialConfig)
+    brainstorm: BrainstormConfig = Field(default_factory=BrainstormConfig)
 
     def render_project_context(self) -> str:
         """Render project descriptions for LLM prompt injection."""
@@ -163,6 +300,7 @@ class DistillConfig(BaseModel):
             target_word_count=self.journal.target_word_count,
             model=self.journal.model,
             memory_window_days=self.journal.memory_window_days,
+            claude_timeout=self.journal.claude_timeout,
         )
 
     def to_blog_config(self) -> object:
@@ -173,6 +311,7 @@ class DistillConfig(BaseModel):
             target_word_count=self.blog.target_word_count,
             include_diagrams=self.blog.include_diagrams,
             model=self.blog.model,
+            claude_timeout=self.blog.claude_timeout,
         )
 
     def to_intake_config(self) -> object:
@@ -186,17 +325,49 @@ class DistillConfig(BaseModel):
             ),
             model=self.intake.model,
             target_word_count=self.intake.target_word_count,
+            user_name=self.user.name,
+            user_role=self.user.role,
         )
 
-    def to_ghost_config(self) -> object:
-        """Convert to GhostConfig for Ghost CMS publishing."""
-        from distill.blog.config import GhostConfig
+    def to_ghost_config(self, target: str | None = None) -> object:
+        """Convert to GhostConfig for Ghost CMS publishing.
 
+        Args:
+            target: Named Ghost target (e.g. "personal", "troopx").
+                    If None, uses the default target from config.
+        """
+        from distill.integrations.ghost import GhostConfig
+
+        t = self.ghost.get_target(target)
         return GhostConfig(
-            url=self.ghost.url,
-            admin_api_key=self.ghost.admin_api_key,
-            newsletter_slug=self.ghost.newsletter_slug,
-            auto_publish=self.ghost.auto_publish,
+            url=t.url,
+            admin_api_key=t.admin_api_key,
+            newsletter_slug=t.newsletter_slug,
+            auto_publish=t.auto_publish if t.auto_publish is not None else True,
+            blog_as_draft=t.blog_as_draft if t.blog_as_draft is not None else False,
+        )
+
+    def to_postiz_config(self) -> object:
+        """Convert to PostizConfig for the Postiz integration."""
+        from distill.integrations.postiz import PostizConfig
+
+        return PostizConfig(
+            url=self.postiz.url,
+            api_key=self.postiz.api_key,
+            default_type=self.postiz.default_type,
+            schedule_enabled=self.postiz.schedule_enabled,
+            timezone=self.postiz.timezone,
+            weekly_time=self.postiz.weekly_time,
+            weekly_day=self.postiz.weekly_day,
+            thematic_time=self.postiz.thematic_time,
+            thematic_days=list(self.postiz.thematic_days),
+            intake_time=self.postiz.intake_time,
+            daily_social_time=self.postiz.daily_social_time,
+            daily_social_platforms=list(self.postiz.daily_social_platforms),
+            daily_social_enabled=self.postiz.daily_social_enabled,
+            daily_social_series_length=self.postiz.daily_social_series_length,
+            daily_social_project=self.postiz.daily_social_project,
+            slack_channel=self.postiz.slack_channel,
         )
 
     def to_notification_config(self) -> NotificationConfig:
@@ -335,6 +506,15 @@ def _apply_env_vars(config: DistillConfig) -> DistillConfig:
         if value is not None:
             data[section][field] = value
 
+    # Per-target Ghost env vars: GHOST_<TARGET>_URL, GHOST_<TARGET>_ADMIN_API_KEY
+    ghost_targets = data.get("ghost", {}).get("targets", {})
+    for target_name in list(ghost_targets.keys()):
+        prefix = f"GHOST_{target_name.upper()}_"
+        for env_suffix, field in [("URL", "url"), ("ADMIN_API_KEY", "admin_api_key")]:
+            val = os.environ.get(f"{prefix}{env_suffix}")
+            if val is not None:
+                ghost_targets[target_name][field] = val
+
     # Postiz scheduling env vars (non-string types)
     sched_raw = os.environ.get("POSTIZ_SCHEDULE_ENABLED")
     if sched_raw is not None:
@@ -346,6 +526,7 @@ def _apply_env_vars(config: DistillConfig) -> DistillConfig:
         ("POSTIZ_WEEKLY_TIME", "weekly_time"),
         ("POSTIZ_THEMATIC_TIME", "thematic_time"),
         ("POSTIZ_INTAKE_TIME", "intake_time"),
+        ("POSTIZ_DAILY_SOCIAL_TIME", "daily_social_time"),
     ]:
         val = os.environ.get(key)
         if val is not None:
@@ -358,6 +539,18 @@ def _apply_env_vars(config: DistillConfig) -> DistillConfig:
         data["postiz"]["thematic_days"] = [
             int(d.strip()) for d in tdays_raw.split(",") if d.strip()
         ]
+
+    daily_enabled_raw = os.environ.get("POSTIZ_DAILY_SOCIAL_ENABLED")
+    if daily_enabled_raw is not None:
+        data["postiz"]["daily_social_enabled"] = daily_enabled_raw.lower() in ("true", "1", "yes")
+    daily_platforms_raw = os.environ.get("POSTIZ_DAILY_SOCIAL_PLATFORMS")
+    if daily_platforms_raw is not None:
+        data["postiz"]["daily_social_platforms"] = [
+            p.strip() for p in daily_platforms_raw.split(",") if p.strip()
+        ]
+    daily_length_raw = os.environ.get("POSTIZ_DAILY_SOCIAL_SERIES_LENGTH")
+    if daily_length_raw is not None:
+        data["postiz"]["daily_social_series_length"] = int(daily_length_raw)
 
     # Global model env var overrides all sections
     global_model = os.environ.get("DISTILL_MODEL")

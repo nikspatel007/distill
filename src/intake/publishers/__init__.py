@@ -2,24 +2,27 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from distill.intake.publishers.base import IntakePublisher
 
 if TYPE_CHECKING:
-    from distill.blog.config import GhostConfig
+    from distill.integrations.ghost import GhostConfig
 
 
 def create_intake_publisher(
     platform: str,
     *,
     ghost_config: GhostConfig | None = None,
+    output_dir: Path | None = None,
 ) -> IntakePublisher:
     """Create a publisher for the given platform.
 
     Args:
         platform: Target platform name.
         ghost_config: Optional Ghost CMS configuration (for ``"ghost"``).
+        output_dir: Optional output directory for resolving local image paths.
 
     Returns:
         An IntakePublisher instance.
@@ -54,7 +57,7 @@ def create_intake_publisher(
         return social_publishers[platform]()
 
     if platform == "ghost":
-        return GhostIntakePublisher(ghost_config=ghost_config)
+        return GhostIntakePublisher(ghost_config=ghost_config, output_dir=output_dir)
 
     if platform == "postiz":
         from distill.intake.publishers.postiz import PostizIntakePublisher

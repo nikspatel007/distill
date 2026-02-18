@@ -51,6 +51,18 @@ class TestDistillConfigDefaults:
 class TestLoadConfig:
     """Test load_config with TOML files."""
 
+    @pytest.fixture(autouse=True)
+    def _clean_env(self, monkeypatch):
+        """Remove env vars that _apply_env_vars reads so tests see TOML values."""
+        for key in (
+            "GHOST_URL", "GHOST_ADMIN_API_KEY", "GHOST_NEWSLETTER_SLUG",
+            "REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET", "REDDIT_USERNAME",
+            "YOUTUBE_API_KEY", "DISTILL_OUTPUT_DIR", "DISTILL_MODEL",
+            "DISTILL_SLACK_WEBHOOK", "DISTILL_NTFY_URL", "DISTILL_NTFY_TOPIC",
+            "POSTIZ_URL", "POSTIZ_API_KEY", "POSTIZ_SLACK_CHANNEL",
+        ):
+            monkeypatch.delenv(key, raising=False)
+
     def test_load_from_explicit_path(self, tmp_path):
         toml_path = tmp_path / ".distill.toml"
         toml_path.write_text(
@@ -267,3 +279,152 @@ class TestNotificationConfig:
     def test_disabled_overrides_configured(self):
         nc = NotificationConfig(slack_webhook="https://hooks.slack.com/x", enabled=False)
         assert nc.is_configured is False
+
+
+class TestGhostNamedTargets:
+    """Test multi-target Ghost configuration."""
+
+    @pytest.fixture(autouse=True)
+    def _clean_env(self, monkeypatch):
+        for key in (
+            "GHOST_URL", "GHOST_ADMIN_API_KEY", "GHOST_NEWSLETTER_SLUG",
+            "GHOST_TROOPX_URL", "GHOST_TROOPX_ADMIN_API_KEY",
+            "GHOST_PERSONAL_URL", "GHOST_PERSONAL_ADMIN_API_KEY",
+        ):
+            monkeypatch.delenv(key, raising=False)
+
+    def test_legacy_flat_config_still_works(self, tmp_path):
+        toml_path = tmp_path / ".distill.toml"
+        toml_path.write_text('[ghost]\nurl = "https://ghost.example"\nadmin_api_key = "k"\n')
+        cfg = load_config(toml_path)
+        assert cfg.ghost.url == "https://ghost.example"
+        gc = cfg.to_ghost_config()
+        assert gc.url == "https://ghost.example"
+        assert gc.is_configured is True
+
+    def test_named_targets_parsed(self, tmp_path):
+        toml_path = tmp_path / ".distill.toml"
+        toml_path.write_text(
+            '[ghost]\n'
+            'default = "troopx"\n'
+            'auto_publish = true\n\n'
+            '[ghost.troopx]\n'
+            'url = "https://troopx.ghost"\n'
+            'admin_api_key = "t:key"\n\n'
+            '[ghost.personal]\n'
+            'url = "https://blog.nik-patel.com"\n'
+            'admin_api_key = "p:key"\n'
+        )
+        cfg = load_config(toml_path)
+        assert "troopx" in cfg.ghost.targets
+        assert "personal" in cfg.ghost.targets
+        assert cfg.ghost.default == "troopx"
+
+    def test_get_target_by_name(self, tmp_path):
+        toml_path = tmp_path / ".distill.toml"
+        toml_path.write_text(
+            '[ghost]\n'
+            'default = "troopx"\n\n'
+            '[ghost.troopx]\n'
+            'url = "https://troopx.ghost"\n'
+            'admin_api_key = "t:key"\n\n'
+            '[ghost.personal]\n'
+            'url = "https://personal.ghost"\n'
+            'admin_api_key = "p:key"\n'
+        )
+        cfg = load_config(toml_path)
+        t = cfg.ghost.get_target("personal")
+        assert t.url == "https://personal.ghost"
+        assert t.admin_api_key == "p:key"
+
+    def test_default_target_resolved(self, tmp_path):
+        toml_path = tmp_path / ".distill.toml"
+        toml_path.write_text(
+            '[ghost]\n'
+            'default = "troopx"\n\n'
+            '[ghost.troopx]\n'
+            'url = "https://troopx.ghost"\n'
+            'admin_api_key = "t:key"\n'
+        )
+        cfg = load_config(toml_path)
+        t = cfg.ghost.get_target()  # no name = use default
+        assert t.url == "https://troopx.ghost"
+
+    def test_target_inherits_top_level_defaults(self, tmp_path):
+        toml_path = tmp_path / ".distill.toml"
+        toml_path.write_text(
+            '[ghost]\n'
+            'auto_publish = true\n'
+            'blog_as_draft = true\n\n'
+            '[ghost.personal]\n'
+            'url = "https://personal.ghost"\n'
+            'admin_api_key = "p:key"\n'
+        )
+        cfg = load_config(toml_path)
+        t = cfg.ghost.get_target("personal")
+        assert t.auto_publish is True  # inherited
+        assert t.blog_as_draft is True  # inherited
+
+    def test_target_overrides_top_level(self, tmp_path):
+        toml_path = tmp_path / ".distill.toml"
+        toml_path.write_text(
+            '[ghost]\n'
+            'auto_publish = true\n'
+            'blog_as_draft = true\n\n'
+            '[ghost.personal]\n'
+            'url = "https://personal.ghost"\n'
+            'admin_api_key = "p:key"\n'
+            'blog_as_draft = false\n'
+        )
+        cfg = load_config(toml_path)
+        t = cfg.ghost.get_target("personal")
+        assert t.blog_as_draft is False  # overridden
+
+    def test_to_ghost_config_with_target(self, tmp_path):
+        toml_path = tmp_path / ".distill.toml"
+        toml_path.write_text(
+            '[ghost]\n'
+            'default = "troopx"\n\n'
+            '[ghost.troopx]\n'
+            'url = "https://troopx.ghost"\n'
+            'admin_api_key = "t:key"\n\n'
+            '[ghost.personal]\n'
+            'url = "https://personal.ghost"\n'
+            'admin_api_key = "p:key"\n'
+        )
+        cfg = load_config(toml_path)
+        gc = cfg.to_ghost_config(target="personal")
+        assert gc.url == "https://personal.ghost"
+        assert gc.admin_api_key == "p:key"
+        assert gc.is_configured is True
+
+    def test_target_names_property(self, tmp_path):
+        toml_path = tmp_path / ".distill.toml"
+        toml_path.write_text(
+            '[ghost]\n\n'
+            '[ghost.troopx]\nurl = "a"\n\n'
+            '[ghost.personal]\nurl = "b"\n'
+        )
+        cfg = load_config(toml_path)
+        assert sorted(cfg.ghost.target_names) == ["personal", "troopx"]
+
+    def test_per_target_env_vars(self, tmp_path, monkeypatch):
+        toml_path = tmp_path / ".distill.toml"
+        toml_path.write_text(
+            '[ghost]\n\n'
+            '[ghost.personal]\n'
+            'url = "https://from-toml"\n'
+        )
+        monkeypatch.setenv("GHOST_PERSONAL_URL", "https://from-env")
+        monkeypatch.setenv("GHOST_PERSONAL_ADMIN_API_KEY", "env:key")
+        cfg = load_config(toml_path)
+        t = cfg.ghost.get_target("personal")
+        assert t.url == "https://from-env"
+        assert t.admin_api_key == "env:key"
+
+    def test_fallback_no_targets_no_default(self):
+        cfg = DistillConfig()
+        cfg.ghost.url = "https://flat.ghost"
+        cfg.ghost.admin_api_key = "f:key"
+        t = cfg.ghost.get_target()
+        assert t.url == "https://flat.ghost"

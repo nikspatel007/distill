@@ -9,7 +9,10 @@ import BlogList from "./routes/blog.js";
 import BlogDetail from "./routes/blog.$slug.js";
 import Reading from "./routes/reading.js";
 import ReadingDetail from "./routes/reading.$date.js";
+import Calendar from "./routes/calendar.js";
 import Publish from "./routes/publish.js";
+import Studio from "./routes/studio.js";
+import StudioDetail from "./routes/studio.$slug.js";
 import Settings from "./routes/settings.js";
 
 const rootRoute = createRootRoute({ component: RootLayout });
@@ -68,10 +71,28 @@ const readingDetailRoute = createRoute({
   component: ReadingDetail,
 });
 
+const calendarRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/calendar",
+  component: Calendar,
+});
+
 const publishRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/publish",
   component: Publish,
+});
+
+const studioRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/studio",
+  component: Studio,
+});
+
+const studioDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/studio/$slug",
+  component: StudioDetail,
 });
 
 const settingsRoute = createRoute({
@@ -90,6 +111,9 @@ export const routeTree = rootRoute.addChildren([
   blogDetailRoute,
   readingRoute,
   readingDetailRoute,
+  calendarRoute,
   publishRoute,
+  studioRoute,
+  studioDetailRoute,
   settingsRoute,
 ]);

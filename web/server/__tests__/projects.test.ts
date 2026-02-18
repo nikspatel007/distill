@@ -32,11 +32,6 @@ describe("Projects API", () => {
 				'description = "Content pipeline"',
 				'url = "https://github.com/example/distill"',
 				'tags = ["pipeline", "content"]',
-				"",
-				"[[projects]]",
-				'name = "vermas"',
-				'description = "Multi-agent system"',
-				'tags = ["agents"]',
 			].join("\n"),
 			"utf-8",
 		);
@@ -54,7 +49,6 @@ tags:
   - journal
 projects:
   - distill
-  - vermas
 ---
 
 # Journal entry`,
@@ -191,7 +185,7 @@ projects:
 
 		const data = await res.json();
 		expect(data).toHaveProperty("projects");
-		expect(data.projects.length).toBe(4);
+		expect(data.projects.length).toBe(3);
 	});
 
 	test("projects include stats from journal/blog data", async () => {
@@ -212,23 +206,8 @@ projects:
 		const res = await app.request("/api/projects");
 		const data = await res.json();
 
-		// distill was last seen 2026-02-09, vermas also 2026-02-09
-		// Both should appear
 		const names = data.projects.map((p: { name: string }) => p.name);
 		expect(names).toContain("distill");
-		expect(names).toContain("vermas");
-	});
-
-	test("vermas has correct stats", async () => {
-		const res = await app.request("/api/projects");
-		const data = await res.json();
-
-		const vermas = data.projects.find((p: { name: string }) => p.name === "vermas");
-		expect(vermas).toBeDefined();
-		expect(vermas.journalCount).toBe(1);
-		expect(vermas.blogCount).toBe(0);
-		expect(vermas.description).toBe("Multi-agent system");
-		expect(vermas.hasProjectNote).toBe(false);
 	});
 
 	test("GET /api/projects/:name returns project detail", async () => {
@@ -245,17 +224,6 @@ projects:
 		expect(data.journals.length).toBe(2);
 		expect(data.blogs.length).toBe(1);
 		expect(data.projectNoteContent).toContain("Project notes here");
-	});
-
-	test("GET /api/projects/:name returns filtered journals only", async () => {
-		const res = await app.request("/api/projects/vermas");
-		expect(res.status).toBe(200);
-
-		const data = await res.json();
-		expect(data.journals.length).toBe(1);
-		expect(data.journals[0].date).toBe("2026-02-09");
-		expect(data.blogs.length).toBe(0);
-		expect(data.projectNoteContent).toBeNull();
 	});
 
 	test("GET /api/projects/:name returns 404 for unknown project", async () => {
@@ -280,9 +248,9 @@ projects:
 		const res = await app.request("/api/projects");
 		const data = await res.json();
 
-		// Should be 4: distill, vermas (config), side-project (organic), ci-tools (blog-only)
+		// Should be 3: distill (config), side-project (organic), ci-tools (blog-only)
 		// The journal with projects: [] should NOT add any project
-		expect(data.projects.length).toBe(4);
+		expect(data.projects.length).toBe(3);
 		const names = data.projects.map((p: { name: string }) => p.name);
 		expect(names).not.toContain("");
 	});

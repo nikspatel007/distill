@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import json
 import logging
-import subprocess
 from typing import Any
 
 from distill.intake.models import ContentItem
+from distill.llm import LLMError, call_claude, strip_json_fences
 
 logger = logging.getLogger(__name__)
 
@@ -24,52 +24,69 @@ _INTELLIGENCE_MODEL = "claude-haiku-4-5-20251001"
 
 
 def _call_claude(prompt: str, model: str | None = None, timeout: int = 120) -> str:
-    """Call Claude CLI with a prompt. Returns stdout or empty string on failure."""
-    cmd: list[str] = ["claude", "-p"]
-    if model:
-        cmd.extend(["--model", model])
+    """Call Claude CLI with a prompt. Returns stdout or empty string on failure.
 
+    Delegates to the shared :func:`distill.llm.call_claude` and converts
+    any :class:`LLMError` into an empty string (callers treat that as a
+    soft failure).
+    """
     try:
-        result = subprocess.run(
-            cmd,
-            input=prompt,
-            capture_output=True,
-            text=True,
+        return call_claude(
+            prompt,
+            "",
+            model=model,
             timeout=timeout,
+            label="intelligence",
         )
-        if result.returncode == 0:
-            return result.stdout.strip()
-        logger.warning(
-            "Claude CLI returned exit code %d: %s",
-            result.returncode,
-            result.stderr.strip()[:200] if result.stderr else "(no stderr)",
-        )
-    except FileNotFoundError:
-        logger.warning("Claude CLI not found on PATH")
-    except subprocess.TimeoutExpired:
-        logger.warning("Claude CLI timed out after %ds", timeout)
-    except OSError as exc:
-        logger.warning("Claude CLI OSError: %s", exc)
-    return ""
+    except LLMError as exc:
+        logger.warning("Claude CLI call failed: %s", exc)
+        return ""
 
 
 def _parse_json_response(text: str) -> Any:
-    """Extract JSON from LLM response, handling markdown code fences."""
-    text = text.strip()
-    # Strip markdown code fences
-    if text.startswith("```"):
-        lines = text.splitlines()
-        # Remove first and last fence lines
-        if lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-        text = "\n".join(lines)
+    """Extract JSON from LLM response, handling markdown code fences and preamble text.
 
+    Uses :func:`distill.llm.strip_json_fences` for fence stripping, then
+    applies additional heuristics for preamble text that the shared helper
+    does not cover.
+    """
+    text = text.strip()
+    if not text:
+        return None
+
+    # Use the shared helper to strip markdown code fences (```json ... ```)
+    if "```" in text:
+        text = strip_json_fences(text)
+
+    # Try direct parse first
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        return None
+        pass
+
+    # Fallback: find a JSON array in the response (Claude sometimes adds preamble text)
+    bracket_start = text.find("[")
+    if bracket_start != -1:
+        bracket_end = text.rfind("]")
+        if bracket_end > bracket_start:
+            candidate = text[bracket_start : bracket_end + 1]
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                pass
+
+    # Fallback: find a JSON object in the response
+    brace_start = text.find("{")
+    if brace_start != -1:
+        brace_end = text.rfind("}")
+        if brace_end > brace_start:
+            candidate = text[brace_start : brace_end + 1]
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                pass
+
+    return None
 
 
 def _build_entity_prompt(items: list[ContentItem]) -> str:
@@ -167,20 +184,30 @@ def extract_entities(
     Returns:
         The same list with entities populated.
     """
+    failed_empty = 0
+    failed_parse = 0
+    succeeded = 0
+
     for batch_start in range(0, len(items), _BATCH_SIZE):
         batch = items[batch_start : batch_start + _BATCH_SIZE]
         prompt = _build_entity_prompt(batch)
         response = _call_claude(prompt, model=model or _INTELLIGENCE_MODEL, timeout=timeout)
 
         if not response:
-            logger.warning("Entity extraction failed for batch starting at %d", batch_start)
+            failed_empty += 1
             continue
 
         parsed = _parse_json_response(response)
         if not isinstance(parsed, list):
-            logger.warning("Entity extraction returned non-list for batch at %d", batch_start)
+            failed_parse += 1
+            logger.debug(
+                "Entity extraction non-list response (batch %d): %.200s",
+                batch_start,
+                response,
+            )
             continue
 
+        succeeded += 1
         for i, item in enumerate(batch):
             if i < len(parsed) and isinstance(parsed[i], dict):
                 entities = parsed[i]
@@ -189,6 +216,16 @@ def extract_entities(
                 concepts = entities.get("concepts", [])
                 if concepts and not item.topics:
                     item.topics = concepts[:5]
+
+    total = failed_empty + failed_parse + succeeded
+    if failed_empty or failed_parse:
+        logger.warning(
+            "Entity extraction: %d/%d batches succeeded, %d empty responses, %d parse failures",
+            succeeded,
+            total,
+            failed_empty,
+            failed_parse,
+        )
 
     return items
 
@@ -212,23 +249,43 @@ def classify_items(
     Returns:
         The same list with classification populated.
     """
+    failed_empty = 0
+    failed_parse = 0
+    succeeded = 0
+
     for batch_start in range(0, len(items), _BATCH_SIZE):
         batch = items[batch_start : batch_start + _BATCH_SIZE]
         prompt = _build_classification_prompt(batch)
         response = _call_claude(prompt, model=model or _INTELLIGENCE_MODEL, timeout=timeout)
 
         if not response:
-            logger.warning("Classification failed for batch starting at %d", batch_start)
+            failed_empty += 1
             continue
 
         parsed = _parse_json_response(response)
         if not isinstance(parsed, list):
-            logger.warning("Classification returned non-list for batch at %d", batch_start)
+            failed_parse += 1
+            logger.debug(
+                "Classification non-list response (batch %d): %.200s",
+                batch_start,
+                response,
+            )
             continue
 
+        succeeded += 1
         for i, item in enumerate(batch):
             if i < len(parsed) and isinstance(parsed[i], dict):
                 item.metadata["classification"] = parsed[i]
+
+    total = failed_empty + failed_parse + succeeded
+    if failed_empty or failed_parse:
+        logger.warning(
+            "Classification: %d/%d batches succeeded, %d empty responses, %d parse failures",
+            succeeded,
+            total,
+            failed_empty,
+            failed_parse,
+        )
 
     return items
 

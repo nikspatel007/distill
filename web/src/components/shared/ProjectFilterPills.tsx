@@ -1,3 +1,5 @@
+import { formatProjectName } from "../../lib/format.js";
+
 interface Props {
 	projectNames: string[];
 	filterProject: string | null;
@@ -33,7 +35,7 @@ export function ProjectFilterPills({ projectNames, filterProject, onFilterChange
 							: "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
 					}`}
 				>
-					{p}
+					{formatProjectName(p)}
 				</button>
 			))}
 		</div>

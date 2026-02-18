@@ -80,14 +80,13 @@ class TestBareCommand:
 
 
 class TestSessionSourcesDefault:
-    """Test that the default session sources are claude + codex (not vermas)."""
+    """Test that the default session sources are claude + codex."""
 
     def test_default_sources(self) -> None:
         from distill.config import SessionsConfig
 
         config = SessionsConfig()
         assert config.sources == ["claude", "codex"]
-        assert "vermas" not in config.sources
 
     def test_full_config_default(self) -> None:
         from distill.config import DistillConfig

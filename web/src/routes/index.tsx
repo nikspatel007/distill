@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { DashboardResponse } from "../../shared/schemas.js";
 import RunPipelineButton from "../components/shared/RunPipelineButton.js";
+import { formatProjectName } from "../lib/format.js";
 
 export default function Dashboard() {
 	const { data, isLoading, error } = useQuery<DashboardResponse>({
@@ -17,32 +18,36 @@ export default function Dashboard() {
 	if (error) return <div className="text-red-500">Error: {error.message}</div>;
 	if (!data) return null;
 
+	const activeProjects = data.activeProjects ?? [];
+	const recentJournals = data.recentJournals ?? [];
+	const activeThreads = data.activeThreads ?? [];
+
 	return (
 		<div className="space-y-6">
 			<h2 className="text-2xl font-bold">Dashboard</h2>
 
 			{/* Quick stats */}
 			<div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-				<StatCard label="Journal entries" value={data.journalCount} to="/journal" />
-				<StatCard label="Blog posts" value={data.blogCount} to="/blog" />
-				<StatCard label="Projects" value={data.projectCount} to="/projects" />
-				<StatCard label="Intake digests" value={data.intakeCount} to="/reading" />
-				<StatCard label="Ready to publish" value={data.pendingPublish} to="/publish" />
+				<StatCard label="Journal entries" value={data.journalCount ?? 0} to="/journal" />
+				<StatCard label="Blog posts" value={data.blogCount ?? 0} to="/blog" />
+				<StatCard label="Projects" value={data.projectCount ?? 0} to="/projects" />
+				<StatCard label="Intake digests" value={data.intakeCount ?? 0} to="/reading" />
+				<StatCard label="Ready to publish" value={data.pendingPublish ?? 0} to="/publish" />
 			</div>
 
 			{/* Active projects */}
-			{data.activeProjects.length > 0 && (
+			{activeProjects.length > 0 && (
 				<section>
 					<h3 className="mb-3 text-lg font-semibold">Active Projects</h3>
 					<div className="flex flex-wrap gap-3">
-						{data.activeProjects.map((p) => (
+						{activeProjects.map((p) => (
 							<Link
 								key={p.name}
 								to="/projects/$name"
 								params={{ name: p.name }}
 								className="rounded-lg border border-zinc-200 px-4 py-3 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
 							>
-								<span className="font-medium">{p.name}</span>
+								<span className="font-medium">{formatProjectName(p.name)}</span>
 								<div className="mt-1 text-xs text-zinc-500">
 									{p.journalCount} entries, last {p.lastSeen}
 								</div>
@@ -53,11 +58,11 @@ export default function Dashboard() {
 			)}
 
 			{/* Recent journals */}
-			{data.recentJournals.length > 0 && (
+			{recentJournals.length > 0 && (
 				<section>
 					<h3 className="mb-3 text-lg font-semibold">Recent Journal Entries</h3>
 					<div className="space-y-2">
-						{data.recentJournals.map((j) => (
+						{recentJournals.map((j) => (
 							<Link
 								key={j.date}
 								to="/journal/$date"
@@ -72,14 +77,19 @@ export default function Dashboard() {
 								</div>
 								{j.projects.length > 0 && (
 									<div className="mt-1 flex gap-1">
-										{j.projects.map((p) => (
+										{j.projects.slice(0, 3).map((p) => (
 											<span
 												key={p}
 												className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs dark:bg-zinc-800"
 											>
-												{p}
+												{formatProjectName(p)}
 											</span>
 										))}
+										{j.projects.length > 3 && (
+											<span className="px-1 py-0.5 text-xs text-zinc-400">
+												+{j.projects.length - 3} more
+											</span>
+										)}
 									</div>
 								)}
 							</Link>
@@ -89,11 +99,11 @@ export default function Dashboard() {
 			)}
 
 			{/* Active threads */}
-			{data.activeThreads.length > 0 && (
+			{activeThreads.length > 0 && (
 				<section>
 					<h3 className="mb-3 text-lg font-semibold">Active Threads</h3>
 					<div className="space-y-2">
-						{data.activeThreads.map((t) => (
+						{activeThreads.map((t) => (
 							<div
 								key={t.name}
 								className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800"
@@ -119,7 +129,7 @@ export default function Dashboard() {
 
 			{/* Quick actions */}
 			<div className="flex gap-3">
-				{data.seedCount > 0 && (
+				{(data.seedCount ?? 0) > 0 && (
 					<Link
 						to="/reading"
 						className="rounded-lg bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200"
@@ -127,7 +137,7 @@ export default function Dashboard() {
 						{data.seedCount} pending seeds
 					</Link>
 				)}
-				{data.activeNoteCount > 0 && (
+				{(data.activeNoteCount ?? 0) > 0 && (
 					<Link
 						to="/settings"
 						className="rounded-lg bg-purple-50 px-4 py-2 text-sm text-purple-800 dark:bg-purple-950 dark:text-purple-200"

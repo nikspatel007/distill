@@ -213,7 +213,7 @@ def themes_from_seeds(seeds: list[object]) -> list[ThemeDefinition]:
                 description=f"Blog post exploring: {text}",
                 keywords=keywords,
                 thread_patterns=tags if tags else words[:3],
-                min_evidence_days=1,  # Seeds need less evidence — the seed IS the angle
+                min_evidence_days=3,  # Seeds still need real evidence from journal entries
             )
         )
     return themes
@@ -228,6 +228,9 @@ def detect_series_candidates(
 
     Looks for threads with high mention counts and entities with high
     frequency that haven't been blogged yet.
+
+    Filters out generic single-word names (tool names, language names,
+    common programming terms) that produce meaningless blog posts.
 
     Args:
         entries: Journal entries.
@@ -245,11 +248,13 @@ def detect_series_candidates(
 
     candidates: list[ThemeDefinition] = []
 
-    # Series from threads with mention_count >= 3
+    # Series from threads with mention_count >= 5 and multi-word names
     for thread in memory.threads:
         if thread.status != "active":
             continue
-        if thread.mention_count < 3:
+        if thread.mention_count < 5:
+            continue
+        if _is_generic_name(thread.name):
             continue
         slug = f"series-{thread.name.lower().replace(' ', '-')}"
         if state.is_generated(slug):
@@ -261,13 +266,15 @@ def detect_series_candidates(
                 description=thread.summary,
                 keywords=[thread.name.lower()],
                 thread_patterns=[thread.name.lower()],
-                min_evidence_days=2,
+                min_evidence_days=3,
             )
         )
 
-    # Series from entities with mention_count >= 5
+    # Series from entities with mention_count >= 10 and multi-word names
     for _key, entity in memory.entities.items():
-        if entity.mention_count < 5:
+        if entity.mention_count < 10:
+            continue
+        if _is_generic_name(entity.name):
             continue
         slug = f"series-{entity.name.lower().replace(' ', '-')}"
         if state.is_generated(slug):
@@ -279,11 +286,40 @@ def detect_series_candidates(
                 description=f"Extended exploration of {entity.name} ({entity.entity_type})",
                 keywords=[entity.name.lower()],
                 thread_patterns=[entity.name.lower()],
-                min_evidence_days=2,
+                min_evidence_days=3,
             )
         )
 
     return candidates
+
+
+# Generic names that are too vague for a standalone blog post
+_GENERIC_NAMES: set[str] = {
+    "ai", "api", "bash", "blog", "blog post", "bot", "bug", "cache",
+    "cli", "code", "code review", "config", "css", "data", "debug",
+    "debugging", "deploy", "distill", "docker", "docs", "edit", "error",
+    "feature", "file", "file modification", "fix", "glob", "grep", "git",
+    "html", "http", "issue", "javascript", "journal", "journal entry",
+    "json", "lint", "linkedin", "llm", "log", "markdown", "mcp",
+    "meeting", "message", "messaging", "model", "node", "npm", "pivot",
+    "pr", "prompt", "python", "react", "read", "reddit", "redis",
+    "registration", "review", "rss", "schema", "script", "seed",
+    "server", "session", "session data", "shell", "shell commands",
+    "slack", "sql", "ssh", "task", "test", "testing", "themes",
+    "thread", "token", "tool", "troopx", "twitter", "type", "typescript",
+    "ui", "url", "ux", "validation", "verification", "vermas",
+    "webhook", "workflow", "write", "x", "yaml",
+}
+
+
+def _is_generic_name(name: str) -> bool:
+    """Check if a name is too generic for a blog series."""
+    lower = name.lower().strip()
+    # Exact match against blocklist
+    if lower in _GENERIC_NAMES:
+        return True
+    # Single-word names are almost always too generic
+    return " " not in lower and "-" not in lower
 
 
 def _entry_matches_theme(entry: JournalEntry, theme: ThemeDefinition) -> bool:

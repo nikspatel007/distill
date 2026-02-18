@@ -250,6 +250,9 @@ export const ContentItemsResponseSchema = z.object({
 	item_count: z.number(),
 	items: z.array(ContentItemSchema),
 	available_sources: z.array(z.string()).default([]),
+	page: z.number().default(1),
+	total_pages: z.number().default(1),
+	total_items: z.number().default(0),
 });
 
 export const PublishQueueItemSchema = z.object({
@@ -409,6 +412,26 @@ export const ProjectDetailSchema = z.object({
 	journals: z.array(JournalEntrySchema),
 	blogs: z.array(BlogPostSchema),
 	projectNoteContent: z.string().nullable(),
+	projectJournals: z.array(JournalEntrySchema).default([]),
+});
+
+// --- Content Calendar ---
+
+export const ContentIdeaSchema = z.object({
+	title: z.string(),
+	angle: z.string(),
+	source_url: z.string(),
+	platform: z.string(),
+	rationale: z.string(),
+	pillars: z.array(z.string()).default([]),
+	tags: z.array(z.string()).default([]),
+	status: z.string().default("pending"),
+	ghost_post_id: z.string().nullable().default(null),
+});
+
+export const ContentCalendarSchema = z.object({
+	date: z.string(),
+	ideas: z.array(ContentIdeaSchema).default([]),
 });
 
 // --- Save (edit) ---
@@ -464,5 +487,63 @@ export type PipelineStatus = z.infer<typeof PipelineStatusSchema>;
 export type PipelineRunResponse = z.infer<typeof PipelineRunResponseSchema>;
 export type ProjectSummary = z.infer<typeof ProjectSummarySchema>;
 export type ProjectDetail = z.infer<typeof ProjectDetailSchema>;
+export type ContentIdea = z.infer<typeof ContentIdeaSchema>;
+export type ContentCalendar = z.infer<typeof ContentCalendarSchema>;
 export type ContentItem = z.infer<typeof ContentItemSchema>;
 export type ContentItemsResponse = z.infer<typeof ContentItemsResponseSchema>;
+
+// --- Studio / Review Queue ---
+
+export const ChatMessageSchema = z.object({
+	role: z.enum(["user", "assistant"]),
+	content: z.string(),
+	timestamp: z.string(),
+});
+
+export const PlatformContentSchema = z.object({
+	enabled: z.boolean().default(true),
+	content: z.string().nullable().default(null),
+	published: z.boolean().default(false),
+	postiz_id: z.string().nullable().default(null),
+});
+
+export const ReviewItemSchema = z.object({
+	slug: z.string(),
+	title: z.string(),
+	type: z.enum(["weekly", "thematic", "daily-social", "intake"]),
+	status: z.enum(["draft", "ready", "published"]).default("draft"),
+	generated_at: z.string(),
+	source_content: z.string().default(""),
+	platforms: z.record(z.string(), PlatformContentSchema).default({}),
+	chat_history: z.array(ChatMessageSchema).default([]),
+});
+
+export const ReviewQueueSchema = z.object({
+	items: z.array(ReviewItemSchema).default([]),
+});
+
+export const StudioChatRequestSchema = z.object({
+	content: z.string(),
+	platform: z.string(),
+	message: z.string(),
+	history: z.array(ChatMessageSchema).default([]),
+});
+
+export const StudioChatResponseSchema = z.object({
+	response: z.string(),
+	adapted_content: z.string(),
+});
+
+export const StudioPublishRequestSchema = z.object({
+	platforms: z.array(z.string()).min(1),
+	mode: z.enum(["draft", "schedule", "now"]).default("draft"),
+	scheduled_at: z.string().optional(),
+});
+
+export type ChatMessage = z.infer<typeof ChatMessageSchema>;
+export type PlatformContent = z.infer<typeof PlatformContentSchema>;
+export type ReviewItem = z.infer<typeof ReviewItemSchema>;
+export type ReviewQueue = z.infer<typeof ReviewQueueSchema>;
+export type StudioChatRequest = z.infer<typeof StudioChatRequestSchema>;
+export type StudioChatResponse = z.infer<typeof StudioChatResponseSchema>;
+export type StudioPublishRequest = z.infer<typeof StudioPublishRequestSchema>;

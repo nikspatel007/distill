@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import subprocess
 from datetime import date
 from pathlib import Path
 
@@ -38,30 +37,18 @@ class LinkedInIntakePublisher(IntakePublisher):
         Returns:
             LinkedIn-formatted post text, or empty string on failure.
         """
-        prompt = f"{LINKEDIN_SYSTEM_PROMPT}\n\n---\n\n{prose}"
+        from distill.llm import LLMError, call_claude
 
         try:
-            result = subprocess.run(
-                ["claude", "-p"],
-                input=prompt,
-                capture_output=True,
-                text=True,
+            return call_claude(
+                LINKEDIN_SYSTEM_PROMPT,
+                prose,
                 timeout=120,
+                label="linkedin-intake",
             )
-        except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as e:
-            logger.warning("Claude CLI failed for LinkedIn intake post: %s", e)
+        except LLMError as exc:
+            logger.warning("Claude CLI failed for LinkedIn intake post: %s", exc)
             return ""
-
-        if result.returncode != 0:
-            err_text = result.stderr.strip() if result.stderr else "(no stderr)"
-            logger.warning(
-                "Claude CLI exited %d for LinkedIn intake post: %s",
-                result.returncode,
-                err_text,
-            )
-            return ""
-
-        return result.stdout.strip()
 
     def daily_output_path(self, output_dir: Path, target_date: date) -> Path:
         """Compute the output path for a LinkedIn intake post."""

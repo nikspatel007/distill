@@ -7,6 +7,7 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { getConfig } from "./lib/config.js";
 import blog from "./routes/blog.js";
+import calendar from "./routes/calendar.js";
 import config from "./routes/config.js";
 import dashboard from "./routes/dashboard.js";
 import journal from "./routes/journal.js";
@@ -17,6 +18,7 @@ import projects from "./routes/projects.js";
 import publish from "./routes/publish.js";
 import reading from "./routes/reading.js";
 import seeds from "./routes/seeds.js";
+import studio from "./routes/studio.js";
 
 const app = new Hono();
 
@@ -30,9 +32,11 @@ app.route("/", pipeline);
 app.route("/", dashboard);
 app.route("/", journal);
 app.route("/", blog);
+app.route("/", calendar);
 app.route("/", reading);
 app.route("/", projects);
 app.route("/", publish);
+app.route("/", studio);
 app.route("/", seeds);
 app.route("/", notes);
 app.route("/", memory);

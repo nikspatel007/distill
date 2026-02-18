@@ -51,7 +51,7 @@ src/
     synthesizer.py            # JournalSynthesizer - LLM journal generation
   measurers/                  # Quality KPI measurers
   models/                     # Core data models (Insight, etc.)
-  parsers/                    # Session parsers (Claude, Codex, VerMAS)
+  parsers/                    # Session parsers (Claude, Codex)
   cli.py                      # CLI entry point (Typer app)
   config.py                   # Unified config (.distill.toml + env vars)
   core.py                     # Pipeline orchestration (analyze, generate_*, blog)
@@ -90,8 +90,8 @@ uv run python -m distill note "Emphasize X this week" --target "week:2026-W06"
 
 ### Pipeline Flow
 ```
-Raw sessions (.claude/, .codex/, .vermas/)
-    -> Parsers (claude.py, codex.py, vermas.py) -> BaseSession models
+Raw sessions (.claude/, .codex/)
+    -> Parsers (claude.py, codex.py) -> BaseSession models
     -> Analyzers (pattern detection, statistics)
     -> Formatters (Obsidian notes, project notes, weekly digests)
     -> Journal synthesizer (LLM: sessions -> daily journal entries)

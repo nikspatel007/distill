@@ -13,8 +13,16 @@ export const handlers = [
 		return HttpResponse.json({
 			journalCount: 5,
 			blogCount: 3,
+			projectCount: 2,
 			intakeCount: 2,
 			pendingPublish: 1,
+			activeProjects: [
+				{
+					name: "distill",
+					journalCount: 3,
+					lastSeen: "2026-02-09",
+				},
+			],
 			recentJournals: [
 				{
 					date: "2026-02-09",
@@ -58,7 +66,7 @@ export const handlers = [
 					sessionsCount: 2,
 					durationMinutes: 90,
 					tags: ["journal", "testing"],
-					projects: ["vermas"],
+					projects: ["distill"],
 					filename: "journal-2026-02-08-dev-journal.md",
 				},
 			],
@@ -101,6 +109,8 @@ export const handlers = [
 					postType: "weekly",
 					tags: ["pipeline"],
 					themes: ["content-pipeline"],
+					projects: ["distill"],
+					filename: "blog-weekly-2026-W06.md",
 					platformsPublished: ["obsidian"],
 				},
 			],
@@ -118,6 +128,9 @@ export const handlers = [
 					postType: "weekly",
 					tags: ["pipeline"],
 					themes: ["content-pipeline"],
+					projects: ["distill"],
+					filename: "blog-weekly-2026-W06.md",
+					platformsPublished: ["obsidian"],
 				},
 				content: "# Week 6: Building the Pipeline\n\nThis week focused on the pipeline.",
 			});
@@ -144,6 +157,7 @@ export const handlers = [
 					slug: "weekly-2026-W06",
 					title: "Week 6: Building the Pipeline",
 					postType: "weekly",
+					date: "2026-02-07",
 					platform: "twitter",
 					published: false,
 				},
@@ -207,6 +221,8 @@ export const handlers = [
 	http.get("/api/reading/items", ({ request }) => {
 		const url = new URL(request.url);
 		const source = url.searchParams.get("source");
+		const pageParam = Number.parseInt(url.searchParams.get("page") ?? "1", 10);
+		const page = Number.isNaN(pageParam) || pageParam < 1 ? 1 : pageParam;
 		const allItems = [
 			{
 				id: "rss-mock-1",
@@ -247,6 +263,9 @@ export const handlers = [
 			item_count: filtered.length,
 			items: filtered,
 			available_sources: ["rss", "browser"],
+			page,
+			total_pages: 1,
+			total_items: filtered.length,
 		});
 	}),
 

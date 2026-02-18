@@ -1,14 +1,14 @@
-"""Tests for journal synthesizer (mocked subprocess)."""
+"""Tests for journal synthesizer (mocked LLM calls)."""
 
-import subprocess
 from datetime import date
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from distill.journal.config import JournalConfig, JournalStyle
 from distill.journal.context import DailyContext
 from distill.journal.synthesizer import JournalSynthesizer, SynthesisError
+from distill.llm import LLMError
 
 
 def _make_context() -> DailyContext:
@@ -16,119 +16,94 @@ def _make_context() -> DailyContext:
         date=date(2026, 2, 5),
         total_sessions=2,
         total_duration_minutes=60.0,
-        projects_worked=["vermas"],
+        projects_worked=["distill"],
     )
 
 
 class TestSynthesizer:
     """Tests for JournalSynthesizer."""
 
-    @patch("distill.journal.synthesizer.subprocess.run")
-    def test_successful_synthesis(self, mock_run):
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout="Today I worked on the VerMAS project...",
-            stderr="",
-        )
+    @patch("distill.llm.call_claude")
+    def test_successful_synthesis(self, mock_call):
+        mock_call.return_value = "Today I worked on the Distill project..."
         config = JournalConfig()
         synthesizer = JournalSynthesizer(config)
         result = synthesizer.synthesize(_make_context())
 
-        assert "VerMAS" in result
-        mock_run.assert_called_once()
+        assert "Distill" in result
+        mock_call.assert_called_once()
 
-        # Verify the command starts with claude -p
-        call_args = mock_run.call_args
-        cmd = call_args[0][0]
-        assert cmd[0] == "claude"
-        assert cmd[1] == "-p"
-
-    @patch("distill.journal.synthesizer.subprocess.run")
-    def test_passes_model_flag(self, mock_run):
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="Some prose", stderr=""
-        )
+    @patch("distill.llm.call_claude")
+    def test_passes_model_flag(self, mock_call):
+        mock_call.return_value = "Some prose"
         config = JournalConfig(model="claude-haiku-4-5-20251001")
         synthesizer = JournalSynthesizer(config)
         synthesizer.synthesize(_make_context())
 
-        cmd = mock_run.call_args[0][0]
-        assert "--model" in cmd
-        assert "claude-haiku-4-5-20251001" in cmd
+        _, kwargs = mock_call.call_args
+        assert kwargs["model"] == "claude-haiku-4-5-20251001"
 
-    @patch("distill.journal.synthesizer.subprocess.run")
-    def test_no_model_flag_by_default(self, mock_run):
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="Some prose", stderr=""
-        )
+    @patch("distill.llm.call_claude")
+    def test_no_model_flag_by_default(self, mock_call):
+        mock_call.return_value = "Some prose"
         config = JournalConfig()
         synthesizer = JournalSynthesizer(config)
         synthesizer.synthesize(_make_context())
 
-        cmd = mock_run.call_args[0][0]
-        assert "--model" not in cmd
+        _, kwargs = mock_call.call_args
+        assert kwargs["model"] is None
 
-    @patch("distill.journal.synthesizer.subprocess.run")
-    def test_cli_not_found(self, mock_run):
-        mock_run.side_effect = FileNotFoundError()
+    @patch("distill.llm.call_claude")
+    def test_cli_not_found(self, mock_call):
+        mock_call.side_effect = LLMError("Claude CLI not found — is 'claude' on the PATH?")
         config = JournalConfig()
         synthesizer = JournalSynthesizer(config)
 
         with pytest.raises(SynthesisError, match="not found"):
             synthesizer.synthesize(_make_context())
 
-    @patch("distill.journal.synthesizer.subprocess.run")
-    def test_cli_timeout(self, mock_run):
-        mock_run.side_effect = subprocess.TimeoutExpired(cmd="claude", timeout=120)
+    @patch("distill.llm.call_claude")
+    def test_cli_timeout(self, mock_call):
+        mock_call.side_effect = LLMError("Claude CLI timed out after 120s")
         config = JournalConfig()
         synthesizer = JournalSynthesizer(config)
 
         with pytest.raises(SynthesisError, match="timed out"):
             synthesizer.synthesize(_make_context())
 
-    @patch("distill.journal.synthesizer.subprocess.run")
-    def test_cli_nonzero_exit(self, mock_run):
-        mock_run.return_value = MagicMock(
-            returncode=1,
-            stdout="",
-            stderr="API key invalid",
-        )
+    @patch("distill.llm.call_claude")
+    def test_cli_nonzero_exit(self, mock_call):
+        mock_call.side_effect = LLMError("Claude CLI failed (exit 1): API key invalid")
         config = JournalConfig()
         synthesizer = JournalSynthesizer(config)
 
-        with pytest.raises(SynthesisError, match="exited 1"):
+        with pytest.raises(SynthesisError, match="exit 1"):
             synthesizer.synthesize(_make_context())
 
-    @patch("distill.journal.synthesizer.subprocess.run")
-    def test_os_error(self, mock_run):
-        mock_run.side_effect = OSError("Permission denied")
+    @patch("distill.llm.call_claude")
+    def test_llm_error_becomes_synthesis_error(self, mock_call):
+        mock_call.side_effect = LLMError("Something went wrong")
         config = JournalConfig()
         synthesizer = JournalSynthesizer(config)
 
-        with pytest.raises(SynthesisError, match="Failed to run"):
+        with pytest.raises(SynthesisError, match="Something went wrong"):
             synthesizer.synthesize(_make_context())
 
-    @patch("distill.journal.synthesizer.subprocess.run")
-    def test_strips_output(self, mock_run):
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout="\n  Some prose with whitespace  \n\n",
-            stderr="",
-        )
+    @patch("distill.llm.call_claude")
+    def test_returns_stripped_output(self, mock_call):
+        mock_call.return_value = "Some prose with whitespace"
         config = JournalConfig()
         synthesizer = JournalSynthesizer(config)
         result = synthesizer.synthesize(_make_context())
 
         assert result == "Some prose with whitespace"
 
-    @patch("distill.journal.synthesizer.subprocess.run")
-    def test_uses_configured_timeout(self, mock_run):
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="prose", stderr=""
-        )
+    @patch("distill.llm.call_claude")
+    def test_uses_configured_timeout(self, mock_call):
+        mock_call.return_value = "prose"
         config = JournalConfig(claude_timeout=60)
         synthesizer = JournalSynthesizer(config)
         synthesizer.synthesize(_make_context())
 
-        call_kwargs = mock_run.call_args[1]
-        assert call_kwargs["timeout"] == 60
+        _, kwargs = mock_call.call_args
+        assert kwargs["timeout"] == 60

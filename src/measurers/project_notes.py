@@ -13,7 +13,6 @@ import tempfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-import yaml
 from distill.core import (
     discover_sessions,
     generate_project_notes,
@@ -35,7 +34,7 @@ PROJECT_NOTE_SECTIONS: list[tuple[str, str]] = [
 
 
 def _create_sample_data(base: Path) -> None:
-    """Create sample .claude and .vermas dirs with sessions in multiple projects."""
+    """Create sample .claude dir with sessions in multiple projects."""
     # Claude sessions across two projects
     project_dir = base / ".claude" / "projects" / "test-project"
     project_dir.mkdir(parents=True)
@@ -67,51 +66,6 @@ def _create_sample_data(base: Path) -> None:
     with session_file.open("w", encoding="utf-8") as f:
         for entry in entries:
             f.write(json.dumps(entry) + "\n")
-
-    # VerMAS workflow
-    vermas_dir = base / ".vermas"
-    wf = vermas_dir / "state" / "mission-proj-cycle-1-execute-build-feature"
-    sig_dir = wf / "signals"
-    sig_dir.mkdir(parents=True)
-
-    for i, (role, signal, msg) in enumerate(
-        [
-            ("dev", "done", "Implementation complete"),
-            ("qa", "approved", "Tests pass"),
-        ]
-    ):
-        data = {
-            "signal_id": f"sig{i}",
-            "agent_id": f"{role}01",
-            "role": role,
-            "signal": signal,
-            "message": msg,
-            "workflow_id": "mission-proj-cycle-1-execute-build-feature",
-            "created_at": f"2024-06-15T1{i}:00:00",
-        }
-        (sig_dir / f"sig{i}.yaml").write_text(yaml.dump(data))
-
-    task_dir = vermas_dir / "tasks" / "mission-proj" / "feature"
-    task_dir.mkdir(parents=True)
-    (task_dir / "build-feature.md").write_text(
-        "---\nstatus: done\n---\n# Build Feature\n\nBuild it.\n"
-    )
-    mission_dir = vermas_dir / "tasks" / "mission-proj"
-    (mission_dir / "_epic.md").write_text("---\nstatus: in_progress\n---\n# Project Mission\n")
-
-    agents_dir = vermas_dir / "knowledge" / "agents"
-    agents_dir.mkdir(parents=True)
-    learnings = {
-        "agents": {
-            "general": {
-                "learnings": ["Tests matter"],
-                "strengths": [],
-                "weaknesses": [],
-                "best_practices": [],
-            }
-        }
-    }
-    (agents_dir / "agent-learnings.yaml").write_text(yaml.dump(learnings))
 
 
 def _generate_project_notes_to_disk(sessions: list[BaseSession], output_dir: Path) -> list[Path]:

@@ -79,29 +79,29 @@ class TestDetectSeriesCandidates:
     def test_detects_entity_with_high_count(self, entries):
         memory = UnifiedMemory(
             entities={
-                "project:distill": EntityRecord(
-                    name="distill",
-                    entity_type="project",
+                "concept:agent coordination": EntityRecord(
+                    name="agent coordination",
+                    entity_type="concept",
                     first_seen=date.today() - timedelta(days=20),
                     last_seen=date.today(),
-                    mention_count=8,
+                    mention_count=12,
                 ),
             }
         )
         state = BlogState()
         candidates = detect_series_candidates(entries, memory, state)
         assert len(candidates) >= 1
-        assert any("distill" in c.slug for c in candidates)
+        assert any("agent-coordination" in c.slug for c in candidates)
 
     def test_skips_already_generated(self, entries):
         memory = UnifiedMemory(
             threads=[
                 MemoryThread(
-                    name="topic",
-                    summary="A topic",
+                    name="content pipeline",
+                    summary="Building a pipeline",
                     first_seen=date.today() - timedelta(days=10),
                     last_seen=date.today(),
-                    mention_count=5,
+                    mention_count=6,
                     status="active",
                 ),
             ]
@@ -113,7 +113,7 @@ class TestDetectSeriesCandidates:
 
         state.mark_generated(
             BlogPostRecord(
-                slug="series-topic",
+                slug="series-content-pipeline",
                 post_type="thematic",
                 generated_at=datetime.now(),
                 source_dates=[date.today()],
@@ -121,19 +121,71 @@ class TestDetectSeriesCandidates:
             )
         )
         candidates = detect_series_candidates(entries, memory, state)
-        assert not any(c.slug == "series-topic" for c in candidates)
+        assert not any(c.slug == "series-content-pipeline" for c in candidates)
 
     def test_entity_below_threshold_excluded(self, entries):
         memory = UnifiedMemory(
             entities={
                 "project:minor": EntityRecord(
-                    name="minor",
+                    name="minor project",
                     entity_type="project",
                     first_seen=date.today(),
                     last_seen=date.today(),
                     mention_count=3,
                 ),
             }
+        )
+        state = BlogState()
+        candidates = detect_series_candidates(entries, memory, state)
+        assert len(candidates) == 0
+
+    def test_skips_single_word_entity_names(self, entries):
+        """Generic single-word names like 'edit', 'python' are too vague."""
+        memory = UnifiedMemory(
+            entities={
+                "tool:edit": EntityRecord(
+                    name="edit",
+                    entity_type="tool",
+                    first_seen=date.today() - timedelta(days=20),
+                    last_seen=date.today(),
+                    mention_count=50,
+                ),
+            }
+        )
+        state = BlogState()
+        candidates = detect_series_candidates(entries, memory, state)
+        assert len(candidates) == 0
+
+    def test_skips_blocklisted_names(self, entries):
+        """Names in the blocklist are skipped even if multi-word."""
+        memory = UnifiedMemory(
+            entities={
+                "concept:code review": EntityRecord(
+                    name="code review",
+                    entity_type="concept",
+                    first_seen=date.today() - timedelta(days=20),
+                    last_seen=date.today(),
+                    mention_count=15,
+                ),
+            }
+        )
+        state = BlogState()
+        candidates = detect_series_candidates(entries, memory, state)
+        assert len(candidates) == 0
+
+    def test_skips_generic_single_word_threads(self, entries):
+        """Single-word thread names are too generic."""
+        memory = UnifiedMemory(
+            threads=[
+                MemoryThread(
+                    name="debugging",
+                    summary="Various debugging",
+                    first_seen=date.today() - timedelta(days=10),
+                    last_seen=date.today(),
+                    mention_count=10,
+                    status="active",
+                ),
+            ]
         )
         state = BlogState()
         candidates = detect_series_candidates(entries, memory, state)

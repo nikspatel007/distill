@@ -1,4 +1,4 @@
-"""Tests for blog synthesizer (mocked subprocess)."""
+"""Tests for blog synthesizer (mocked LLM)."""
 
 import subprocess
 from datetime import date
@@ -25,7 +25,7 @@ def _make_weekly_context() -> WeeklyBlogContext:
         ],
         total_sessions=10,
         total_duration_minutes=200,
-        projects=["vermas"],
+        projects=["distill"],
         combined_prose="Combined prose here.",
     )
 
@@ -48,135 +48,113 @@ def _make_thematic_context() -> ThematicBlogContext:
 
 
 class TestBlogSynthesizer:
-    @patch("distill.blog.synthesizer.subprocess.run")
-    def test_weekly_synthesis(self, mock_run: MagicMock):
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout="# Week in Review\n\nGreat week of progress...",
-            stderr="",
-        )
+    @patch("distill.llm.call_claude")
+    def test_weekly_synthesis(self, mock_call: MagicMock):
+        mock_call.return_value = "# Week in Review\n\nGreat week of progress..."
         config = BlogConfig()
         synthesizer = BlogSynthesizer(config)
         result = synthesizer.synthesize_weekly(_make_weekly_context())
 
         assert "Week in Review" in result
-        mock_run.assert_called_once()
-        cmd = mock_run.call_args[0][0]
-        assert cmd[0] == "claude"
-        assert cmd[1] == "-p"
+        mock_call.assert_called_once()
 
-    @patch("distill.blog.synthesizer.subprocess.run")
-    def test_thematic_synthesis(self, mock_run: MagicMock):
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout="# Deep Dive\n\nExploring the theme...",
-            stderr="",
-        )
+    @patch("distill.llm.call_claude")
+    def test_thematic_synthesis(self, mock_call: MagicMock):
+        mock_call.return_value = "# Deep Dive\n\nExploring the theme..."
         config = BlogConfig()
         synthesizer = BlogSynthesizer(config)
         result = synthesizer.synthesize_thematic(_make_thematic_context())
 
         assert "Deep Dive" in result
-        mock_run.assert_called_once()
+        mock_call.assert_called_once()
 
-    @patch("distill.blog.synthesizer.subprocess.run")
-    def test_passes_model_flag(self, mock_run: MagicMock):
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="Prose", stderr=""
-        )
+    @patch("distill.llm.call_claude")
+    def test_passes_model_flag(self, mock_call: MagicMock):
+        mock_call.return_value = "Prose"
         config = BlogConfig(model="claude-sonnet-4-5-20250929")
         synthesizer = BlogSynthesizer(config)
         synthesizer.synthesize_weekly(_make_weekly_context())
 
-        cmd = mock_run.call_args[0][0]
-        assert "--model" in cmd
-        assert "claude-sonnet-4-5-20250929" in cmd
+        _, kwargs = mock_call.call_args
+        assert kwargs["model"] == "claude-sonnet-4-5-20250929"
 
-    @patch("distill.blog.synthesizer.subprocess.run")
-    def test_no_model_flag_by_default(self, mock_run: MagicMock):
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="Prose", stderr=""
-        )
+    @patch("distill.llm.call_claude")
+    def test_no_model_flag_by_default(self, mock_call: MagicMock):
+        mock_call.return_value = "Prose"
         config = BlogConfig()
         synthesizer = BlogSynthesizer(config)
         synthesizer.synthesize_weekly(_make_weekly_context())
 
-        cmd = mock_run.call_args[0][0]
-        assert "--model" not in cmd
+        _, kwargs = mock_call.call_args
+        assert kwargs["model"] is None
 
-    @patch("distill.blog.synthesizer.subprocess.run")
-    def test_cli_not_found(self, mock_run: MagicMock):
-        mock_run.side_effect = FileNotFoundError()
+    @patch("distill.llm.call_claude")
+    def test_cli_not_found(self, mock_call: MagicMock):
+        from distill.llm import LLMError
+
+        mock_call.side_effect = LLMError("Claude CLI not found")
         config = BlogConfig()
         synthesizer = BlogSynthesizer(config)
 
         with pytest.raises(BlogSynthesisError, match="not found"):
             synthesizer.synthesize_weekly(_make_weekly_context())
 
-    @patch("distill.blog.synthesizer.subprocess.run")
-    def test_cli_timeout(self, mock_run: MagicMock):
-        mock_run.side_effect = subprocess.TimeoutExpired(cmd="claude", timeout=180)
+    @patch("distill.llm.call_claude")
+    def test_cli_timeout(self, mock_call: MagicMock):
+        from distill.llm import LLMError
+
+        mock_call.side_effect = LLMError("Claude CLI timed out after 360s")
         config = BlogConfig()
         synthesizer = BlogSynthesizer(config)
 
         with pytest.raises(BlogSynthesisError, match="timed out"):
             synthesizer.synthesize_weekly(_make_weekly_context())
 
-    @patch("distill.blog.synthesizer.subprocess.run")
-    def test_cli_nonzero_exit(self, mock_run: MagicMock):
-        mock_run.return_value = MagicMock(
-            returncode=1, stdout="", stderr="API error"
-        )
+    @patch("distill.llm.call_claude")
+    def test_cli_nonzero_exit(self, mock_call: MagicMock):
+        from distill.llm import LLMError
+
+        mock_call.side_effect = LLMError("Claude CLI failed (exit 1, label=test): API error")
         config = BlogConfig()
         synthesizer = BlogSynthesizer(config)
 
-        with pytest.raises(BlogSynthesisError, match="exited 1"):
+        with pytest.raises(BlogSynthesisError, match="exit 1"):
             synthesizer.synthesize_thematic(_make_thematic_context())
 
-    @patch("distill.blog.synthesizer.subprocess.run")
-    def test_uses_configured_timeout(self, mock_run: MagicMock):
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="prose", stderr=""
-        )
+    @patch("distill.llm.call_claude")
+    def test_uses_configured_timeout(self, mock_call: MagicMock):
+        mock_call.return_value = "prose"
         config = BlogConfig(claude_timeout=300)
         synthesizer = BlogSynthesizer(config)
         synthesizer.synthesize_weekly(_make_weekly_context())
 
-        call_kwargs = mock_run.call_args[1]
-        assert call_kwargs["timeout"] == 300
+        _, kwargs = mock_call.call_args
+        assert kwargs["timeout"] == 300
 
-    @patch("distill.blog.synthesizer.subprocess.run")
-    def test_adapt_for_platform_calls_claude_with_social_prompt(self, mock_run: MagicMock):
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="1/ Great thread hook...", stderr=""
-        )
+    @patch("distill.llm.call_claude")
+    def test_adapt_for_platform_calls_claude_with_social_prompt(self, mock_call: MagicMock):
+        mock_call.return_value = "1/ Great thread hook..."
         config = BlogConfig()
         synthesizer = BlogSynthesizer(config)
         synthesizer.adapt_for_platform("Blog prose here", "twitter", "weekly-W06")
 
-        mock_run.assert_called_once()
-        cmd = mock_run.call_args[0][0]
-        prompt_arg = cmd[-1]
-        assert "Twitter/X thread" in prompt_arg
+        mock_call.assert_called_once()
+        args = mock_call.call_args[0]
+        system_prompt = args[0]
+        assert "Twitter/X thread" in system_prompt
 
-    @patch("distill.blog.synthesizer.subprocess.run")
-    def test_adapt_for_platform_returns_output(self, mock_run: MagicMock):
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="1/ Hook tweet\n2/ Detail tweet", stderr=""
-        )
+    @patch("distill.llm.call_claude")
+    def test_adapt_for_platform_returns_output(self, mock_call: MagicMock):
+        mock_call.return_value = "1/ Hook tweet\n2/ Detail tweet"
         config = BlogConfig()
         synthesizer = BlogSynthesizer(config)
         result = synthesizer.adapt_for_platform("Blog prose", "twitter", "weekly-W06")
 
         assert "1/ Hook tweet" in result
 
-    @patch("distill.blog.synthesizer.subprocess.run")
-    def test_extract_blog_memory_parses_json(self, mock_run: MagicMock):
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout='{"key_points": ["point 1", "point 2"], "themes_covered": ["agents"]}',
-            stderr="",
-        )
+    @patch("distill.llm.call_claude")
+    def test_extract_blog_memory_parses_json(self, mock_call: MagicMock):
+        mock_call.return_value = '{"key_points": ["point 1", "point 2"], "themes_covered": ["agents"]}'
         config = BlogConfig()
         synthesizer = BlogSynthesizer(config)
         summary = synthesizer.extract_blog_memory(
@@ -190,11 +168,9 @@ class TestBlogSynthesizer:
         assert summary.themes_covered == ["agents"]
         assert summary.platforms_published == []
 
-    @patch("distill.blog.synthesizer.subprocess.run")
-    def test_extract_blog_memory_handles_bad_json(self, mock_run: MagicMock):
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="not valid json at all", stderr=""
-        )
+    @patch("distill.llm.call_claude")
+    def test_extract_blog_memory_handles_bad_json(self, mock_call: MagicMock):
+        mock_call.return_value = "not valid json at all"
         config = BlogConfig()
         synthesizer = BlogSynthesizer(config)
         summary = synthesizer.extract_blog_memory(
@@ -205,11 +181,9 @@ class TestBlogSynthesizer:
         assert summary.key_points == []
         assert summary.themes_covered == []
 
-    @patch("distill.blog.synthesizer.subprocess.run")
-    def test_synthesize_weekly_with_blog_memory(self, mock_run: MagicMock):
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="# Post with memory", stderr=""
-        )
+    @patch("distill.llm.call_claude")
+    def test_synthesize_weekly_with_blog_memory(self, mock_call: MagicMock):
+        mock_call.return_value = "# Post with memory"
         config = BlogConfig()
         synthesizer = BlogSynthesizer(config)
         memory_text = "## Previous Blog Posts\n\n- Some older post"
@@ -218,60 +192,52 @@ class TestBlogSynthesizer:
         )
 
         assert "Post with memory" in result
-        cmd = mock_run.call_args[0][0]
-        prompt_arg = cmd[-1]
-        assert "Previous Blog Posts" in prompt_arg
+        args = mock_call.call_args[0]
+        system_prompt = args[0]
+        assert "Previous Blog Posts" in system_prompt
 
-    @patch("distill.blog.synthesizer.subprocess.run")
-    def test_weekly_prompt_includes_project_context(self, mock_run: MagicMock):
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="# Post", stderr=""
-        )
+    @patch("distill.llm.call_claude")
+    def test_weekly_prompt_includes_project_context(self, mock_call: MagicMock):
+        mock_call.return_value = "# Post"
         config = BlogConfig()
         synthesizer = BlogSynthesizer(config)
         ctx = _make_weekly_context()
-        ctx.project_context = "## Project Context\n\n**VerMAS**: Multi-agent platform"
+        ctx.project_context = "## Project Context\n\n**Distill**: Content pipeline"
         synthesizer.synthesize_weekly(ctx)
 
-        cmd = mock_run.call_args[0][0]
-        prompt_arg = cmd[-1]
-        assert "**VerMAS**: Multi-agent platform" in prompt_arg
+        args = mock_call.call_args[0]
+        user_prompt = args[1]
+        assert "**Distill**: Content pipeline" in user_prompt
 
-    @patch("distill.blog.synthesizer.subprocess.run")
-    def test_weekly_prompt_includes_editorial_notes(self, mock_run: MagicMock):
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="# Post", stderr=""
-        )
+    @patch("distill.llm.call_claude")
+    def test_weekly_prompt_includes_editorial_notes(self, mock_call: MagicMock):
+        mock_call.return_value = "# Post"
         config = BlogConfig()
         synthesizer = BlogSynthesizer(config)
         ctx = _make_weekly_context()
         ctx.editorial_notes = "## Editorial Direction\n\n- Focus on fan-in pattern"
         synthesizer.synthesize_weekly(ctx)
 
-        cmd = mock_run.call_args[0][0]
-        prompt_arg = cmd[-1]
-        assert "Focus on fan-in pattern" in prompt_arg
+        args = mock_call.call_args[0]
+        user_prompt = args[1]
+        assert "Focus on fan-in pattern" in user_prompt
 
-    @patch("distill.blog.synthesizer.subprocess.run")
-    def test_thematic_prompt_includes_project_context(self, mock_run: MagicMock):
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="# Post", stderr=""
-        )
+    @patch("distill.llm.call_claude")
+    def test_thematic_prompt_includes_project_context(self, mock_call: MagicMock):
+        mock_call.return_value = "# Post"
         config = BlogConfig()
         synthesizer = BlogSynthesizer(config)
         ctx = _make_thematic_context()
         ctx.project_context = "## Project Context\n\n**Distill**: Content pipeline"
         synthesizer.synthesize_thematic(ctx)
 
-        cmd = mock_run.call_args[0][0]
-        prompt_arg = cmd[-1]
-        assert "**Distill**: Content pipeline" in prompt_arg
+        args = mock_call.call_args[0]
+        user_prompt = args[1]
+        assert "**Distill**: Content pipeline" in user_prompt
 
-    @patch("distill.blog.synthesizer.subprocess.run")
-    def test_adapt_for_platform_with_editorial_hint(self, mock_run: MagicMock):
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="1/ Adapted thread", stderr=""
-        )
+    @patch("distill.llm.call_claude")
+    def test_adapt_for_platform_with_editorial_hint(self, mock_call: MagicMock):
+        mock_call.return_value = "1/ Adapted thread"
         config = BlogConfig()
         synthesizer = BlogSynthesizer(config)
         synthesizer.adapt_for_platform(
@@ -279,6 +245,6 @@ class TestBlogSynthesizer:
             editorial_hint="Emphasize the fan-in pattern"
         )
 
-        cmd = mock_run.call_args[0][0]
-        prompt_arg = cmd[-1]
-        assert "EDITORIAL DIRECTION: Emphasize the fan-in pattern" in prompt_arg
+        args = mock_call.call_args[0]
+        user_prompt = args[1]
+        assert "EDITORIAL DIRECTION: Emphasize the fan-in pattern" in user_prompt

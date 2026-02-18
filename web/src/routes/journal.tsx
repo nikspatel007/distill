@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { JournalEntry } from "../../shared/schemas.js";
 import { DateBadge } from "../components/shared/DateBadge.js";
 import { ProjectFilterPills } from "../components/shared/ProjectFilterPills.js";
-import { TagBadge } from "../components/shared/TagBadge.js";
+import { formatProjectName } from "../lib/format.js";
 
 export default function JournalList() {
 	const [filterProject, setFilterProject] = useState<string | null>(null);
@@ -62,22 +62,29 @@ export default function JournalList() {
 									{entry.sessionsCount} sessions, {entry.durationMinutes}m
 								</span>
 							</div>
-							<div className="mt-2 flex flex-wrap gap-1">
-								{entry.projects.map((p) => (
-									<TagBadge key={p} tag={p} />
-								))}
-								{entry.tags
-									.filter((t) => t !== "journal")
-									.slice(0, 5)
-									.map((t) => (
-										<span
-											key={t}
-											className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs dark:bg-zinc-800"
-										>
-											{t}
-										</span>
-									))}
-							</div>
+							{(() => {
+								const allTags = [
+									...entry.projects.map((p) => formatProjectName(p)),
+									...entry.tags.filter((t) => t !== "journal"),
+								];
+								const shown = allTags.slice(0, 3);
+								const overflow = allTags.length - shown.length;
+								return (
+									<div className="mt-2 flex flex-wrap gap-1">
+										{shown.map((t) => (
+											<span
+												key={t}
+												className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs dark:bg-zinc-800"
+											>
+												{t}
+											</span>
+										))}
+										{overflow > 0 && (
+											<span className="px-1 py-0.5 text-xs text-zinc-400">+{overflow} more</span>
+										)}
+									</div>
+								);
+							})()}
 						</Link>
 					))}
 				</div>

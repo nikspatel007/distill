@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from unittest.mock import patch
 
 import pytest
@@ -64,6 +65,36 @@ class TestParseJsonResponse:
         data = [{"entities": {"projects": ["distill"]}}]
         result = _parse_json_response(json.dumps(data))
         assert result == data
+
+    def test_preamble_text_before_array(self):
+        text = 'Here is the JSON output:\n[{"key": "value"}]'
+        result = _parse_json_response(text)
+        assert result == [{"key": "value"}]
+
+    def test_preamble_text_before_object(self):
+        text = 'Here are the results:\n{"key": "value"}'
+        result = _parse_json_response(text)
+        assert result == {"key": "value"}
+
+    def test_trailing_text_after_array(self):
+        text = '[{"key": "value"}]\n\nLet me know if you need changes.'
+        result = _parse_json_response(text)
+        assert result == [{"key": "value"}]
+
+    def test_preamble_and_trailing_text(self):
+        text = 'Sure! Here is the output:\n[{"a": 1}, {"a": 2}]\nHope this helps!'
+        result = _parse_json_response(text)
+        assert result == [{"a": 1}, {"a": 2}]
+
+    def test_whitespace_only(self):
+        result = _parse_json_response("   \n\t  ")
+        assert result is None
+
+    def test_code_fence_with_preamble_inside(self):
+        """Code fence stripping should handle leading content after fence removal."""
+        text = '```json\n  [{"x": 1}]  \n```'
+        result = _parse_json_response(text)
+        assert result == [{"x": 1}]
 
 
 class TestBuildPrompts:
@@ -235,6 +266,52 @@ class TestExtractEntities:
 
         assert items[0].metadata["entities"]["projects"] == ["distill"]
 
+    @patch("distill.intake.intelligence._call_claude")
+    def test_preamble_response_parsed(self, mock_claude):
+        """Response with preamble text before JSON should still parse."""
+        entity = {
+            "projects": ["distill"],
+            "technologies": [],
+            "people": [],
+            "concepts": [],
+            "organizations": [],
+        }
+        mock_claude.return_value = f"Here are the entities:\n{json.dumps([entity])}"
+
+        items = [_make_item(title="Distill project")]
+        extract_entities(items)
+
+        assert "entities" in items[0].metadata
+        assert items[0].metadata["entities"]["projects"] == ["distill"]
+
+    @patch("distill.intake.intelligence._call_claude")
+    def test_summary_logging_on_failures(self, mock_claude, caplog):
+        """Failed batches produce a single summary warning, not per-batch warnings."""
+        mock_claude.return_value = "totally not json {{"
+
+        items = [_make_item(title=f"Item {i}") for i in range(3)]
+        with caplog.at_level(logging.WARNING, logger="distill.intake.intelligence"):
+            extract_entities(items)
+
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warnings) == 1
+        assert "0/1 batches succeeded" in warnings[0].message
+        assert "1 parse failures" in warnings[0].message
+
+    @patch("distill.intake.intelligence._call_claude")
+    def test_no_warning_when_all_succeed(self, mock_claude, caplog):
+        """No warning logged when all batches succeed."""
+        mock_claude.return_value = json.dumps([
+            {"projects": [], "technologies": [], "people": [], "concepts": [], "organizations": []}
+        ])
+
+        items = [_make_item()]
+        with caplog.at_level(logging.WARNING, logger="distill.intake.intelligence"):
+            extract_entities(items)
+
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warnings) == 0
+
 
 class TestClassifyItems:
     """Test content classification via mocked LLM."""
@@ -282,6 +359,32 @@ class TestClassifyItems:
         items = [_make_item(source=ContentSource.SESSION)]
         classify_items(items)
         assert items[0].metadata["classification"]["category"] == "session-log"
+
+    @patch("distill.intake.intelligence._call_claude")
+    def test_preamble_response_parsed(self, mock_claude):
+        """Response with preamble text before JSON should still parse."""
+        cls = {"category": "tutorial", "sentiment": "positive", "relevance": 4}
+        mock_claude.return_value = f"Here is the classification:\n{json.dumps([cls])}"
+
+        items = [_make_item(title="Python Tutorial")]
+        classify_items(items)
+
+        assert "classification" in items[0].metadata
+        assert items[0].metadata["classification"]["category"] == "tutorial"
+
+    @patch("distill.intake.intelligence._call_claude")
+    def test_summary_logging_on_failures(self, mock_claude, caplog):
+        """Failed batches produce a single summary warning."""
+        mock_claude.return_value = "broken json {{"
+
+        items = [_make_item(title=f"Item {i}") for i in range(3)]
+        with caplog.at_level(logging.WARNING, logger="distill.intake.intelligence"):
+            classify_items(items)
+
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warnings) == 1
+        assert "0/1 batches succeeded" in warnings[0].message
+        assert "1 parse failures" in warnings[0].message
 
 
 class TestExtractTopics:

@@ -7,7 +7,6 @@ https://www.jeffgeerling.com/blog.xml
 https://www.seangoedecke.com/rss.xml
 https://mitchellh.com/feed.xml
 https://xeiaso.net/blog.rss
-https://rachelbythebay.com/w/atom.xml
 https://overreacted.io/rss.xml
 https://matklad.github.io/feed.xml
 https://eli.thegreenplace.net/feeds/all.atom.xml
@@ -66,7 +65,6 @@ https://berthub.eu/articles/index.xml
 https://www.chiark.greenend.org.uk/~sgtatham/quasiblog/feed.xml
 https://michael.stapelberg.ch/feed.xml
 https://mjg59.dreamwidth.org/data/rss
-https://www.tedunangst.com/flak/rss
 
 # --- Personal / Essays ---
 https://susam.net/feed.xml
@@ -81,14 +79,12 @@ https://terriblesoftware.org/feed/
 https://www.johndcook.com/blog/feed/
 
 # --- Misc ---
-https://utcc.utoronto.ca/~cks/space/blog/?atom
 https://skyfall.dev/rss.xml
 https://timsh.org/rss/
 https://idiallo.com/feed.rss
 https://maurycyz.com/index.xml
 https://jayd.ml/feed.xml
 https://geohot.github.io/blog/feed.xml
-https://dfarq.homeip.net/feed/
 https://www.downtowndougbrown.com/feed/
 https://brutecat.com/rss.xml
 https://oldvcr.blogspot.com/feeds/posts/default

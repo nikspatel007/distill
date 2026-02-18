@@ -155,6 +155,8 @@ class IntakeConfig(BaseModel):
     model: str | None = None
     claude_timeout: int = 180
     target_word_count: int = 800
+    user_name: str = ""
+    user_role: str = "software engineer"
 
     domain_blocklist: list[str] = Field(default_factory=lambda: ["google.com", "localhost"])
     min_word_count: int = 50

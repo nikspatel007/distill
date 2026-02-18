@@ -14,7 +14,6 @@ from distill.measurers.cli_runs_clean import (
     _build_test_matrix,
     _create_malformed_claude_dir,
     _create_valid_claude_dir,
-    _create_valid_vermas_dir,
 )
 
 
@@ -108,22 +107,6 @@ class TestDataCreators:
                 except json.JSONDecodeError:
                     bad_count += 1
             assert bad_count >= 1
-
-    def test_create_valid_vermas_dir(self) -> None:
-        """Valid VerMAS dir creates expected structure."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            base = Path(tmpdir)
-            _create_valid_vermas_dir(base)
-            signals_dir = (
-                base
-                / ".vermas"
-                / "state"
-                / "mission-test-cycle-1-execute-sample-task"
-                / "signals"
-            )
-            assert signals_dir.exists()
-            assert len(list(signals_dir.glob("*.yaml"))) >= 1
-
 
 class TestMeasurerWithMockedSubprocess:
     """Tests that verify measurer behavior with controlled subprocess results."""

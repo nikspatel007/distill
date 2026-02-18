@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import subprocess
 from datetime import date
 from pathlib import Path
 
@@ -35,30 +34,18 @@ class RedditIntakePublisher(IntakePublisher):
         Calls Claude CLI to adapt the prose for Reddit. Returns empty
         string on failure so the pipeline can continue.
         """
-        prompt = f"{REDDIT_SYSTEM_PROMPT}\n\n---\n\n{prose}"
+        from distill.llm import LLMError, call_claude
 
         try:
-            result = subprocess.run(
-                ["claude", "-p"],
-                input=prompt,
-                capture_output=True,
-                text=True,
+            return call_claude(
+                REDDIT_SYSTEM_PROMPT,
+                prose,
                 timeout=120,
+                label="reddit-intake",
             )
-        except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as e:
-            logger.warning("Claude CLI failed for Reddit adaptation: %s", e)
+        except LLMError as exc:
+            logger.warning("Claude CLI failed for Reddit adaptation: %s", exc)
             return ""
-
-        if result.returncode != 0:
-            err_text = result.stderr.strip() if result.stderr else ""
-            logger.warning(
-                "Claude CLI exited %d for Reddit adaptation: %s",
-                result.returncode,
-                err_text,
-            )
-            return ""
-
-        return result.stdout.strip()
 
     def daily_output_path(self, output_dir: Path, target_date: date) -> Path:
         """Compute the output file path for a Reddit daily digest."""

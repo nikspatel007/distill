@@ -27,6 +27,9 @@ describe("Reading Items API", () => {
 		expect(data.date).toBe("2026-02-09");
 		expect(data.item_count).toBe(3);
 		expect(data.items).toHaveLength(3);
+		expect(data.page).toBe(1);
+		expect(data.total_pages).toBe(1);
+		expect(data.total_items).toBe(3);
 		// Verify body was stripped by Zod
 		for (const item of data.items) {
 			expect(item).not.toHaveProperty("body");
@@ -69,5 +72,57 @@ describe("Reading Items API", () => {
 		const data = await res.json();
 		expect(data.dates).toContain("2026-02-09");
 		expect(data.items).toHaveLength(0);
+	});
+
+	test("pagination: limit=2 returns first page of 2 items", async () => {
+		const res = await app.request("/api/reading/items?date=2026-02-09&limit=2");
+		expect(res.status).toBe(200);
+		const data = await res.json();
+		expect(data.items).toHaveLength(2);
+		expect(data.item_count).toBe(2);
+		expect(data.page).toBe(1);
+		expect(data.total_pages).toBe(2);
+		expect(data.total_items).toBe(3);
+	});
+
+	test("pagination: page=2&limit=2 returns last item", async () => {
+		const res = await app.request("/api/reading/items?date=2026-02-09&page=2&limit=2");
+		expect(res.status).toBe(200);
+		const data = await res.json();
+		expect(data.items).toHaveLength(1);
+		expect(data.item_count).toBe(1);
+		expect(data.page).toBe(2);
+		expect(data.total_pages).toBe(2);
+		expect(data.total_items).toBe(3);
+	});
+
+	test("pagination: page beyond total clamps to last page", async () => {
+		const res = await app.request("/api/reading/items?date=2026-02-09&page=999&limit=2");
+		expect(res.status).toBe(200);
+		const data = await res.json();
+		expect(data.page).toBe(2);
+		expect(data.items).toHaveLength(1);
+		expect(data.total_pages).toBe(2);
+	});
+
+	test("pagination applies after source filtering", async () => {
+		const res = await app.request("/api/reading/items?date=2026-02-09&source=rss&limit=1");
+		expect(res.status).toBe(200);
+		const data = await res.json();
+		expect(data.items).toHaveLength(1);
+		expect(data.total_items).toBe(1);
+		expect(data.total_pages).toBe(1);
+		// available_sources still has all 3
+		expect(data.available_sources).toHaveLength(3);
+	});
+
+	test("pagination: missing date returns empty with no pagination fields", async () => {
+		const res = await app.request("/api/reading/items?date=2099-01-01");
+		expect(res.status).toBe(200);
+		const data = await res.json();
+		expect(data.item_count).toBe(0);
+		expect(data.page).toBe(1);
+		expect(data.total_pages).toBe(1);
+		expect(data.total_items).toBe(0);
 	});
 });

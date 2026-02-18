@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import subprocess
 from datetime import date
 from pathlib import Path
 
@@ -33,29 +32,18 @@ class TwitterIntakePublisher(IntakePublisher):
         Calls the Claude CLI to adapt the prose into a numbered thread.
         Returns an empty string if the CLI call fails.
         """
-        prompt = f"{TWITTER_SYSTEM_PROMPT}\n\n---\n\n{prose}"
+        from distill.llm import LLMError, call_claude
 
         try:
-            result = subprocess.run(
-                ["claude", "-p"],
-                input=prompt,
-                capture_output=True,
-                text=True,
+            return call_claude(
+                TWITTER_SYSTEM_PROMPT,
+                prose,
                 timeout=120,
+                label="twitter-intake",
             )
-        except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as e:
-            logger.warning("Claude CLI failed for Twitter adaptation: %s", e)
+        except LLMError as exc:
+            logger.warning("Claude CLI failed for Twitter adaptation: %s", exc)
             return ""
-
-        if result.returncode != 0:
-            logger.warning(
-                "Claude CLI exited %d for Twitter adaptation: %s",
-                result.returncode,
-                result.stderr.strip() if result.stderr else "",
-            )
-            return ""
-
-        return result.stdout.strip()
 
     def daily_output_path(self, output_dir: Path, target_date: date) -> Path:
         """Compute the output file path for a Twitter thread digest."""

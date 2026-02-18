@@ -26,7 +26,7 @@ uv run mypy src/ --no-error-summary
 
 ```
 src/                    # Source code (flat layout, import as distill.*)
-  parsers/              # Session parsers (Claude, Codex, VerMAS)
+  parsers/              # Session parsers (Claude, Codex)
   journal/              # Journal synthesis pipeline
   blog/                 # Blog generation + multi-platform publishing
     publishers/         # Output format publishers (obsidian, ghost, postiz, social)

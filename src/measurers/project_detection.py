@@ -11,14 +11,13 @@ import tempfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-import yaml
 from distill.core import discover_sessions, parse_session_file
 from distill.measurers.base import KPIResult, Measurer
 from distill.parsers.models import BaseSession
 
 
 def _create_sample_data(base: Path) -> None:
-    """Create sample .claude, .codex, and .vermas dirs with sessions."""
+    """Create sample .claude dir with sessions."""
     # Claude sessions with cwd (should detect project)
     project_dir = base / ".claude" / "projects" / "test-project"
     project_dir.mkdir(parents=True)
@@ -61,45 +60,6 @@ def _create_sample_data(base: Path) -> None:
     with session_file2.open("w", encoding="utf-8") as f:
         for entry in entries_no_cwd:
             f.write(json.dumps(entry) + "\n")
-
-    # VerMAS workflow (should detect project from workflow/mission name)
-    vermas_dir = base / ".vermas"
-    wf = vermas_dir / "state" / "mission-proj-cycle-1-execute-build-feature"
-    sig_dir = wf / "signals"
-    sig_dir.mkdir(parents=True)
-
-    data = {
-        "signal_id": "sig1",
-        "agent_id": "dev01",
-        "role": "dev",
-        "signal": "done",
-        "message": "Done",
-        "workflow_id": "mission-proj-cycle-1-execute-build-feature",
-        "created_at": "2024-06-15T10:00:00",
-    }
-    (sig_dir / "sig1.yaml").write_text(yaml.dump(data))
-
-    task_dir = vermas_dir / "tasks" / "mission-proj" / "feature"
-    task_dir.mkdir(parents=True)
-    (task_dir / "build-feature.md").write_text(
-        "---\nstatus: done\n---\n# Build Feature\n\nBuild it.\n"
-    )
-    mission_dir = vermas_dir / "tasks" / "mission-proj"
-    (mission_dir / "_epic.md").write_text("---\nstatus: in_progress\n---\n# Project Mission\n")
-
-    agents_dir = vermas_dir / "knowledge" / "agents"
-    agents_dir.mkdir(parents=True)
-    learnings: dict[str, object] = {
-        "agents": {
-            "general": {
-                "learnings": [],
-                "strengths": [],
-                "weaknesses": [],
-                "best_practices": [],
-            }
-        }
-    }
-    (agents_dir / "agent-learnings.yaml").write_text(yaml.dump(learnings))
 
 
 class ProjectDetectionMeasurer(Measurer):

@@ -49,9 +49,8 @@ class TestKPI1ProjectNames:
         numeric_files = [f for f in all_files if self.NUMERIC_PATTERN.match(f)]
         non_numeric = [f for f in all_files if not self.NUMERIC_PATTERN.match(f)]
 
-        # Some numeric project IDs are expected (from VerMAS workflow IDs
-        # and short-lived sessions). The KPI checks that at least 5% of
-        # projects have real-word names.
+        # Some numeric project IDs are expected (from short-lived sessions).
+        # The KPI checks that at least 5% of projects have real-word names.
         if len(all_files) == 0:
             pytest.skip("No project files found")
 
@@ -134,7 +133,7 @@ class TestKPI2NarrativeQuality:
                 short_narratives.append((path.name, summary, word_count))
 
         # Allow up to 60% short narratives — many sessions are legitimately
-        # brief (warmup, automated VerMAS test runs, short triage).
+        # brief (warmup, automated test runs, short triage).
         max_short = int(len(sampled) * 0.6)
         assert len(short_narratives) <= max_short, (
             f"KPI 2 FAIL: {len(short_narratives)}/{len(sampled)} sampled sessions "

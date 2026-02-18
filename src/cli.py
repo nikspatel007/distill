@@ -1,9 +1,10 @@
-"""CLI interface for session-insights."""
+"""CLI interface for Distill."""
 
 import contextlib
 import json
+import logging
 from collections.abc import Generator
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -26,9 +27,14 @@ from distill.parsers.codex import CodexParser
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
+logging.basicConfig(
+    level=logging.WARNING,
+    format="%(levelname)s: %(message)s",
+)
+
 app = typer.Typer(
-    name="session-insights",
-    help="Analyze AI coding assistant sessions and generate Obsidian notes.",
+    name="distill",
+    help="Content pipeline: sessions → journal → blog → social.",
 )
 
 console = Console()
@@ -54,7 +60,7 @@ def version_callback(value: bool) -> None:
     if value:
         from distill import __version__
 
-        console.print(f"session-insights {__version__}")
+        console.print(f"distill {__version__}")
         raise typer.Exit()
 
 
@@ -172,11 +178,17 @@ def _run_bare_command(
 @app.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context,
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Enable verbose/debug logging.",
+    ),
     version: Annotated[
         bool,
         typer.Option(
             "--version",
-            "-v",
+            "-V",
             help="Show version and exit.",
             callback=version_callback,
             is_eager=True,
@@ -226,6 +238,21 @@ def main(
     When run without a subcommand, initializes config, runs the full pipeline,
     and starts the web dashboard.
     """
+    # Load .env before any config is read
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except ImportError:
+        pass
+
+    if verbose:
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format="%(levelname)s: %(name)s: %(message)s",
+            force=True,
+        )
+
     if ctx.invoked_subcommand is not None:
         return
 
@@ -348,8 +375,6 @@ def _infer_source_from_path(path: Path) -> str | None:
             return "claude"
         if parent.name == ".codex":
             return "codex"
-        if parent.name == ".vermas":
-            return "vermas"
     return None
 
 
@@ -380,7 +405,6 @@ def _parse_single_file(path: Path, source_filter: list[str] | None) -> list[Base
                     console.print(f"[yellow]Warning:[/yellow] {err}")
             return [session] if session is not None else []
         else:
-            # For vermas or unknown, fall back to directory parsing
             return parse_session_file(path, src)
     except Exception as exc:
         console.print(f"[red]Error:[/red] Failed to parse {path}: {exc}")
@@ -484,7 +508,7 @@ def analyze_cmd(
         typer.Option(
             "--source",
             "-s",
-            help="Filter to specific sources (claude, codex, vermas).",
+            help="Filter to specific sources (claude, codex).",
         ),
     ] = None,
     since: Annotated[
@@ -697,7 +721,7 @@ def sessions_cmd(
     Scans the specified directory for .claude/ and .codex/ directories,
     uses the existing parsers to extract sessions, and prints a simple
     JSON summary with session count, total messages, and date range.
-    Use --global to also include sessions from your home directory.
+    Use --global to also scan sessions from your home directory.
     """
     claude_parser = ClaudeParser()
     codex_parser = CodexParser()
@@ -806,7 +830,7 @@ def journal_cmd(
         list[str] | None,
         typer.Option(
             "--source",
-            help="Filter to specific sources (claude, codex, vermas).",
+            help="Filter to specific sources (claude, codex).",
         ),
     ] = None,
     include_global: Annotated[
@@ -844,6 +868,14 @@ def journal_cmd(
             help="Override the Claude model (e.g., claude-haiku-4-5-20251001).",
         ),
     ] = None,
+    project: Annotated[
+        str | None,
+        typer.Option(
+            "--project",
+            "-p",
+            help="Filter to a specific project (generates project-scoped journal).",
+        ),
+    ] = None,
 ) -> None:
     """Generate journal/blog entries from session data using LLM synthesis.
 
@@ -853,6 +885,7 @@ def journal_cmd(
 
     Use --dry-run to preview the context that would be sent to the LLM.
     Use --force to regenerate entries that are already cached.
+    Use --project to generate a project-scoped journal.
     """
     from distill.journal.config import JournalStyle
 
@@ -900,7 +933,19 @@ def journal_cmd(
         console.print("[yellow]No sessions found.[/yellow]")
         raise typer.Exit(0)
 
-    console.print(f"[green]Parsed {len(all_sessions)} session(s)[/green]")
+    # Filter to specific project if requested
+    if project:
+        all_sessions = [
+            s for s in all_sessions if project.lower() in (s.project or "").lower()
+        ]
+        if not all_sessions:
+            console.print(f"[yellow]No sessions found for project '{project}'.[/yellow]")
+            raise typer.Exit(0)
+        console.print(
+            f"[green]Parsed {len(all_sessions)} session(s) for project '{project}'[/green]"
+        )
+    else:
+        console.print(f"[green]Parsed {len(all_sessions)} session(s)[/green]")
 
     # Determine target dates
     target_dates: list[date] | None = None
@@ -912,14 +957,25 @@ def journal_cmd(
     if output is None:
         output = Path("./insights/")
 
+    # For project-scoped journals, output to a project subdirectory
+    journal_output = output
+    if project:
+        journal_output = output / "projects" / project.lower()
+        journal_output.mkdir(parents=True, exist_ok=True)
+
     # Generate journal entries
     with _progress_context(quiet=dry_run) as progress:
         if progress:
-            progress.add_task("Generating journal entries...", total=None)
+            label = (
+                f"Generating journal entries for {project}..."
+                if project
+                else "Generating journal entries..."
+            )
+            progress.add_task(label, total=None)
 
         written = generate_journal_notes(
             all_sessions,
-            output,
+            journal_output,
             target_dates=target_dates,
             style=style,
             target_word_count=words,
@@ -1014,7 +1070,7 @@ def blog_cmd(
         str | None,
         typer.Option(
             "--publish",
-            help="Comma-separated platforms (obsidian,ghost,markdown,twitter,linkedin,reddit).",
+            help="Comma-separated platforms (obsidian,ghost,markdown,postiz).",
         ),
     ] = None,
     ghost_url: Annotated[
@@ -1036,6 +1092,13 @@ def blog_cmd(
         typer.Option(
             "--ghost-newsletter",
             help="Ghost newsletter slug for auto-send (or GHOST_NEWSLETTER_SLUG env var).",
+        ),
+    ] = None,
+    target: Annotated[
+        str | None,
+        typer.Option(
+            "--target",
+            help="Named Ghost target from .distill.toml (e.g. troopx, personal).",
         ),
     ] = None,
     limit: Annotated[
@@ -1072,6 +1135,19 @@ def blog_cmd(
 
     # Parse platforms
     from distill.blog.config import Platform
+    from distill.config import load_config as _load_blog_config
+
+    _blog_cfg = _load_blog_config()
+
+    # Build Ghost config: named target > CLI flags > env vars
+    from distill.integrations.ghost import GhostConfig
+
+    if target:
+        ghost_config = _blog_cfg.to_ghost_config(target=target)
+    else:
+        ghost_config = GhostConfig.from_env()
+        if not ghost_config.is_configured:
+            ghost_config = _blog_cfg.to_ghost_config()
 
     if publish:
         platform_names = [p.strip() for p in publish.split(",")]
@@ -1084,12 +1160,14 @@ def blog_cmd(
         if "all" in platform_names:
             platform_names = valid_platforms
     else:
-        platform_names = ["obsidian"]
-
-    # Build Ghost config from CLI options / env vars
-    from distill.blog.config import GhostConfig
-
-    ghost_config = GhostConfig.from_env()
+        platform_names = list(_blog_cfg.blog.platforms)
+        # Auto-add ghost when configured and not already listed
+        if ghost_config.is_configured and "ghost" not in platform_names:
+            platform_names.append("ghost")
+        # Auto-add postiz when configured and not already listed
+        postiz_cfg = _blog_cfg.to_postiz_config()
+        if postiz_cfg.is_configured and "postiz" not in platform_names:
+            platform_names.append("postiz")
     if ghost_url:
         ghost_config.url = ghost_url
     if ghost_key:
@@ -1218,7 +1296,7 @@ def intake_cmd(
             "--publish",
             help=(
                 "Comma-separated publishers"
-                " (obsidian, markdown, ghost, twitter, linkedin, reddit)."
+                " (obsidian, markdown, ghost, postiz)."
                 " Default: obsidian."
             ),
         ),
@@ -1339,7 +1417,7 @@ def intake_cmd(
     publisher_list = [p.strip() for p in publish.split(",")] if publish else None
 
     # Build Ghost config from CLI options / env vars
-    from distill.blog.config import GhostConfig
+    from distill.integrations.ghost import GhostConfig
 
     gc = GhostConfig.from_env()
     if ghost_url:
@@ -1521,12 +1599,14 @@ def run_cmd(
     """
     from datetime import timedelta
 
+    from distill.config import load_config as _load_config
     from distill.errors import PipelineReport, save_report
 
-    platform_names = [p.strip() for p in publish.split(",")] if publish else ["obsidian"]
+    _cfg = _load_config()
+    _project_context = _cfg.render_project_context()
 
     # Build Ghost config
-    from distill.blog.config import GhostConfig
+    from distill.integrations.ghost import GhostConfig
 
     gc = GhostConfig.from_env()
     if ghost_url:
@@ -1535,15 +1615,22 @@ def run_cmd(
         gc.admin_api_key = ghost_key
     ghost_cfg = gc if gc.is_configured else None
 
+    # Resolve publish platforms: CLI flag > .distill.toml [blog] > default
+    if publish:
+        platform_names = [p.strip() for p in publish.split(",")]
+    else:
+        platform_names = list(_cfg.blog.platforms)
+        # Auto-add ghost when Ghost is configured and not already listed
+        if ghost_cfg and "ghost" not in platform_names:
+            platform_names.append("ghost")
+        # Auto-add postiz when configured and not already listed
+        postiz_cfg = _cfg.to_postiz_config()
+        if postiz_cfg.is_configured and "postiz" not in platform_names:
+            platform_names.append("postiz")
+
     all_written: list[Path] = []
     errors: list[str] = []
     report = PipelineReport()
-
-    # Load project context for prompt injection
-    from distill.config import load_config as _load_config
-
-    _cfg = _load_config()
-    _project_context = _cfg.render_project_context()
 
     # Delta window: only parse sessions from the --since date or last 2 days
     if force:
@@ -1562,9 +1649,9 @@ def run_cmd(
         delta_since = date.today() - timedelta(days=2)
         target_dates = [date.today()]
 
-    # Step 1: Discover and parse sessions -> journal
+    # Steps 0+1: Parse sessions once, use for graph build and journal
     if not skip_sessions:
-        console.print("[bold]Step 1/3: Sessions → Journal[/bold]")
+        console.print("[bold]Step 1/4: Sessions → Graph + Journal[/bold]")
         try:
             all_sessions = _discover_and_parse(
                 directory,
@@ -1575,6 +1662,31 @@ def run_cmd(
             )
             if all_sessions:
                 console.print(f"  Found {len(all_sessions)} session(s)")
+
+                # Build/update knowledge graph before journal (so insights are fresh)
+                try:
+                    from distill.graph.extractor import SessionGraphExtractor
+                    from distill.graph.store import GraphStore
+
+                    output.mkdir(parents=True, exist_ok=True)
+                    graph_store = GraphStore(path=output)
+                    graph_extractor = SessionGraphExtractor(
+                        graph_store,
+                        extra_agent_patterns=_cfg.graph.agent_prompt_patterns,
+                    )
+                    for gs in all_sessions:
+                        graph_extractor.extract(gs)
+                    graph_store.save()
+                    console.print(
+                        f"  [green]Graph: {graph_store.node_count()} nodes, "
+                        f"{graph_store.edge_count()} edges[/green]"
+                    )
+                except Exception as exc:
+                    report.add_error(
+                        "graph", str(exc), error_type="stage_error", recoverable=True
+                    )
+                    console.print(f"  [dim]Graph build skipped: {exc}[/dim]")
+
                 written = generate_journal_notes(
                     all_sessions,
                     output,
@@ -1597,11 +1709,11 @@ def run_cmd(
             report.add_error("journal", str(exc), error_type="stage_error", recoverable=True)
             console.print(f"  [red]Error: {exc}[/red]")
     else:
-        console.print("[dim]Step 1/3: Sessions → Journal (skipped)[/dim]")
+        console.print("[dim]Step 1/4: Sessions → Journal (skipped)[/dim]")
 
     # Step 2: Intake — ingest external content
     if not skip_intake:
-        console.print("[bold]Step 2/3: Intake → Digest[/bold]")
+        console.print("[bold]Step 2/4: Intake → Digest[/bold]")
         try:
             # Resolve feeds file for defaults
             resolved_feeds_file: str | None = None
@@ -1632,11 +1744,11 @@ def run_cmd(
             report.add_error("intake", str(exc), error_type="stage_error", recoverable=True)
             console.print(f"  [red]Error: {exc}[/red]")
     else:
-        console.print("[dim]Step 2/3: Intake → Digest (skipped)[/dim]")
+        console.print("[dim]Step 2/4: Intake → Digest (skipped)[/dim]")
 
     # Step 3: Blog — generate posts from journal + intake
     if not skip_blog:
-        console.print("[bold]Step 3/3: Blog → Publish[/bold]")
+        console.print("[bold]Step 3/4: Blog → Publish[/bold]")
         journal_dir = output / "journal"
         if journal_dir.exists():
             try:
@@ -1648,6 +1760,7 @@ def run_cmd(
                     platforms=platform_names,
                     ghost_config=ghost_cfg,
                     report=report,
+                    postiz_limit=2,  # cap Postiz pushes per run to avoid flooding
                 )
                 all_written.extend(written)
                 report.items_processed["blog"] = len(written)
@@ -1660,7 +1773,39 @@ def run_cmd(
         else:
             console.print("  [yellow]No journal entries yet — skipping blog[/yellow]")
     else:
-        console.print("[dim]Step 3/3: Blog → Publish (skipped)[/dim]")
+        console.print("[dim]Step 3/4: Blog → Publish (skipped)[/dim]")
+
+    # Step 4: Daily social — short LinkedIn posts from journal entries
+    postiz_cfg_for_social = _cfg.to_postiz_config()
+    if getattr(postiz_cfg_for_social, "daily_social_enabled", False):
+        console.print("[bold]Step 4/4: Daily Social → Postiz[/bold]")
+        try:
+            from distill.core import generate_daily_social
+
+            social_written = generate_daily_social(
+                output,
+                postiz_config=postiz_cfg_for_social,
+                model=model,
+                dry_run=dry_run,
+                force=force,
+            )
+            all_written.extend(social_written)
+            if social_written:
+                report.items_processed["daily_social"] = len(social_written)
+                console.print(
+                    f"  [green]Generated {len(social_written)} daily social post(s)[/green]"
+                )
+            else:
+                console.print(
+                    "  [dim]No new daily social post"
+                    " (already posted or series complete)[/dim]"
+                )
+        except Exception as exc:
+            errors.append(f"Daily social: {exc}")
+            report.add_error("daily_social", str(exc), error_type="stage_error", recoverable=True)
+            console.print(f"  [red]Error: {exc}[/red]")
+    else:
+        console.print("[dim]Step 4/4: Daily Social (disabled or skipped)[/dim]")
 
     # Update unified memory
     if not dry_run:
@@ -1972,6 +2117,81 @@ def note_list(
         console.print(f"    [dim]ID: {note.id} | {note.created_at.date()}[/dim]")
 
 
+@app.command()
+def brainstorm(
+    output: Path = typer.Option(Path("./insights"), help="Output directory"),  # noqa: B008
+) -> None:
+    """Brainstorm daily content ideas from research sources."""
+    from datetime import datetime
+
+    from distill.brainstorm.analyst import analyze_research, score_against_pillars
+    from distill.brainstorm.publisher import publish_calendar
+    from distill.brainstorm.sources import (
+        fetch_arxiv,
+        fetch_followed_feeds,
+        fetch_hacker_news,
+        fetch_manual_links,
+    )
+    from distill.config import load_config
+
+    config = load_config()
+    bc = config.brainstorm
+    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+
+    typer.echo(f"Brainstorming content ideas for {today}...")
+
+    # Gather
+    items = []
+    if bc.hacker_news:
+        items.extend(fetch_hacker_news(min_points=bc.hn_min_points))
+    items.extend(fetch_arxiv(categories=bc.arxiv_categories))
+    items.extend(fetch_followed_feeds(bc.followed_people))
+    items.extend(fetch_manual_links(bc.manual_links))
+
+    typer.echo(f"Found {len(items)} research items")
+
+    if not items:
+        typer.echo("No research items found, skipping analysis.")
+        return
+
+    # Pre-filter
+    relevant = score_against_pillars(items, bc.pillars) if bc.pillars else items
+    typer.echo(f"{len(relevant)} items match content pillars")
+
+    # Read journal context
+    journal_context = ""
+    journal_dir = output / "journal"
+    if journal_dir.exists():
+        recent = sorted(journal_dir.glob("*.md"), reverse=True)[:3]
+        journal_context = "\n---\n".join(
+            f.read_text(encoding="utf-8")[:1000] for f in recent
+        )
+
+    # Analyze
+    ideas = analyze_research(
+        items=relevant,
+        pillars=bc.pillars,
+        journal_context=journal_context,
+        existing_seeds=[],
+        published_titles=[],
+    )
+
+    if not ideas:
+        typer.echo("No content ideas generated.")
+        return
+
+    # Publish
+    calendar = publish_calendar(
+        ideas=ideas,
+        date=today,
+        output_dir=output,
+    )
+
+    typer.echo(f"Published {len(calendar.ideas)} content ideas:")
+    for idea in calendar.ideas:
+        typer.echo(f"  - {idea.title} ({idea.platform})")
+
+
 @app.command(name="serve")
 def serve(
     output: Annotated[
@@ -2040,6 +2260,400 @@ def serve(
             cwd=web_dir,
             env={**env, "NODE_ENV": "production"},
         )
+
+
+# -- Graph sub-app -----------------------------------------------------------
+
+graph_app = typer.Typer(name="graph", help="Knowledge graph operations.")
+app.add_typer(graph_app, name="graph")
+
+
+@graph_app.command(name="build")
+def graph_build(
+    claude_dir: Annotated[
+        Path,
+        typer.Option(
+            "--claude-dir",
+            help="Path to .claude directory containing session JSONL files.",
+        ),
+    ] = Path.home() / ".claude",  # noqa: B008
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output directory for graph store.",
+        ),
+    ] = Path("./insights"),
+    since: Annotated[
+        str | None,
+        typer.Option(
+            "--since",
+            help="Only process sessions after this date (YYYY-MM-DD).",
+        ),
+    ] = None,
+    quiet: Annotated[
+        bool,
+        typer.Option(
+            "--quiet",
+            "-q",
+            help="Suppress progress output.",
+        ),
+    ] = False,
+) -> None:
+    """Build knowledge graph from Claude session JSONL files."""
+    from distill.graph.extractor import SessionGraphExtractor
+    from distill.graph.store import GraphStore
+
+    # Parse since date if provided
+    since_date: date | None = None
+    if since:
+        try:
+            since_date = datetime.strptime(since, "%Y-%m-%d").date()
+        except ValueError:
+            console.print(f"[red]Error:[/red] Invalid date format: {since}")
+            console.print("Use YYYY-MM-DD format (e.g., 2026-02-14)")
+            raise typer.Exit(1) from None
+
+    # Parse sessions from claude dir
+    with _progress_context(quiet=quiet) as progress:
+        if progress:
+            progress.add_task("Discovering sessions...", total=None)
+        parser = ClaudeParser()
+        sessions = parser.parse_directory(claude_dir, since=since_date)
+
+    if not quiet:
+        console.print(f"[green]Found {len(sessions)} session(s)[/green]")
+
+    # Build graph
+    from distill.config import load_config
+
+    cfg = load_config()
+    output.mkdir(parents=True, exist_ok=True)
+    store = GraphStore(path=output)
+    extractor = SessionGraphExtractor(
+        store, extra_agent_patterns=cfg.graph.agent_prompt_patterns
+    )
+
+    with _progress_context(quiet=quiet) as progress:
+        task = progress.add_task("Extracting graph...", total=len(sessions)) if progress else None
+        for session in sessions:
+            extractor.extract(session)
+            if progress and task is not None:
+                progress.advance(task)
+
+    store.save()
+
+    # Print stats
+    if not quiet:
+        stats = store.stats()
+        console.print()
+        console.print("[bold green]Graph built![/bold green]")
+        console.print(f"  Nodes: {stats['total_nodes']}")
+        console.print(f"  Edges: {stats['total_edges']}")
+        if stats.get("nodes_by_type"):
+            for ntype, count in sorted(stats["nodes_by_type"].items()):
+                console.print(f"    {ntype}: {count}")
+
+
+@graph_app.command(name="stats")
+def graph_stats(
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Directory containing graph store.",
+        ),
+    ] = Path("./insights"),
+) -> None:
+    """Show graph statistics."""
+    from distill.graph.store import GraphStore
+
+    store = GraphStore(path=output)
+    stats = store.stats()
+
+    console.print(f"Nodes: {stats['total_nodes']}")
+    console.print(f"Edges: {stats['total_edges']}")
+
+    nodes_by_type = stats.get("nodes_by_type", {})
+    if nodes_by_type:
+        console.print()
+        console.print("[bold]Nodes by type:[/bold]")
+        for ntype, count in sorted(nodes_by_type.items()):
+            console.print(f"  {ntype}: {count}")
+
+    edges_by_type = stats.get("edges_by_type", {})
+    if edges_by_type:
+        console.print()
+        console.print("[bold]Edges by type:[/bold]")
+        for etype, count in sorted(edges_by_type.items()):
+            console.print(f"  {etype}: {count}")
+
+
+@graph_app.command(name="query")
+def graph_query(
+    name: Annotated[
+        str,
+        typer.Argument(help="Entity or concept name to query."),
+    ],
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Directory containing graph store.",
+        ),
+    ] = Path("./insights"),
+    context: Annotated[
+        bool,
+        typer.Option(
+            "--context",
+            help="Render as context text instead of structured output.",
+        ),
+    ] = False,
+) -> None:
+    """Query the knowledge graph for an entity or concept."""
+    from distill.graph.query import GraphQuery
+    from distill.graph.store import GraphStore
+
+    store = GraphStore(path=output)
+    query = GraphQuery(store)
+
+    if context:
+        text = query.render_context(focus=name)
+        console.print(text)
+    else:
+        result = query.about(name)
+        if result["focus"] is None:
+            console.print(f"[yellow]No node found matching '{name}'[/yellow]")
+            return
+
+        focus = result["focus"]
+        console.print(f"[bold]{focus['name']}[/bold] ({focus['type']})")
+
+        neighbors = result["neighbors"]
+        if neighbors:
+            console.print()
+            console.print(f"[bold]Neighbors ({len(neighbors)}):[/bold]")
+            for nb in neighbors:
+                console.print(
+                    f"  {nb['name']} ({nb['type']}) "
+                    f"— relevance: {nb['relevance']:.4f}"
+                )
+
+        edges = result["edges"]
+        if edges:
+            console.print()
+            console.print(f"[bold]Edges ({len(edges)}):[/bold]")
+            for edge in edges:
+                console.print(
+                    f"  {edge['source']} —[{edge['type']}]→ {edge['target']}"
+                )
+
+
+@graph_app.command(name="context")
+def graph_context(
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Directory containing graph store.",
+        ),
+    ] = Path("./insights"),
+    project: Annotated[
+        str | None,
+        typer.Option(
+            "--project",
+            "-p",
+            help="Filter to a specific project.",
+        ),
+    ] = None,
+    hours: Annotated[
+        float,
+        typer.Option(
+            "--hours",
+            help="Time window in hours.",
+        ),
+    ] = 72.0,
+    max_sessions: Annotated[
+        int,
+        typer.Option(
+            "--max-sessions",
+            help="Maximum number of recent sessions.",
+        ),
+    ] = 10,
+    raw: Annotated[
+        bool,
+        typer.Option(
+            "--raw",
+            help="Output raw gathered data (JSON) instead of synthesized context.",
+        ),
+    ] = False,
+    model: Annotated[
+        str | None,
+        typer.Option(
+            "--model",
+            help="Claude model to use for synthesis.",
+        ),
+    ] = None,
+) -> None:
+    """Generate narrative context from the knowledge graph.
+
+    Gathers recent session data from the graph, then uses an LLM to
+    synthesize a concise context block suitable for injection into
+    a Claude Code session (e.g., via CLAUDE.md).
+
+    Use --raw to see the gathered data without LLM synthesis.
+    """
+    import json
+
+    from distill.graph.query import GraphQuery
+    from distill.graph.store import GraphStore
+
+    store = GraphStore(path=output)
+    if store.node_count() == 0:
+        console.print(
+            "[yellow]No graph data found.[/yellow] Run 'distill graph build' first."
+        )
+        raise typer.Exit(1)
+
+    query = GraphQuery(store)
+    data = query.gather_context_data(
+        project=project,
+        max_sessions=max_sessions,
+        max_hours=hours,
+    )
+
+    if not data.get("sessions"):
+        console.print("[yellow]No recent sessions found in the time window.[/yellow]")
+        raise typer.Exit(0)
+
+    if raw:
+        console.print(json.dumps(data, indent=2))
+        return
+
+    # Synthesize via LLM
+    from distill.graph.synthesizer import ContextSynthesisError, synthesize_context
+
+    try:
+        context_md = synthesize_context(data, model=model)
+    except ContextSynthesisError as e:
+        console.print(f"[red]Synthesis failed:[/red] {e}")
+        raise typer.Exit(1) from None
+
+    console.print(context_md)
+
+
+@graph_app.command(name="inject")
+def graph_inject(
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Directory containing graph store.",
+        ),
+    ] = Path("./insights"),
+    project: Annotated[
+        str | None,
+        typer.Option(
+            "--project",
+            "-p",
+            help="Filter to a specific project.",
+        ),
+    ] = None,
+    hours: Annotated[
+        float,
+        typer.Option(
+            "--hours",
+            help="Time window in hours.",
+        ),
+    ] = 72.0,
+    max_sessions: Annotated[
+        int,
+        typer.Option(
+            "--max-sessions",
+            help="Maximum number of recent sessions.",
+        ),
+    ] = 10,
+    model: Annotated[
+        str | None,
+        typer.Option(
+            "--model",
+            help="Claude model to use for synthesis.",
+        ),
+    ] = None,
+    claude_md: Annotated[
+        Path,
+        typer.Option(
+            "--claude-md",
+            help="Path to CLAUDE.md file to inject context into.",
+        ),
+    ] = Path("CLAUDE.md"),
+    quiet: Annotated[
+        bool,
+        typer.Option(
+            "--quiet",
+            "-q",
+            help="Suppress output.",
+        ),
+    ] = False,
+) -> None:
+    """Synthesize context and inject it into CLAUDE.md.
+
+    Gathers recent session data from the knowledge graph, synthesizes
+    a narrative context block via LLM, and writes it into the target
+    CLAUDE.md file between <!-- DISTILL-CONTEXT --> markers.
+
+    Existing content in CLAUDE.md is preserved — only the marked
+    context block is replaced (or appended on first run).
+    """
+    from distill.graph.query import GraphQuery
+    from distill.graph.store import GraphStore
+    from distill.graph.synthesizer import (
+        ContextSynthesisError,
+        inject_context,
+        synthesize_context,
+    )
+
+    store = GraphStore(path=output)
+    if store.node_count() == 0:
+        console.print(
+            "[yellow]No graph data found.[/yellow] Run 'distill graph build' first."
+        )
+        raise typer.Exit(1)
+
+    query = GraphQuery(store)
+    data = query.gather_context_data(
+        project=project,
+        max_sessions=max_sessions,
+        max_hours=hours,
+    )
+
+    if not data.get("sessions"):
+        if not quiet:
+            console.print("[yellow]No recent sessions found in the time window.[/yellow]")
+        raise typer.Exit(0)
+
+    if not quiet:
+        console.print(
+            f"[dim]Synthesizing context from {len(data['sessions'])} session(s)...[/dim]"
+        )
+
+    try:
+        context_md = synthesize_context(data, model=model)
+    except ContextSynthesisError as e:
+        console.print(f"[red]Synthesis failed:[/red] {e}")
+        raise typer.Exit(1) from None
+
+    inject_context(context_md, claude_md.resolve())
+
+    if not quiet:
+        console.print(f"[green]Context injected into {claude_md}[/green]")
+        console.print()
+        console.print(context_md)
 
 
 if __name__ == "__main__":

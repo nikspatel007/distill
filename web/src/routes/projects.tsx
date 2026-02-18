@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { ProjectSummary } from "../../shared/schemas.js";
-import { TagBadge } from "../components/shared/TagBadge.js";
+import { formatProjectName } from "../lib/format.js";
 
 export default function ProjectList() {
 	const { data, isLoading } = useQuery<{ projects: ProjectSummary[] }>({
@@ -35,7 +35,7 @@ export default function ProjectList() {
 							className="block rounded-lg border border-zinc-200 p-4 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
 						>
 							<div className="flex items-center justify-between">
-								<span className="text-lg font-semibold">{project.name}</span>
+								<span className="text-lg font-semibold">{formatProjectName(project.name)}</span>
 								{project.lastSeen && (
 									<span className="text-xs text-zinc-500">Last active: {project.lastSeen}</span>
 								)}
@@ -55,9 +55,19 @@ export default function ProjectList() {
 							</div>
 							{project.tags.length > 0 && (
 								<div className="mt-2 flex flex-wrap gap-1">
-									{project.tags.map((t) => (
-										<TagBadge key={t} tag={t} />
+									{project.tags.slice(0, 3).map((t) => (
+										<span
+											key={t}
+											className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs dark:bg-zinc-800"
+										>
+											{t}
+										</span>
 									))}
+									{project.tags.length > 3 && (
+										<span className="px-1 py-0.5 text-xs text-zinc-400">
+											+{project.tags.length - 3} more
+										</span>
+									)}
 								</div>
 							)}
 						</Link>

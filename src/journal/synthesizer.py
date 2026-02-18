@@ -1,14 +1,13 @@
 """Claude CLI integration for journal synthesis (Phase 2).
 
 Calls ``claude -p`` to transform compressed session context into
-narrative prose. Pattern follows VerMAS LLMService.
+narrative prose.
 """
 
 from __future__ import annotations
 
 import json
 import logging
-import subprocess
 from datetime import date
 
 from distill.journal.config import JournalConfig
@@ -41,38 +40,21 @@ class JournalSynthesizer:
         Raises:
             SynthesisError: If the CLI call fails.
         """
+        from distill.llm import LLMError, call_claude
+
         system_prompt = get_system_prompt(self._config.style, self._config.target_word_count)
         user_prompt = context.render_text()
-        full_prompt = f"{system_prompt}\n\n---\n\n{user_prompt}"
-
-        cmd: list[str] = ["claude", "-p"]
-        if self._config.model:
-            cmd.extend(["--model", self._config.model])
-        cmd.append(full_prompt)
-
-        logger.debug("Calling Claude CLI for journal synthesis (%s)", context.date)
 
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
+            return call_claude(
+                system_prompt,
+                user_prompt,
+                model=self._config.model,
                 timeout=self._config.claude_timeout,
+                label=f"journal {context.date}",
             )
-        except FileNotFoundError as e:
-            raise SynthesisError("Claude CLI not found -- is 'claude' on the PATH?") from e
-        except subprocess.TimeoutExpired as e:
-            raise SynthesisError(
-                f"Claude CLI timed out after {self._config.claude_timeout}s"
-            ) from e
-        except OSError as e:
-            raise SynthesisError(f"Failed to run Claude CLI: {e}") from e
-
-        if result.returncode != 0:
-            err_text = result.stderr.strip() if result.stderr else ""
-            raise SynthesisError(f"Claude CLI exited {result.returncode}: {err_text}")
-
-        return result.stdout.strip()
+        except LLMError as exc:
+            raise SynthesisError(str(exc)) from exc
 
     def extract_memory(
         self, prose: str, target_date: date
@@ -92,7 +74,9 @@ class JournalSynthesizer:
         Raises:
             SynthesisError: If the CLI call fails.
         """
-        extraction_prompt = f"""\
+        from distill.llm import LLMError, call_claude, strip_json_fences
+
+        system_prompt = f"""\
 Extract structured memory from this journal entry dated {target_date.isoformat()}.
 
 Return ONLY valid JSON with this exact structure (no markdown fences, no commentary):
@@ -111,46 +95,22 @@ Return ONLY valid JSON with this exact structure (no markdown fences, no comment
   ]
 }}
 
-Threads are ongoing narratives that span multiple days -- problems being debugged,
+Threads are ongoing narratives that span multiple days: problems being debugged,
 features being built, patterns being established. Only include threads if the prose
-describes something clearly ongoing or recently resolved.
-
-Journal entry:
-{prose}"""
-
-        cmd: list[str] = ["claude", "-p"]
-        if self._config.model:
-            cmd.extend(["--model", self._config.model])
-        cmd.append(extraction_prompt)
-
-        logger.debug("Extracting memory for %s", target_date)
+describes something clearly ongoing or recently resolved."""
 
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
+            raw = call_claude(
+                system_prompt,
+                prose,
+                model=self._config.model,
                 timeout=self._config.claude_timeout,
+                label=f"memory {target_date}",
             )
-        except FileNotFoundError as e:
-            raise SynthesisError("Claude CLI not found -- is 'claude' on the PATH?") from e
-        except subprocess.TimeoutExpired as e:
-            raise SynthesisError(
-                f"Claude CLI timed out after {self._config.claude_timeout}s"
-            ) from e
-        except OSError as e:
-            raise SynthesisError(f"Failed to run Claude CLI: {e}") from e
+        except LLMError as exc:
+            raise SynthesisError(str(exc)) from exc
 
-        if result.returncode != 0:
-            err_text = result.stderr.strip() if result.stderr else ""
-            raise SynthesisError(f"Claude CLI exited {result.returncode}: {err_text}")
-
-        raw = result.stdout.strip()
-        # Strip markdown code fences if present
-        if raw.startswith("```"):
-            raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
-        if raw.endswith("```"):
-            raw = raw[:-3].rstrip()
+        raw = strip_json_fences(raw)
 
         try:
             data = json.loads(raw)

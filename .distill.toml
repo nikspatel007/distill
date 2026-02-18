@@ -1,0 +1,80 @@
+[user]
+name = "Nik"
+role = "solo founder"
+
+[social]
+brand_hashtags = ["#TroopX", "#BuildInPublic"]
+secondary_hashtags = ["#AgenticAI", "#DistillAI"]
+
+[[projects]]
+name = "Distill"
+description = "Content pipeline that transforms raw AI coding sessions into publishable content. Ingests from 8 sources (sessions, RSS, browser, Gmail, LinkedIn, Reddit, YouTube, Substack), synthesizes journal entries and blog posts, and publishes across platforms via Postiz."
+
+[[projects]]
+name = "TroopX"
+description = "Multi-agent orchestration platform built on Temporal, FastAPI, and Claude CLI. Runs dev-QA workflow pairs with blackboard coordination, memory injection, and post-workflow analysis."
+aliases = ["vermas"]
+
+[sessions]
+sources = [ "claude", "codex" ]
+
+[graph]
+agent_prompt_patterns = [
+    '^You are [\w]+-[\w-]+\.',
+    '^You are \w+ (?:supervisor|lead)\b',
+    '^You are (?:a |the |an )?[\w ]{1,40}\.[\s\n]',
+]
+
+[blog]
+platforms = [ "obsidian", "ghost", "postiz" ]
+
+[intake]
+use_defaults = true
+browser_history = true
+substack_blogs = []
+rss_feeds = [ "https://martinfowler.com/feed.atom" ]
+publishers = [ "obsidian", "ghost" ]
+
+[postiz]
+schedule_enabled = true
+timezone = "America/Chicago"
+weekly_time = "09:00"
+weekly_day = 1                    # Tuesday 9am CT (day after weekly blog generation)
+thematic_time = "09:00"
+thematic_days = [0, 1, 2, 3, 4, 5, 6]  # Any day — schedules for next day 9am CT
+daily_social_enabled = true
+daily_social_time = "08:00"       # 8am CT every day
+daily_social_platforms = ["linkedin", "twitter", "slack"]
+daily_social_series_length = 100  # 100 days of building in public
+daily_social_project = "TroopX"   # Focus posts on this project
+
+[brainstorm]
+pillars = [
+  "Building multi-agent systems",
+  "AI architecture patterns",
+  "Human-AI collaboration",
+  "Evals and verification",
+  "Running an autonomous company",
+]
+followed_people = [
+  "https://simonwillison.net/atom/everything/",
+  "https://martinfowler.com/feed.atom",
+]
+manual_links = []
+arxiv_categories = ["cs.AI", "cs.SE", "cs.MA"]
+hacker_news = true
+hn_min_points = 50
+
+[ghost]
+default = "troopx"
+auto_publish = true
+blog_as_draft = true
+
+[ghost.troopx]
+url = ""                         # Set via GHOST_TROOPX_URL or GHOST_URL env var
+admin_api_key = ""               # Set via GHOST_TROOPX_ADMIN_API_KEY or GHOST_ADMIN_API_KEY env var
+
+[ghost.personal]
+url = "https://blog.nik-patel.com"
+admin_api_key = ""               # Set via GHOST_PERSONAL_ADMIN_API_KEY env var
+blog_as_draft = true

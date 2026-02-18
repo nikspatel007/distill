@@ -20,23 +20,12 @@ The CLI implementation exists and is structurally complete, but there are critic
 
 ### Issue 1: Missing Production Dependency (CRITICAL)
 
-**Problem:** The `pyyaml` package is required by the VerMAS parser but is only listed in dev dependencies.
-
-**Import Chain:**
-```
-cli.py
-  → core.py
-    → parsers/__init__.py
-      → vermas.py
-        → import yaml  ← FAILS without dev deps
-```
+**Problem:** The `pyyaml` package was required by a legacy parser but only listed in dev dependencies.
 
 **Error Reproduced:**
 ```
 ModuleNotFoundError: No module named 'yaml'
 ```
-
-**Location:** `src/session_insights/parsers/vermas.py:16`
 
 **Fix:** Move `pyyaml>=6.0` from `[project.optional-dependencies].dev` to `[project].dependencies` in `pyproject.toml`.
 
@@ -61,12 +50,10 @@ session-insights = "session_insights.cli:app"
 
 **Failed Tests:** 2 out of 185 tests fail
 
-1. `test_session_duration_minutes` - VermasSession duration calculation returns None
+1. `test_session_duration_minutes` - Session duration calculation returns None
 2. `test_session_has_start_end_times` - `end_time` field is None
 
-**Root Cause:** The `VermasSession` model inherits from `BaseSession` which has `start_time` and `end_time` fields, but the parser sets these on the session incorrectly or the model fields are not being properly inherited/used.
-
-**Location:** `src/session_insights/parsers/vermas.py` around line 270-287
+**Root Cause:** A session model inheriting from `BaseSession` had `start_time` and `end_time` fields improperly assigned.
 
 ## Recommended Fix Approach
 
@@ -85,7 +72,7 @@ dependencies = [
 
 ### Priority 2: Fix Test Failures
 
-In `VermasSession` creation (vermas.py:270-287), ensure `start_time` and `end_time` are passed to the parent model constructor correctly.
+Ensure `start_time` and `end_time` are passed to the parent model constructor correctly.
 
 ### Priority 3: Update Entry Point (Optional)
 
@@ -130,4 +117,3 @@ The AGENTS.md mentions repeated CLI implementation failures (cycles 1, 2, 4, 5).
 | File | Change Required |
 |------|-----------------|
 | `pyproject.toml` | Add `pyyaml>=6.0` to main dependencies |
-| `src/session_insights/parsers/vermas.py` | Fix `start_time`/`end_time` assignment (optional - test fix) |

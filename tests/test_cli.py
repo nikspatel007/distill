@@ -68,13 +68,13 @@ class TestCLI:
         """Test that --help works on the main command."""
         result = runner.invoke(app, ["--help"])
         assert result.exit_code == 0
-        assert "session-insights" in _strip_ansi(result.output).lower() or "analyze" in _strip_ansi(result.output).lower()
+        assert "distill" in _strip_ansi(result.output).lower() or "analyze" in _strip_ansi(result.output).lower()
 
     def test_main_version(self, runner: CliRunner) -> None:
         """Test that --version works."""
         result = runner.invoke(app, ["--version"])
         assert result.exit_code == 0
-        assert "session-insights" in _strip_ansi(result.output)
+        assert "distill" in _strip_ansi(result.output)
 
     def test_analyze_help(self, runner: CliRunner) -> None:
         """Test that analyze --help works."""

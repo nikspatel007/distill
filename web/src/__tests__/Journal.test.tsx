@@ -21,8 +21,8 @@ vi.mock("../components/shared/DateBadge.js", () => ({
 	DateBadge: ({ date }: { date: string }) => <span>{date}</span>,
 }));
 
-vi.mock("../components/shared/TagBadge.js", () => ({
-	TagBadge: ({ tag }: { tag: string }) => <span>{tag}</span>,
+vi.mock("../lib/format.js", () => ({
+	formatProjectName: (name: string) => name.charAt(0).toUpperCase() + name.slice(1),
 }));
 
 const server = setupServer(...handlers);
@@ -63,8 +63,7 @@ describe("JournalList", () => {
 	test("displays project badges", async () => {
 		renderWithProviders(<JournalList />);
 		await waitFor(() => {
-			expect(screen.getByText("distill")).toBeInTheDocument();
+			expect(screen.getAllByText("Distill").length).toBeGreaterThanOrEqual(1);
 		});
-		expect(screen.getByText("vermas")).toBeInTheDocument();
 	});
 });

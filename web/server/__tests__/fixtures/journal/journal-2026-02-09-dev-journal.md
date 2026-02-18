@@ -10,7 +10,6 @@ tags:
   - typescript
 projects:
   - distill
-  - vermas
 created: 2026-02-09T22:00:00
 ---
 
@@ -28,7 +27,7 @@ The Hono RPC client is excellent. Define routes with Zod validators on the serve
 
 ---
 
-*4 sessions | 180 minutes | Projects: distill, vermas*
+*4 sessions | 180 minutes | Projects: distill*
 
 ## Related
 
