@@ -491,3 +491,59 @@ export type ContentIdea = z.infer<typeof ContentIdeaSchema>;
 export type ContentCalendar = z.infer<typeof ContentCalendarSchema>;
 export type ContentItem = z.infer<typeof ContentItemSchema>;
 export type ContentItemsResponse = z.infer<typeof ContentItemsResponseSchema>;
+
+// --- Studio / Review Queue ---
+
+export const ChatMessageSchema = z.object({
+	role: z.enum(["user", "assistant"]),
+	content: z.string(),
+	timestamp: z.string(),
+});
+
+export const PlatformContentSchema = z.object({
+	enabled: z.boolean().default(true),
+	content: z.string().nullable().default(null),
+	published: z.boolean().default(false),
+	postiz_id: z.string().nullable().default(null),
+});
+
+export const ReviewItemSchema = z.object({
+	slug: z.string(),
+	title: z.string(),
+	type: z.enum(["weekly", "thematic", "daily-social", "intake"]),
+	status: z.enum(["draft", "ready", "published"]).default("draft"),
+	generated_at: z.string(),
+	source_content: z.string().default(""),
+	platforms: z.record(z.string(), PlatformContentSchema).default({}),
+	chat_history: z.array(ChatMessageSchema).default([]),
+});
+
+export const ReviewQueueSchema = z.object({
+	items: z.array(ReviewItemSchema).default([]),
+});
+
+export const StudioChatRequestSchema = z.object({
+	content: z.string(),
+	platform: z.string(),
+	message: z.string(),
+	history: z.array(ChatMessageSchema).default([]),
+});
+
+export const StudioChatResponseSchema = z.object({
+	response: z.string(),
+	adapted_content: z.string(),
+});
+
+export const StudioPublishRequestSchema = z.object({
+	platforms: z.array(z.string()).min(1),
+	mode: z.enum(["draft", "schedule", "now"]).default("draft"),
+	scheduled_at: z.string().optional(),
+});
+
+export type ChatMessage = z.infer<typeof ChatMessageSchema>;
+export type PlatformContent = z.infer<typeof PlatformContentSchema>;
+export type ReviewItem = z.infer<typeof ReviewItemSchema>;
+export type ReviewQueue = z.infer<typeof ReviewQueueSchema>;
+export type StudioChatRequest = z.infer<typeof StudioChatRequestSchema>;
+export type StudioChatResponse = z.infer<typeof StudioChatResponseSchema>;
+export type StudioPublishRequest = z.infer<typeof StudioPublishRequestSchema>;
