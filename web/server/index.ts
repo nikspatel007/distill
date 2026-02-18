@@ -18,6 +18,7 @@ import projects from "./routes/projects.js";
 import publish from "./routes/publish.js";
 import reading from "./routes/reading.js";
 import seeds from "./routes/seeds.js";
+import studio from "./routes/studio.js";
 
 const app = new Hono();
 
@@ -35,6 +36,7 @@ app.route("/", calendar);
 app.route("/", reading);
 app.route("/", projects);
 app.route("/", publish);
+app.route("/", studio);
 app.route("/", seeds);
 app.route("/", notes);
 app.route("/", memory);
