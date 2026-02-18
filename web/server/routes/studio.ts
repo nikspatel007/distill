@@ -190,6 +190,8 @@ app.get("/api/studio/items/:slug", async (c) => {
 			},
 			review,
 			content_store: true,
+			store_status: storeRecord.status,
+			images: storeRecord.images,
 		});
 	}
 

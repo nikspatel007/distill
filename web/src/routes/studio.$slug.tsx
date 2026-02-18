@@ -7,6 +7,13 @@ import { MarkdownRenderer } from "../components/shared/MarkdownRenderer.js";
 import { AgentChat } from "../components/studio/AgentChat.js";
 import { PlatformBar } from "../components/studio/PlatformBar.js";
 
+interface ContentStoreImage {
+	filename: string;
+	role: string;
+	prompt: string;
+	relative_path: string;
+}
+
 interface StudioItemResponse {
 	slug: string;
 	title: string;
@@ -14,7 +21,21 @@ interface StudioItemResponse {
 	content: string;
 	frontmatter: Record<string, unknown>;
 	review: ReviewItem;
+	content_store?: boolean;
+	store_status?: string;
+	images?: ContentStoreImage[];
 }
+
+const TYPE_STYLES: Record<string, string> = {
+	weekly: "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
+	thematic: "bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300",
+	digest: "bg-orange-50 text-orange-700 dark:bg-orange-950 dark:text-orange-300",
+	"daily-social": "bg-pink-50 text-pink-700 dark:bg-pink-950 dark:text-pink-300",
+	daily_social: "bg-pink-50 text-pink-700 dark:bg-pink-950 dark:text-pink-300",
+	seed: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+	reading_list: "bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300",
+};
+const DEFAULT_TYPE_STYLE = "bg-zinc-50 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400";
 
 export default function StudioDetail() {
 	const { slug } = useParams({ strict: false });
@@ -70,6 +91,25 @@ export default function StudioDetail() {
 		},
 	});
 
+	const statusMutation = useMutation({
+		mutationFn: async (newStatus: string) => {
+			const res = await fetch(`/api/studio/items/${slug}/status`, {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ status: newStatus }),
+			});
+			if (!res.ok) throw new Error("Failed to update status");
+			return res.json();
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["studio-item", slug] });
+			queryClient.invalidateQueries({ queryKey: ["studio-items"] });
+		},
+	});
+
+	// Use the real ContentStore status when available, fall back to review status
+	const currentStatus = data?.store_status ?? data?.review.status ?? "draft";
+
 	const handleChatResponse = useCallback(
 		(_response: string, adaptedContent: string, newHistory: ChatMessage[]) => {
 			setChatHistory(newHistory);
@@ -117,15 +157,42 @@ export default function StudioDetail() {
 					<div>
 						<h1 className="text-lg font-bold">{data.title}</h1>
 						<span
-							className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-								data.type === "weekly"
-									? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-									: "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
-							}`}
+							className={`rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_STYLES[data.type] ?? DEFAULT_TYPE_STYLE}`}
 						>
-							{data.type}
+							{data.type.replace("_", " ")}
 						</span>
 					</div>
+				</div>
+				<div className="flex items-center gap-2">
+					{currentStatus === "draft" && (
+						<button
+							type="button"
+							onClick={() => statusMutation.mutate("review")}
+							disabled={statusMutation.isPending}
+							className="rounded-lg bg-indigo-100 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-200 disabled:opacity-50 dark:bg-indigo-950 dark:text-indigo-300 dark:hover:bg-indigo-900"
+						>
+							Mark for Review
+						</button>
+					)}
+					{currentStatus === "review" && (
+						<button
+							type="button"
+							onClick={() => statusMutation.mutate("ready")}
+							disabled={statusMutation.isPending}
+							className="rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-200 disabled:opacity-50 dark:bg-amber-950 dark:text-amber-300 dark:hover:bg-amber-900"
+						>
+							Approve &rarr; Ready
+						</button>
+					)}
+					{(currentStatus === "published" || currentStatus === "ready") && (
+						<span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+							currentStatus === "published"
+								? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
+								: "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+						}`}>
+							{currentStatus}
+						</span>
+					)}
 				</div>
 				<button
 					type="button"
