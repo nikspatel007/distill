@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -411,6 +412,48 @@ def generate_daily_social(
                 )
         except Exception:
             logger.warning("Failed to push daily social to Postiz", exc_info=True)
+
+    # Upsert to ContentStore (additive, non-blocking)
+    if written:
+        try:
+            from distill.content import (
+                ContentRecord,
+                ContentStatus,
+                ContentStore,
+                ContentType,
+                PlatformContent,
+            )
+
+            content_store = ContentStore(output_dir)
+            # Combine all platform content into the body
+            _body = "\n\n---\n\n".join(f"## {p}\n\n{c}" for p, c in platform_content.items())
+            _title = f"Daily Social — Day {day_number} ({today.isoformat()})"
+            content_store.upsert(
+                ContentRecord(
+                    slug=slug,
+                    content_type=ContentType.DAILY_SOCIAL,
+                    title=_title,
+                    body=_body,
+                    status=ContentStatus.DRAFT,
+                    created_at=datetime.now(tz=UTC),
+                    source_dates=[today],
+                    file_path=str(written[0].relative_to(output_dir)) if written else "",
+                )
+            )
+            # Save per-platform content variants
+            for platform, content in platform_content.items():
+                with contextlib.suppress(Exception):
+                    content_store.save_platform_content(
+                        slug,
+                        platform,
+                        PlatformContent(
+                            platform=platform,
+                            content=content,
+                            published=False,
+                        ),
+                    )
+        except Exception:
+            logger.debug("ContentStore upsert failed for %s", slug, exc_info=True)
 
     # Update state
     state.day_number = day_number

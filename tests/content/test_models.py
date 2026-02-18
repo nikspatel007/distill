@@ -29,13 +29,14 @@ class TestContentType:
     def test_enum_values(self):
         assert ContentType.WEEKLY == "weekly"
         assert ContentType.THEMATIC == "thematic"
+        assert ContentType.READING_LIST == "reading_list"
         assert ContentType.DIGEST == "digest"
         assert ContentType.DAILY_SOCIAL == "daily_social"
         assert ContentType.SEED == "seed"
 
     def test_all_values(self):
         values = {t.value for t in ContentType}
-        assert values == {"weekly", "thematic", "digest", "daily_social", "seed"}
+        assert values == {"weekly", "thematic", "reading_list", "digest", "daily_social", "seed"}
 
 
 class TestImageRecord:

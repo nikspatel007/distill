@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from datetime import datetime
+import re
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -14,6 +15,46 @@ if TYPE_CHECKING:
 from distill.core import _atomic_write
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_title_from_prose(prose: str) -> str:
+    """Extract the first markdown heading from prose, or return a fallback."""
+    for line in prose.splitlines():
+        m = re.match(r"^#\s+(.+)", line)
+        if m:
+            return m.group(1).strip()
+    return "Untitled"
+
+
+def _extract_tags_from_prose(prose: str) -> list[str]:
+    """Extract tags from YAML-style frontmatter in prose, if present."""
+    if not prose.startswith("---"):
+        return []
+    end = prose.find("---", 3)
+    if end == -1:
+        return []
+    frontmatter = prose[3:end]
+    for line in frontmatter.splitlines():
+        if line.strip().startswith("tags:"):
+            # Handle inline list: tags: [a, b, c]
+            rest = line.split(":", 1)[1].strip()
+            if rest.startswith("["):
+                return [
+                    t.strip().strip('"').strip("'")
+                    for t in rest.strip("[]").split(",")
+                    if t.strip()
+                ]
+            # Handle YAML list on subsequent lines
+            tags: list[str] = []
+            idx = frontmatter.index(line) + len(line)
+            for fl in frontmatter[idx:].splitlines():
+                fl = fl.strip()
+                if fl.startswith("- "):
+                    tags.append(fl[2:].strip().strip('"').strip("'"))
+                elif fl and not fl.startswith("#"):
+                    break
+            return tags
+    return []
 
 
 def generate_blog_posts(
@@ -66,6 +107,7 @@ def generate_blog_posts(
         save_blog_state,
     )
     from distill.blog.publishers import create_publisher
+    from distill.content import ContentStore
     from distill.journal import load_memory
     from distill.memory import load_unified_memory, save_unified_memory
     from distill.shared.config import load_config
@@ -147,6 +189,9 @@ def generate_blog_posts(
     except Exception:
         pass  # graph is optional
 
+    # Initialize content store (additive — alongside existing state files)
+    content_store = ContentStore(output_dir)
+
     written: list[Path] = []
     # Shared mutable counter for Postiz rate-limiting across all post types
     postiz_counter = [0]  # list so inner functions can mutate
@@ -174,6 +219,7 @@ def generate_blog_posts(
                 postiz_limit=postiz_limit,
                 postiz_counter=postiz_counter,
                 graph_context=graph_context,
+                content_store=content_store,
             )
         )
 
@@ -200,6 +246,7 @@ def generate_blog_posts(
                 postiz_limit=postiz_limit,
                 postiz_counter=postiz_counter,
                 graph_context=graph_context,
+                content_store=content_store,
             )
         )
 
@@ -221,6 +268,7 @@ def generate_blog_posts(
                 postiz_config=postiz_config,
                 postiz_limit=postiz_limit,
                 postiz_counter=postiz_counter,
+                content_store=content_store,
             )
         )
 
@@ -319,6 +367,7 @@ def _generate_weekly_posts(
     postiz_limit: int | None = None,
     postiz_counter: list[int] | None = None,
     graph_context: str = "",
+    content_store: Any | None = None,
 ) -> list[Path]:
     """Generate weekly synthesis blog posts."""
     from distill.blog import BlogPostRecord, Platform, clean_diagrams, prepare_weekly_context
@@ -457,6 +506,42 @@ def _generate_weekly_posts(
             )
         )
 
+        # Upsert to ContentStore (additive, non-blocking)
+        if content_store is not None and written:
+            try:
+                from distill.content import ContentRecord, ContentStatus, ContentType, ImageRecord
+
+                _source_dates = [e.date for e in week_entries]
+                _title = _extract_title_from_prose(prose)
+                _tags = _extract_tags_from_prose(prose)
+                _file_path = str(out_path.relative_to(output_dir)) if out_path else ""
+                content_store.upsert(
+                    ContentRecord(
+                        slug=slug,
+                        content_type=ContentType.WEEKLY,
+                        title=_title,
+                        body=prose,
+                        status=ContentStatus.DRAFT,
+                        created_at=datetime.now(tz=UTC),
+                        source_dates=_source_dates,
+                        tags=_tags,
+                        file_path=_file_path,
+                    )
+                )
+                # Attach hero image if generated
+                if feature_image_path is not None:
+                    content_store.add_image(
+                        slug,
+                        ImageRecord(
+                            filename=feature_image_path.name,
+                            role="hero",
+                            prompt="",
+                            relative_path=str(feature_image_path.relative_to(output_dir)),
+                        ),
+                    )
+            except Exception:
+                logger.debug("ContentStore upsert failed for %s", slug, exc_info=True)
+
     return written
 
 
@@ -481,6 +566,7 @@ def _generate_thematic_posts(
     postiz_limit: int | None = None,
     postiz_counter: list[int] | None = None,
     graph_context: str = "",
+    content_store: Any | None = None,
 ) -> list[Path]:
     """Generate thematic deep-dive blog posts."""
     from distill.blog import (
@@ -662,6 +748,42 @@ def _generate_thematic_posts(
             )
         )
 
+        # Upsert to ContentStore (additive, non-blocking)
+        if content_store is not None and written:
+            try:
+                from distill.content import ContentRecord, ContentStatus, ContentType, ImageRecord
+
+                _source_dates = [e.date for e in evidence]
+                _title = _extract_title_from_prose(prose)
+                _tags = _extract_tags_from_prose(prose)
+                _file_path = str(out_path.relative_to(output_dir)) if out_path else ""
+                content_store.upsert(
+                    ContentRecord(
+                        slug=theme.slug,
+                        content_type=ContentType.THEMATIC,
+                        title=_title,
+                        body=prose,
+                        status=ContentStatus.DRAFT,
+                        created_at=datetime.now(tz=UTC),
+                        source_dates=_source_dates,
+                        tags=_tags,
+                        file_path=_file_path,
+                    )
+                )
+                # Attach hero image if generated
+                if feature_image_path is not None:
+                    content_store.add_image(
+                        theme.slug,
+                        ImageRecord(
+                            filename=feature_image_path.name,
+                            role="hero",
+                            prompt="",
+                            relative_path=str(feature_image_path.relative_to(output_dir)),
+                        ),
+                    )
+            except Exception:
+                logger.debug("ContentStore upsert failed for %s", theme.slug, exc_info=True)
+
         # Mark seed as used if this was a seed-driven theme
         if theme.slug in seed_angles and not dry_run:
             seed_id = theme.slug.removeprefix("seed-")
@@ -686,6 +808,7 @@ def _generate_reading_list_posts(
     postiz_config: Any | None = None,
     postiz_limit: int | None = None,
     postiz_counter: list[int] | None = None,
+    content_store: Any | None = None,
 ) -> list[Path]:
     """Generate reading list posts from intake content store."""
     from distill.blog import (
@@ -775,5 +898,29 @@ def _generate_reading_list_posts(
                 file_path=str(written[-1]) if written else "",
             )
         )
+
+        # Upsert to ContentStore (additive, non-blocking)
+        if content_store is not None and written:
+            try:
+                from distill.content import ContentRecord, ContentStatus, ContentType
+
+                _title = _extract_title_from_prose(prose)
+                _tags = _extract_tags_from_prose(prose)
+                _file_path = str(out_path.relative_to(output_dir)) if out_path else ""
+                content_store.upsert(
+                    ContentRecord(
+                        slug=slug,
+                        content_type=ContentType.READING_LIST,
+                        title=_title,
+                        body=prose,
+                        status=ContentStatus.DRAFT,
+                        created_at=datetime.now(tz=UTC),
+                        source_dates=[context.week_start],
+                        tags=_tags,
+                        file_path=_file_path,
+                    )
+                )
+            except Exception:
+                logger.debug("ContentStore upsert failed for %s", slug, exc_info=True)
 
     return written

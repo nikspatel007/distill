@@ -325,6 +325,7 @@ def generate_intake(
 
     # Fan-out: publish to each enabled target
     written: list[Path] = [archive_path, index_path]
+    digest_out_path: Path | None = None
     for pub_name in publishers:
         try:
             publisher = create_intake_publisher(
@@ -334,6 +335,8 @@ def generate_intake(
             out_path = publisher.daily_output_path(output_dir, context.date)
             _atomic_write(out_path, content)
             written.append(out_path)
+            if digest_out_path is None:
+                digest_out_path = out_path
         except Exception:
             logger.warning("Failed to publish intake to %s", pub_name, exc_info=True)
             if report:
@@ -343,6 +346,28 @@ def generate_intake(
                     source=pub_name,
                     error_type="publish_error",
                 )
+
+    # Upsert to ContentStore (additive, non-blocking)
+    try:
+        from distill.content import ContentRecord, ContentStatus, ContentStore, ContentType
+
+        content_store = ContentStore(output_dir)
+        _today = context.date
+        content_store.upsert(
+            ContentRecord(
+                slug=f"digest-{_today.isoformat()}",
+                content_type=ContentType.DIGEST,
+                title=f"Reading Digest — {_today.isoformat()}",
+                body=prose,
+                status=ContentStatus.DRAFT,
+                created_at=datetime.now(tz=UTC),
+                source_dates=[_today],
+                tags=list(context.all_tags[:10]),
+                file_path=str(digest_out_path.relative_to(output_dir)) if digest_out_path else "",
+            )
+        )
+    except Exception:
+        logger.debug("ContentStore upsert failed for intake digest", exc_info=True)
 
     # Mark items as processed and save state
     for item in all_items:

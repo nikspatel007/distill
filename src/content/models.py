@@ -31,6 +31,7 @@ class ContentType(StrEnum):
 
     WEEKLY = "weekly"
     THEMATIC = "thematic"
+    READING_LIST = "reading_list"
     DIGEST = "digest"
     DAILY_SOCIAL = "daily_social"
     SEED = "seed"

@@ -492,6 +492,53 @@ export type ContentCalendar = z.infer<typeof ContentCalendarSchema>;
 export type ContentItem = z.infer<typeof ContentItemSchema>;
 export type ContentItemsResponse = z.infer<typeof ContentItemsResponseSchema>;
 
+// --- Content Store ---
+
+export const ContentStoreImageSchema = z.object({
+	filename: z.string(),
+	role: z.string(),
+	prompt: z.string().default(""),
+	relative_path: z.string().default(""),
+});
+
+export const ContentStorePlatformSchema = z.object({
+	platform: z.string(),
+	content: z.string().default(""),
+	published: z.boolean().default(false),
+	published_at: z.string().nullable().default(null),
+	external_id: z.string().default(""),
+});
+
+export const ContentStoreChatMessageSchema = z.object({
+	role: z.string(),
+	content: z.string(),
+	timestamp: z.string(),
+});
+
+export const ContentStoreRecordSchema = z.object({
+	slug: z.string(),
+	content_type: z.enum(["weekly", "thematic", "digest", "daily_social", "seed"]),
+	title: z.string(),
+	body: z.string().default(""),
+	status: z.enum(["draft", "review", "ready", "published", "archived"]).default("draft"),
+	created_at: z.string(),
+	source_dates: z.array(z.string()).default([]),
+	tags: z.array(z.string()).default([]),
+	images: z.array(ContentStoreImageSchema).default([]),
+	platforms: z.record(z.string(), ContentStorePlatformSchema).default({}),
+	chat_history: z.array(ContentStoreChatMessageSchema).default([]),
+	metadata: z.record(z.string(), z.unknown()).default({}),
+	file_path: z.string().default(""),
+});
+
+export const ContentStoreDataSchema = z.record(z.string(), ContentStoreRecordSchema);
+
+export type ContentStoreImage = z.infer<typeof ContentStoreImageSchema>;
+export type ContentStorePlatform = z.infer<typeof ContentStorePlatformSchema>;
+export type ContentStoreChatMessage = z.infer<typeof ContentStoreChatMessageSchema>;
+export type ContentStoreRecord = z.infer<typeof ContentStoreRecordSchema>;
+export type ContentStoreData = z.infer<typeof ContentStoreDataSchema>;
+
 // --- Studio / Review Queue ---
 
 export const ChatMessageSchema = z.object({

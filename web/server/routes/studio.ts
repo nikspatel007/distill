@@ -13,12 +13,27 @@ import {
 	StudioPublishRequestSchema,
 } from "../../shared/schemas.js";
 import { getConfig } from "../lib/config.js";
+import {
+	getContentRecord,
+	loadContentStore,
+	saveContentStore,
+	updateContentRecord,
+} from "../lib/content-store.js";
 import { listFiles, readMarkdown } from "../lib/files.js";
 import { parseFrontmatter } from "../lib/frontmatter.js";
 import { createPost, isPostizConfigured, listIntegrations } from "../lib/postiz.js";
 import { getReviewItem, loadReviewQueue, upsertReviewItem } from "../lib/review-queue.js";
 
 const app = new Hono();
+
+/**
+ * Map ContentStore content_type (underscore) to API type (hyphen).
+ * "daily_social" -> "daily-social", others pass through.
+ */
+function mapContentType(contentType: string): string {
+	if (contentType === "daily_social") return "daily-social";
+	return contentType;
+}
 
 /**
  * Collect all blog markdown files from weekly + themes directories.
@@ -33,13 +48,12 @@ async function collectStudioFiles(outputDir: string): Promise<string[]> {
 
 /**
  * GET /api/studio/items — list all publishable content items.
- * Reads blog files from OUTPUT_DIR/blog/weekly and OUTPUT_DIR/blog/themes,
- * merges with review queue state to show status.
+ * Merges ContentStore records with file-system blog scan.
+ * ContentStore records are primary; .md files not in the store fall back
+ * to frontmatter parsing + review queue state.
  */
 app.get("/api/studio/items", async (c) => {
 	const { OUTPUT_DIR } = getConfig();
-	const files = await collectStudioFiles(OUTPUT_DIR);
-	const queue = await loadReviewQueue();
 
 	const items: Array<{
 		slug: string;
@@ -51,6 +65,34 @@ app.get("/api/studio/items", async (c) => {
 		platforms_published: number;
 	}> = [];
 
+	// Track slugs we've already added from the ContentStore
+	const seenSlugs = new Set<string>();
+
+	// 1. Load all ContentStore records first (primary source)
+	const store = loadContentStore();
+	for (const record of Object.values(store)) {
+		seenSlugs.add(record.slug);
+
+		const platformsReady = Object.values(record.platforms).filter(
+			(p) => p.content && p.content.length > 0,
+		).length;
+		const platformsPublished = Object.values(record.platforms).filter((p) => p.published).length;
+
+		items.push({
+			slug: record.slug,
+			title: record.title,
+			type: mapContentType(record.content_type),
+			status: record.status,
+			generated_at: record.created_at,
+			platforms_ready: platformsReady,
+			platforms_published: platformsPublished,
+		});
+	}
+
+	// 2. Fallback: scan .md files for items not yet in ContentStore
+	const files = await collectStudioFiles(OUTPUT_DIR);
+	const queue = await loadReviewQueue();
+
 	for (const file of files) {
 		const raw = await readMarkdown(file);
 		if (!raw) continue;
@@ -58,10 +100,11 @@ app.get("/api/studio/items", async (c) => {
 		if (!parsed) continue;
 
 		const slug = parsed.frontmatter.slug ?? basename(file, ".md");
+		if (seenSlugs.has(slug)) continue; // Already added from ContentStore
+
 		const postType = parsed.frontmatter.post_type ?? "unknown";
 		const date = parsed.frontmatter.date ?? "";
 
-		// Check review queue for existing item
 		const reviewItem = queue.items.find((i) => i.slug === slug);
 
 		const platformsReady = reviewItem
@@ -94,13 +137,64 @@ app.get("/api/studio/items", async (c) => {
 
 /**
  * GET /api/studio/items/:slug — get single item with full content.
- * Finds the blog markdown file, parses frontmatter, reads content,
- * and creates or loads review item from queue.
+ * Prefers ContentStore; falls back to .md file + review queue.
  */
 app.get("/api/studio/items/:slug", async (c) => {
 	const slug = c.req.param("slug");
-	const { OUTPUT_DIR } = getConfig();
 
+	// 1. Try ContentStore first
+	const storeRecord = getContentRecord(slug);
+	if (storeRecord) {
+		// Convert ContentStore platforms to ReviewItem-compatible format for backward compat
+		const reviewPlatforms: Record<string, PlatformContent> = {};
+		for (const [key, plat] of Object.entries(storeRecord.platforms)) {
+			reviewPlatforms[key] = {
+				enabled: true,
+				content: plat.content || null,
+				published: plat.published,
+				postiz_id: plat.external_id || null,
+			};
+		}
+
+		const review: ReviewItem = {
+			slug: storeRecord.slug,
+			title: storeRecord.title,
+			type: mapContentType(storeRecord.content_type) as ReviewItem["type"],
+			status:
+				storeRecord.status === "review" || storeRecord.status === "archived"
+					? "draft"
+					: (storeRecord.status as "draft" | "ready" | "published"),
+			generated_at: storeRecord.created_at,
+			source_content: storeRecord.body,
+			platforms: reviewPlatforms,
+			chat_history: storeRecord.chat_history.map((msg) => ({
+				role: msg.role as "user" | "assistant",
+				content: msg.content,
+				timestamp: msg.timestamp,
+			})),
+		};
+
+		return c.json({
+			slug: storeRecord.slug,
+			title: storeRecord.title,
+			type: mapContentType(storeRecord.content_type),
+			content: storeRecord.body,
+			frontmatter: {
+				title: storeRecord.title,
+				date: storeRecord.created_at,
+				type: "blog",
+				post_type: mapContentType(storeRecord.content_type),
+				tags: storeRecord.tags,
+				themes: [],
+				projects: [],
+			},
+			review,
+			content_store: true,
+		});
+	}
+
+	// 2. Fallback: file-system + review queue
+	const { OUTPUT_DIR } = getConfig();
 	const files = await collectStudioFiles(OUTPUT_DIR);
 	const match = files.find((f) => basename(f, ".md") === slug || f.includes(slug));
 
@@ -116,7 +210,6 @@ app.get("/api/studio/items/:slug", async (c) => {
 	let review = await getReviewItem(slug);
 	if (!review) {
 		const postType = parsed.frontmatter.post_type ?? "unknown";
-		// Map post_type to ReviewItem type enum
 		const typeMap: Record<string, ReviewItem["type"]> = {
 			weekly: "weekly",
 			thematic: "thematic",
@@ -145,6 +238,7 @@ app.get("/api/studio/items/:slug", async (c) => {
 		content: parsed.content,
 		frontmatter: parsed.frontmatter,
 		review,
+		content_store: false,
 	});
 });
 
@@ -174,6 +268,7 @@ const PLATFORM_PROVIDER_MAP: Record<string, string> = {
 
 // ---------------------------------------------------------------------------
 // POST /api/studio/publish/:slug — publish to Postiz
+// Prefers ContentStore; falls back to review queue.
 // ---------------------------------------------------------------------------
 app.post("/api/studio/publish/:slug", zValidator("json", StudioPublishRequestSchema), async (c) => {
 	const slug = c.req.param("slug");
@@ -183,8 +278,11 @@ app.post("/api/studio/publish/:slug", zValidator("json", StudioPublishRequestSch
 		return c.json({ error: "Postiz not configured" }, 503);
 	}
 
-	const item = await getReviewItem(slug);
-	if (!item) {
+	// Determine source: ContentStore (primary) or review queue (fallback)
+	const storeRecord = getContentRecord(slug);
+	const reviewItem = storeRecord ? null : await getReviewItem(slug);
+
+	if (!storeRecord && !reviewItem) {
 		return c.json({ error: "Review item not found" }, 404);
 	}
 
@@ -196,6 +294,59 @@ app.post("/api/studio/publish/:slug", zValidator("json", StudioPublishRequestSch
 	}
 
 	const results: Array<{ platform: string; success: boolean; error?: string }> = [];
+
+	if (storeRecord) {
+		// Publish from ContentStore
+		const store = loadContentStore();
+		const liveRecord = store[slug];
+		if (!liveRecord) {
+			return c.json({ error: "Record not found in store" }, 404);
+		}
+
+		for (const platform of body.platforms) {
+			const platformEntry = liveRecord.platforms[platform];
+			if (!platformEntry?.content) {
+				results.push({ platform, success: false, error: "No adapted content" });
+				continue;
+			}
+			if (platformEntry.published) {
+				results.push({ platform, success: false, error: "Already published" });
+				continue;
+			}
+
+			const provider = PLATFORM_PROVIDER_MAP[platform] ?? platform;
+			const integration = integrations.find((i) => i.provider.includes(provider));
+			if (!integration) {
+				results.push({ platform, success: false, error: `No integration for ${platform}` });
+				continue;
+			}
+
+			try {
+				await createPost(platformEntry.content, [integration.id], {
+					postType: body.mode,
+					scheduledAt: body.scheduled_at,
+				});
+				platformEntry.published = true;
+				platformEntry.published_at = new Date().toISOString();
+				results.push({ platform, success: true });
+			} catch (err) {
+				const message = err instanceof Error ? err.message : "Unknown error";
+				results.push({ platform, success: false, error: message });
+			}
+		}
+
+		const allPublished = Object.values(liveRecord.platforms).every((p) => p.published);
+		if (allPublished && Object.keys(liveRecord.platforms).length > 0) {
+			liveRecord.status = "published";
+		}
+
+		saveContentStore(store);
+		return c.json({ results });
+	}
+
+	// Publish from review queue (backward compat)
+	// reviewItem is guaranteed non-null here (we returned 404 above if both are null)
+	const item = reviewItem as NonNullable<typeof reviewItem>;
 
 	for (const platform of body.platforms) {
 		const platformEntry = item.platforms[platform];
@@ -228,7 +379,6 @@ app.post("/api/studio/publish/:slug", zValidator("json", StudioPublishRequestSch
 		}
 	}
 
-	// Check if all platforms are published
 	const allPublished = Object.values(item.platforms).every((p) => p.published);
 	if (allPublished && Object.keys(item.platforms).length > 0) {
 		item.status = "published";
@@ -240,6 +390,7 @@ app.post("/api/studio/publish/:slug", zValidator("json", StudioPublishRequestSch
 
 // ---------------------------------------------------------------------------
 // PUT /api/studio/items/:slug/platform/:platform — save adapted content
+// Prefers ContentStore; falls back to review queue.
 // ---------------------------------------------------------------------------
 const PlatformContentBodySchema = z.object({ content: z.string() });
 
@@ -251,6 +402,27 @@ app.put(
 		const platform = c.req.param("platform");
 		const { content } = c.req.valid("json");
 
+		// Try ContentStore first
+		const storeRecord = getContentRecord(slug);
+		if (storeRecord) {
+			const store = loadContentStore();
+			const record = store[slug];
+			if (!record) return c.json({ error: "Record not found" }, 404);
+
+			const existing = record.platforms[platform] ?? {
+				platform,
+				content: "",
+				published: false,
+				published_at: null,
+				external_id: "",
+			};
+			existing.content = content;
+			record.platforms[platform] = existing;
+			saveContentStore(store);
+			return c.json({ success: true });
+		}
+
+		// Fallback: review queue
 		const item = await getReviewItem(slug);
 		if (!item) return c.json({ error: "Review item not found" }, 404);
 
@@ -269,7 +441,42 @@ app.put(
 );
 
 // ---------------------------------------------------------------------------
+// PUT /api/studio/items/:slug/status — update status in ContentStore
+// ---------------------------------------------------------------------------
+const StatusBodySchema = z.object({
+	status: z.enum(["draft", "review", "ready", "published", "archived"]),
+});
+
+app.put("/api/studio/items/:slug/status", zValidator("json", StatusBodySchema), async (c) => {
+	const slug = c.req.param("slug");
+	const { status } = c.req.valid("json");
+
+	// Try ContentStore first
+	const updated = updateContentRecord(slug, { status });
+	if (updated) {
+		return c.json({ success: true, status: updated.status });
+	}
+
+	// Fallback: review queue
+	const item = await getReviewItem(slug);
+	if (!item) return c.json({ error: "Item not found" }, 404);
+
+	// Map ContentStore statuses to review queue statuses
+	const statusMap: Record<string, ReviewItem["status"]> = {
+		draft: "draft",
+		review: "draft",
+		ready: "ready",
+		published: "published",
+		archived: "published",
+	};
+	item.status = statusMap[status] ?? "draft";
+	await upsertReviewItem(item);
+	return c.json({ success: true, status: item.status });
+});
+
+// ---------------------------------------------------------------------------
 // PUT /api/studio/items/:slug/chat — save chat history
+// Prefers ContentStore; falls back to review queue.
 // ---------------------------------------------------------------------------
 const ChatHistoryBodySchema = z.object({
 	chat_history: z.array(ChatMessageSchema),
@@ -279,6 +486,23 @@ app.put("/api/studio/items/:slug/chat", zValidator("json", ChatHistoryBodySchema
 	const slug = c.req.param("slug");
 	const { chat_history } = c.req.valid("json");
 
+	// Try ContentStore first
+	const storeRecord = getContentRecord(slug);
+	if (storeRecord) {
+		const store = loadContentStore();
+		const record = store[slug];
+		if (!record) return c.json({ error: "Record not found" }, 404);
+
+		record.chat_history = chat_history.map((msg) => ({
+			role: msg.role,
+			content: msg.content,
+			timestamp: msg.timestamp,
+		}));
+		saveContentStore(store);
+		return c.json({ success: true });
+	}
+
+	// Fallback: review queue
 	const item = await getReviewItem(slug);
 	if (!item) return c.json({ error: "Review item not found" }, 404);
 
