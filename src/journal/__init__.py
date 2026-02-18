@@ -14,6 +14,9 @@ from distill.journal.models import (
     WorkingMemory,
 )
 from distill.journal.services import (
+    JournalCache,
+    JournalFormatter,
+    JournalSynthesizer,
     load_memory,
     prepare_daily_context,
     save_memory,
@@ -22,8 +25,11 @@ from distill.journal.services import (
 __all__ = [
     "DailyContext",
     "DailyMemoryEntry",
+    "JournalCache",
     "JournalConfig",
+    "JournalFormatter",
     "JournalStyle",
+    "JournalSynthesizer",
     "MemoryThread",
     "WorkingMemory",
     "load_memory",

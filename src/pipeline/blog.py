@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from distill.errors import PipelineReport
+    from distill.shared.errors import PipelineReport
 
 from distill.core import _atomic_write
 
@@ -54,20 +54,22 @@ def generate_blog_posts(
     Returns:
         List of written blog post file paths.
     """
-    from distill.blog.blog_memory import load_blog_memory, save_blog_memory
-    from distill.blog.config import BlogConfig, Platform
-    from distill.blog.publishers import create_publisher
-    from distill.blog.reader import JournalReader
-    from distill.blog.state import (
+    from distill.blog import (
+        BlogConfig,
         BlogState,
+        BlogSynthesizer,
+        JournalReader,
+        Platform,
+        load_blog_memory,
         load_blog_state,
+        save_blog_memory,
         save_blog_state,
     )
-    from distill.blog.synthesizer import BlogSynthesizer
-    from distill.config import load_config
-    from distill.editorial import EditorialStore
-    from distill.journal.memory import load_memory
+    from distill.blog.publishers import create_publisher
+    from distill.journal import load_memory
     from distill.memory import load_unified_memory, save_unified_memory
+    from distill.shared.config import load_config
+    from distill.shared.editorial import EditorialStore
     from distill.trends import detect_trends, render_trends_for_prompt
 
     if platforms is None:
@@ -261,8 +263,8 @@ def _generate_blog_images(
     or None if image generation is not configured or fails.
     """
     try:
-        from distill.images import ImageGenerator
         from distill.intake.images import extract_image_prompts
+        from distill.shared.images import ImageGenerator
 
         generator = ImageGenerator()
         if not generator.is_configured():
@@ -321,11 +323,8 @@ def _generate_weekly_posts(
     graph_context: str = "",
 ) -> list[Path]:
     """Generate weekly synthesis blog posts."""
-    from distill.blog.config import Platform
-    from distill.blog.context import prepare_weekly_context
-    from distill.blog.diagrams import clean_diagrams
+    from distill.blog import BlogPostRecord, Platform, clean_diagrams, prepare_weekly_context
     from distill.blog.publishers import create_publisher
-    from distill.blog.state import BlogPostRecord
 
     written: list[Path] = []
 
@@ -486,19 +485,19 @@ def _generate_thematic_posts(
     graph_context: str = "",
 ) -> list[Path]:
     """Generate thematic deep-dive blog posts."""
-    from distill.blog.config import Platform
-    from distill.blog.context import prepare_thematic_context
-    from distill.blog.diagrams import clean_diagrams
-    from distill.blog.publishers import create_publisher
-    from distill.blog.state import BlogPostRecord
-    from distill.blog.themes import (
+    from distill.blog import (
         THEMES,
+        BlogPostRecord,
+        Platform,
+        clean_diagrams,
         detect_series_candidates,
         gather_evidence,
         get_ready_themes,
+        prepare_thematic_context,
         themes_from_seeds,
     )
-    from distill.intake.seeds import SeedStore
+    from distill.blog.publishers import create_publisher
+    from distill.intake import SeedStore
     from distill.memory import load_unified_memory
 
     written: list[Path] = []
@@ -693,11 +692,14 @@ def _generate_reading_list_posts(
     postiz_counter: list[int] | None = None,
 ) -> list[Path]:
     """Generate reading list posts from intake content store."""
-    from distill.blog.config import Platform
+    from distill.blog import (
+        BlogPostRecord,
+        Platform,
+        prepare_reading_list_context,
+        render_reading_list_prompt,
+    )
     from distill.blog.publishers import create_publisher
-    from distill.blog.reading_list import prepare_reading_list_context, render_reading_list_prompt
-    from distill.blog.state import BlogPostRecord
-    from distill.store import create_store
+    from distill.shared.store import create_store
 
     written: list[Path] = []
 
@@ -726,8 +728,7 @@ def _generate_reading_list_posts(
 
         # Build prompt and synthesize
         prompt_text = render_reading_list_prompt(context)
-        from distill.blog.config import BlogPostType
-        from distill.blog.prompts import get_blog_prompt
+        from distill.blog import BlogPostType, get_blog_prompt
 
         system_prompt = get_blog_prompt(
             BlogPostType.READING_LIST,

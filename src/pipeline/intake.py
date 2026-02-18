@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from distill.errors import PipelineReport
     from distill.integrations.ghost import GhostConfig
+    from distill.shared.errors import PipelineReport
 
 from distill.core import _atomic_write
 
@@ -27,7 +27,7 @@ def generate_images(
     Returns (prompts, paths) where paths maps prompt index to relative image path.
     Returns ([], {}) if not configured or on failure.
     """
-    from distill.images import ImageGenerator
+    from distill.shared.images import ImageGenerator
 
     if generator is None:
         generator = ImageGenerator()
@@ -103,10 +103,15 @@ def generate_intake(
     Returns:
         List of written output file paths.
     """
-    from distill.intake.config import (
+    from distill.intake import (
         BrowserIntakeConfig,
+        ContentItem,
+        ContentSource,
         GmailIntakeConfig,
         IntakeConfig,
+        IntakeRecord,
+        IntakeState,
+        IntakeSynthesizer,
         LinkedInIntakeConfig,
         RedditIntakeConfig,
         RSSConfig,
@@ -114,26 +119,21 @@ def generate_intake(
         SubstackIntakeConfig,
         TwitterIntakeConfig,
         YouTubeIntakeConfig,
-    )
-    from distill.intake.context import prepare_daily_context
-    from distill.intake.memory import load_intake_memory, save_intake_memory
-    from distill.intake.models import ContentItem, ContentSource
-    from distill.intake.parsers import create_parser, get_configured_parsers
-    from distill.intake.publishers import create_intake_publisher
-    from distill.intake.state import (
-        IntakeRecord,
-        IntakeState,
+        load_intake_memory,
         load_intake_state,
+        prepare_daily_context,
+        save_intake_memory,
         save_intake_state,
     )
-    from distill.intake.synthesizer import IntakeSynthesizer
+    from distill.intake.parsers import create_parser, get_configured_parsers
+    from distill.intake.publishers import create_intake_publisher
 
     if publishers is None:
         publishers = ["obsidian"]
 
     # Build config with all source-specific settings
     # Merge explicit feed_urls with rss_feeds from .distill.toml
-    from distill.config import load_config as _load_distill_config
+    from distill.shared.config import load_config as _load_distill_config
 
     _distill_cfg = _load_distill_config()
     _all_feeds = list(feed_urls or [])
@@ -217,8 +217,7 @@ def generate_intake(
         return []
 
     # Enrich items: full-text extraction for short articles, then auto-tag
-    from distill.intake.fulltext import enrich_items as enrich_fulltext
-    from distill.intake.tagging import enrich_tags
+    from distill.intake import enrich_fulltext, enrich_tags
 
     enrich_fulltext(all_items, min_word_threshold=100, max_concurrent=20)
     logger.info("Full-text enrichment complete")
@@ -227,7 +226,7 @@ def generate_intake(
     logger.info("Auto-tagging complete")
 
     # Intelligence: entity extraction + classification (LLM-based)
-    from distill.intake.intelligence import classify_items, extract_entities
+    from distill.intake import classify_items, extract_entities
 
     extract_entities(all_items, model=model)
     logger.info("Entity extraction complete")
@@ -236,12 +235,12 @@ def generate_intake(
     logger.info("Classification complete")
 
     # Embed and store items for similarity search (optional)
-    from distill.embeddings import is_available as embeddings_available
-    from distill.store import create_store
+    from distill.shared.embeddings import is_available as embeddings_available
+    from distill.shared.store import create_store
 
     if embeddings_available():
         try:
-            from distill.embeddings import embed_items as _embed_items
+            from distill.shared.embeddings import embed_items as _embed_items
 
             store = create_store(fallback_dir=output_dir)
             embedded = _embed_items(all_items)
@@ -253,7 +252,7 @@ def generate_intake(
         logger.debug("Embeddings not available, skipping content store")
 
     # Load seed ideas and merge into items
-    from distill.intake.seeds import SeedStore
+    from distill.intake import SeedStore
 
     seed_store = SeedStore(output_dir)
     seed_items = seed_store.to_content_items()
@@ -262,14 +261,14 @@ def generate_intake(
         logger.info("Added %d seed ideas to intake", len(seed_items))
 
     # Archive raw items after enrichment
-    from distill.intake.archive import archive_items, build_daily_index
+    from distill.intake import archive_items, build_daily_index
 
     archive_path = archive_items(all_items, output_dir)
     index_path = build_daily_index(all_items, output_dir)
     logger.info("Archived %d items", len(all_items))
 
     # Cluster items by topic for better LLM context
-    from distill.intake.clustering import cluster_items, render_clustered_context
+    from distill.intake import cluster_items, render_clustered_context
 
     clusters = cluster_items(all_items, max_clusters=8, min_cluster_size=2)
     if clusters:
@@ -360,7 +359,7 @@ def generate_intake(
     save_intake_state(state, output_dir)
 
     # Update legacy memory
-    from distill.intake.memory import DailyIntakeEntry
+    from distill.intake import DailyIntakeEntry
 
     memory.add_entry(
         DailyIntakeEntry(

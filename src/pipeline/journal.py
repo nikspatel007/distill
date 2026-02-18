@@ -8,10 +8,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from distill.errors import PipelineReport
+    from distill.shared.errors import PipelineReport
 
 from distill.core import _atomic_write
-from distill.parsers.models import BaseSession
+from distill.parsers import BaseSession
 
 logger = logging.getLogger(__name__)
 
@@ -44,12 +44,16 @@ def generate_journal_notes(
     Returns:
         List of written journal file paths.
     """
-    from distill.journal.cache import JournalCache
-    from distill.journal.config import JournalConfig, JournalStyle
-    from distill.journal.context import prepare_daily_context
-    from distill.journal.formatter import JournalFormatter
-    from distill.journal.memory import load_memory, save_memory
-    from distill.journal.synthesizer import JournalSynthesizer
+    from distill.journal import (
+        JournalCache,
+        JournalConfig,
+        JournalFormatter,
+        JournalStyle,
+        JournalSynthesizer,
+        load_memory,
+        prepare_daily_context,
+        save_memory,
+    )
     from distill.memory import DailyEntry, load_unified_memory, save_unified_memory
     from distill.trends import detect_trends, render_trends_for_prompt
 
