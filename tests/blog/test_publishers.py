@@ -11,11 +11,8 @@ from distill.blog.context import ThematicBlogContext, WeeklyBlogContext
 from distill.blog.publishers import create_publisher
 from distill.blog.publishers.base import BlogPublisher
 from distill.blog.publishers.ghost import GhostAPIClient, GhostPublisher
-from distill.blog.publishers.linkedin import LinkedInPublisher
 from distill.blog.publishers.markdown import MarkdownPublisher
 from distill.blog.publishers.obsidian import ObsidianPublisher
-from distill.blog.publishers.reddit import RedditPublisher
-from distill.blog.publishers.twitter import TwitterPublisher
 from distill.blog.reader import JournalEntry
 from distill.blog.state import BlogPostRecord, BlogState
 from distill.blog.themes import ThemeDefinition
@@ -153,103 +150,6 @@ class TestGhostPublisher:
         assert pub.index_path(Path("/output")) == Path("/output/blog/ghost/index.md")
 
 
-class TestTwitterPublisher:
-    def test_format_weekly_calls_adapt(self):
-        synth = MagicMock()
-        synth.adapt_for_platform.return_value = "1/ Thread hook"
-        pub = TwitterPublisher(synthesizer=synth)
-        result = pub.format_weekly(_make_weekly_context(), "Blog prose.")
-        synth.adapt_for_platform.assert_called_once_with(
-            "Blog prose.", "twitter", "weekly-2026-W06"
-        )
-        assert result == "1/ Thread hook"
-
-    def test_format_thematic_calls_adapt(self):
-        synth = MagicMock()
-        synth.adapt_for_platform.return_value = "1/ Theme thread"
-        pub = TwitterPublisher(synthesizer=synth)
-        result = pub.format_thematic(_make_thematic_context(), "Prose.")
-        synth.adapt_for_platform.assert_called_once_with(
-            "Prose.", "twitter", "coordination-overhead"
-        )
-        assert result == "1/ Theme thread"
-
-    def test_weekly_output_path(self):
-        synth = MagicMock()
-        pub = TwitterPublisher(synthesizer=synth)
-        path = pub.weekly_output_path(Path("/output"), 2026, 6)
-        assert path == Path("/output/blog/social/twitter/weekly-2026-W06.md")
-
-    def test_thematic_output_path(self):
-        synth = MagicMock()
-        pub = TwitterPublisher(synthesizer=synth)
-        path = pub.thematic_output_path(Path("/output"), "coordination-overhead")
-        assert path == Path("/output/blog/social/twitter/coordination-overhead.md")
-
-    def test_requires_llm(self):
-        assert TwitterPublisher.requires_llm is True
-
-
-class TestLinkedInPublisher:
-    def test_format_weekly_calls_adapt(self):
-        synth = MagicMock()
-        synth.adapt_for_platform.return_value = "LinkedIn post content"
-        pub = LinkedInPublisher(synthesizer=synth)
-        result = pub.format_weekly(_make_weekly_context(), "Blog prose.")
-        synth.adapt_for_platform.assert_called_once_with(
-            "Blog prose.", "linkedin", "weekly-2026-W06"
-        )
-        assert result == "LinkedIn post content"
-
-    def test_format_thematic_calls_adapt(self):
-        synth = MagicMock()
-        synth.adapt_for_platform.return_value = "LinkedIn theme post"
-        pub = LinkedInPublisher(synthesizer=synth)
-        result = pub.format_thematic(_make_thematic_context(), "Prose.")
-        synth.adapt_for_platform.assert_called_once_with(
-            "Prose.", "linkedin", "coordination-overhead"
-        )
-        assert result == "LinkedIn theme post"
-
-    def test_weekly_output_path(self):
-        synth = MagicMock()
-        pub = LinkedInPublisher(synthesizer=synth)
-        path = pub.weekly_output_path(Path("/output"), 2026, 6)
-        assert path == Path("/output/blog/social/linkedin/weekly-2026-W06.md")
-
-    def test_requires_llm(self):
-        assert LinkedInPublisher.requires_llm is True
-
-
-class TestRedditPublisher:
-    def test_format_weekly_calls_adapt(self):
-        synth = MagicMock()
-        synth.adapt_for_platform.return_value = "**TL;DR** Reddit post"
-        pub = RedditPublisher(synthesizer=synth)
-        result = pub.format_weekly(_make_weekly_context(), "Blog prose.")
-        synth.adapt_for_platform.assert_called_once_with(
-            "Blog prose.", "reddit", "weekly-2026-W06"
-        )
-        assert result == "**TL;DR** Reddit post"
-
-    def test_format_thematic_calls_adapt(self):
-        synth = MagicMock()
-        synth.adapt_for_platform.return_value = "Reddit theme post"
-        pub = RedditPublisher(synthesizer=synth)
-        result = pub.format_thematic(_make_thematic_context(), "Prose.")
-        synth.adapt_for_platform.assert_called_once_with(
-            "Prose.", "reddit", "coordination-overhead"
-        )
-        assert result == "Reddit theme post"
-
-    def test_weekly_output_path(self):
-        synth = MagicMock()
-        pub = RedditPublisher(synthesizer=synth)
-        path = pub.weekly_output_path(Path("/output"), 2026, 6)
-        assert path == Path("/output/blog/social/reddit/weekly-2026-W06.md")
-
-    def test_requires_llm(self):
-        assert RedditPublisher.requires_llm is True
 
 
 def _make_blog_state() -> BlogState:
@@ -344,57 +244,16 @@ class TestMarkdownFormatIndex:
         assert "## Weekly" not in result
 
 
-class TestSocialPublishersIndexAndPaths:
-    def test_linkedin_thematic_output_path(self):
-        synth = MagicMock()
-        pub = LinkedInPublisher(synthesizer=synth)
-        path = pub.thematic_output_path(Path("/output"), "coordination-overhead")
-        assert path == Path("/output/blog/social/linkedin/coordination-overhead.md")
-
-    def test_reddit_thematic_output_path(self):
-        synth = MagicMock()
-        pub = RedditPublisher(synthesizer=synth)
-        path = pub.thematic_output_path(Path("/output"), "coordination-overhead")
-        assert path == Path("/output/blog/social/reddit/coordination-overhead.md")
-
-    def test_twitter_index_path(self):
-        synth = MagicMock()
-        pub = TwitterPublisher(synthesizer=synth)
-        assert pub.index_path(Path("/output")) == Path("/output/blog/social/twitter/index.md")
-
-    def test_linkedin_format_index(self):
-        synth = MagicMock()
-        pub = LinkedInPublisher(synthesizer=synth)
-        result = pub.format_index(Path("/output"), _make_blog_state())
-        assert isinstance(result, str)
-
-    def test_reddit_format_index(self):
-        synth = MagicMock()
-        pub = RedditPublisher(synthesizer=synth)
-        result = pub.format_index(Path("/output"), _make_blog_state())
-        assert isinstance(result, str)
-
-
 class TestCreatePublisherFactory:
-    def test_creates_social_publisher_with_synthesizer(self):
-        synth = MagicMock()
-        pub = create_publisher(Platform.TWITTER, synthesizer=synth)
-        assert isinstance(pub, TwitterPublisher)
-
-    def test_social_publisher_requires_synthesizer(self):
-        with pytest.raises(ValueError, match="requires a synthesizer"):
-            create_publisher(Platform.TWITTER)
-
-    def test_creates_all_social_platforms(self):
-        synth = MagicMock()
-        for platform in [Platform.TWITTER, Platform.LINKEDIN, Platform.REDDIT]:
-            pub = create_publisher(platform, synthesizer=synth)
-            assert pub.requires_llm is True
-
     def test_creates_file_publishers(self):
         for platform in [Platform.OBSIDIAN, Platform.GHOST, Platform.MARKDOWN]:
             pub = create_publisher(platform)
             assert pub.requires_llm is False
+
+    def test_creates_postiz_publisher(self):
+        synth = MagicMock()
+        pub = create_publisher(Platform.POSTIZ, synthesizer=synth)
+        assert pub.requires_llm is True
 
     def test_creates_from_string(self):
         pub = create_publisher("obsidian")

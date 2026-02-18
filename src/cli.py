@@ -1066,7 +1066,7 @@ def blog_cmd(
         str | None,
         typer.Option(
             "--publish",
-            help="Comma-separated platforms (obsidian,ghost,markdown,twitter,linkedin,reddit).",
+            help="Comma-separated platforms (obsidian,ghost,markdown,postiz).",
         ),
     ] = None,
     ghost_url: Annotated[
@@ -1293,7 +1293,7 @@ def intake_cmd(
             "--publish",
             help=(
                 "Comma-separated publishers"
-                " (obsidian, markdown, ghost, twitter, linkedin, reddit)."
+                " (obsidian, markdown, ghost, postiz)."
                 " Default: obsidian."
             ),
         ),

@@ -21,9 +21,6 @@ class Platform(StrEnum):
     OBSIDIAN = "obsidian"
     GHOST = "ghost"
     MARKDOWN = "markdown"
-    TWITTER = "twitter"
-    LINKEDIN = "linkedin"
-    REDDIT = "reddit"
     POSTIZ = "postiz"
 
 

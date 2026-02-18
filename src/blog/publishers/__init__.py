@@ -32,38 +32,20 @@ def create_publisher(
         platform = Platform(platform)
 
     from distill.blog.publishers.ghost import GhostPublisher
-    from distill.blog.publishers.linkedin import LinkedInPublisher
     from distill.blog.publishers.markdown import MarkdownPublisher
     from distill.blog.publishers.obsidian import ObsidianPublisher
     from distill.blog.publishers.postiz import PostizBlogPublisher
-    from distill.blog.publishers.reddit import RedditPublisher
-    from distill.blog.publishers.twitter import TwitterPublisher
 
-    if platform == Platform.GHOST:
-        return GhostPublisher(ghost_config=ghost_config)
-
-    if platform == Platform.POSTIZ:
-        return PostizBlogPublisher(synthesizer=synthesizer, postiz_config=postiz_config)
-
-    file_publishers: dict[Platform, type[BlogPublisher]] = {
-        Platform.OBSIDIAN: ObsidianPublisher,
-        Platform.MARKDOWN: MarkdownPublisher,
+    publishers: dict[Platform, BlogPublisher] = {
+        Platform.OBSIDIAN: ObsidianPublisher(),
+        Platform.GHOST: GhostPublisher(ghost_config=ghost_config),
+        Platform.MARKDOWN: MarkdownPublisher(),
+        Platform.POSTIZ: PostizBlogPublisher(
+            synthesizer=synthesizer, postiz_config=postiz_config
+        ),
     }
 
-    social_publishers: dict[Platform, type[BlogPublisher]] = {
-        Platform.TWITTER: TwitterPublisher,
-        Platform.LINKEDIN: LinkedInPublisher,
-        Platform.REDDIT: RedditPublisher,
-    }
-
-    if platform in file_publishers:
-        return file_publishers[platform]()
-
-    if platform in social_publishers:
-        if synthesizer is None:
-            raise ValueError(
-                f"Platform {platform.value!r} requires a synthesizer for LLM re-synthesis"
-            )
-        return social_publishers[platform](synthesizer=synthesizer)
+    if platform in publishers:
+        return publishers[platform]
 
     raise ValueError(f"Unknown platform: {platform!r}")
