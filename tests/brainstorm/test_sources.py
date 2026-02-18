@@ -108,7 +108,7 @@ def test_fetch_followed_feeds():
             source_tier=SourceTier.FOLLOWED,
         )
     ]
-    with patch("distill.brainstorm.sources._fetch_feed_items", return_value=mock_items):
+    with patch("distill.brainstorm.services._fetch_feed_items", return_value=mock_items):
         items = fetch_followed_feeds(["https://simonwillison.net/atom/everything/"])
 
     assert len(items) == 1
@@ -124,7 +124,7 @@ def test_fetch_manual_links():
             source_tier=SourceTier.MANUAL,
         )
     ]
-    with patch("distill.brainstorm.sources._fetch_url_item", side_effect=mock_items):
+    with patch("distill.brainstorm.services._fetch_url_item", side_effect=mock_items):
         items = fetch_manual_links(["https://example.com/article"])
 
     assert len(items) == 1
@@ -132,6 +132,6 @@ def test_fetch_manual_links():
 
 
 def test_fetch_manual_links_skips_failures():
-    with patch("distill.brainstorm.sources._fetch_url_item", side_effect=Exception("fail")):
+    with patch("distill.brainstorm.services._fetch_url_item", side_effect=Exception("fail")):
         items = fetch_manual_links(["https://example.com/bad"])
     assert items == []

@@ -54,7 +54,7 @@ def test_analyze_research_returns_ideas():
         }
     ])
 
-    with patch("distill.brainstorm.analyst._call_llm", return_value=llm_response):
+    with patch("distill.brainstorm.services._call_llm", return_value=llm_response):
         ideas = analyze_research(
             items=items,
             pillars=PILLARS,
@@ -78,7 +78,7 @@ def test_analyze_research_handles_bad_llm_response():
         ),
     ]
 
-    with patch("distill.brainstorm.analyst._call_llm", return_value="not json"):
+    with patch("distill.brainstorm.services._call_llm", return_value="not json"):
         ideas = analyze_research(
             items=items,
             pillars=PILLARS,
