@@ -9,7 +9,7 @@ describe("GET /api/journal", () => {
 	beforeAll(() => {
 		setConfig({
 			OUTPUT_DIR: FIXTURES,
-			PORT: 3001,
+			PORT: 6109,
 			PROJECT_DIR: "",
 			POSTIZ_URL: "",
 			POSTIZ_API_KEY: "",
@@ -57,7 +57,7 @@ describe("GET /api/journal/:date", () => {
 	beforeAll(() => {
 		setConfig({
 			OUTPUT_DIR: FIXTURES,
-			PORT: 3001,
+			PORT: 6109,
 			PROJECT_DIR: "",
 			POSTIZ_URL: "",
 			POSTIZ_API_KEY: "",

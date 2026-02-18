@@ -9,7 +9,7 @@ const TMP_DIR = join(import.meta.dir, "fixtures", "_tmp_config");
 
 const baseConfig: ServerConfig = {
 	OUTPUT_DIR: join(TMP_DIR, "output"),
-	PORT: 3001,
+	PORT: 6109,
 	PROJECT_DIR: TMP_DIR,
 	POSTIZ_URL: "",
 	POSTIZ_API_KEY: "",

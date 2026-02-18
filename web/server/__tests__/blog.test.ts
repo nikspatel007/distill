@@ -10,7 +10,7 @@ describe("GET /api/blog/posts", () => {
 	beforeAll(async () => {
 		setConfig({
 			OUTPUT_DIR: FIXTURES,
-			PORT: 3001,
+			PORT: 6109,
 			PROJECT_DIR: "",
 			POSTIZ_URL: "",
 			POSTIZ_API_KEY: "",
@@ -109,7 +109,7 @@ describe("GET /api/blog/posts/:slug", () => {
 	beforeAll(async () => {
 		setConfig({
 			OUTPUT_DIR: FIXTURES,
-			PORT: 3001,
+			PORT: 6109,
 			PROJECT_DIR: "",
 			POSTIZ_URL: "",
 			POSTIZ_API_KEY: "",

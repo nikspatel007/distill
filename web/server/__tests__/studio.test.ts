@@ -11,7 +11,7 @@ beforeEach(async () => {
 	tempDir = await mkdtemp(join(tmpdir(), "studio-test-"));
 	setConfig({
 		OUTPUT_DIR: tempDir,
-		PORT: 3001,
+		PORT: 6109,
 		PROJECT_DIR: "",
 		POSTIZ_URL: "",
 		POSTIZ_API_KEY: "",
@@ -144,7 +144,7 @@ describe("POST /api/studio/publish/:slug", () => {
 		// Configure Postiz so we don't hit 503
 		setConfig({
 			OUTPUT_DIR: tempDir,
-			PORT: 3001,
+			PORT: 6109,
 			PROJECT_DIR: "",
 			POSTIZ_URL: "http://localhost:9999",
 			POSTIZ_API_KEY: "fake-key",

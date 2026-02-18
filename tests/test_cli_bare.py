@@ -66,11 +66,11 @@ class TestBareCommand:
         assert call_kwargs["port"] == 5555
 
     @patch("distill.cli._run_bare_command")
-    def test_default_port_is_4321(self, mock_run: MagicMock) -> None:
+    def test_default_port_is_6107(self, mock_run: MagicMock) -> None:
         result = runner.invoke(app, [])
         assert result.exit_code == 0
         call_kwargs = mock_run.call_args[1]
-        assert call_kwargs["port"] == 4321
+        assert call_kwargs["port"] == 6107
 
     def test_subcommand_does_not_trigger_bare(self) -> None:
         """Running `distill status` should not trigger the bare command flow."""

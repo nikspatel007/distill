@@ -217,7 +217,7 @@ def main(
             "-p",
             help="Port for the web dashboard.",
         ),
-    ] = 4321,
+    ] = 6107,
     no_run: Annotated[
         bool,
         typer.Option(
@@ -2200,7 +2200,7 @@ def serve(
             "-p",
             help="Port for the web server.",
         ),
-    ] = 4321,
+    ] = 6107,
     dev: Annotated[
         bool,
         typer.Option(

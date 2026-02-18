@@ -12,7 +12,7 @@ describe("Pipeline API", () => {
 		await mkdir(TMP_DIR, { recursive: true });
 		setConfig({
 			OUTPUT_DIR: TMP_DIR,
-			PORT: 3001,
+			PORT: 6109,
 			PROJECT_DIR: TMP_DIR,
 			POSTIZ_URL: "",
 			POSTIZ_API_KEY: "",

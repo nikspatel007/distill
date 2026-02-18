@@ -149,16 +149,25 @@ The web dashboard lives in `web/` — Bun + Hono (server) + React + Tailwind + T
 
 ### Port Convention (ENFORCED)
 
+All services use the **6100 series** to stay consistent and avoid conflicts.
+
 | Service | Port | Notes |
 |---------|------|-------|
-| Hono API server | **4321** | Default in `web/server/lib/config.ts`, CLI `--port` flag |
-| Vite dev server | **5173** | Only used during `bun run dev` (frontend HMR) |
-| Server tests | **3001** | Used in `web/server/__tests__/` via `setConfig()` |
+| Postiz app (HTTP) | **6100** | Internal, behind Caddy |
+| PostgreSQL (Postiz) | **6101** | Docker |
+| Redis | **6102** | Docker |
+| OpenSearch | **6103** | Docker |
+| Temporal gRPC | **6104** | Docker |
+| PostgreSQL (Temporal) | **6105** | Docker |
+| Postiz HTTPS (Caddy) | **6106** | Public endpoint |
+| Distill API server | **6107** | Default in `web/server/lib/config.ts`, CLI `--port` flag |
+| Vite dev server | **6108** | Only used during `bun run dev` (frontend HMR) |
+| Server tests | **6109** | Used in `web/server/__tests__/` via `setConfig()` |
 
-- The canonical API port is **4321**. All agents, scripts, and tools must use port 4321 for the API server.
-- Vite's dev proxy forwards `/api` requests from 5173 → 4321 (see `web/vite.config.ts`).
-- In production (`distill serve`), only port 4321 is exposed (Hono serves both API + static files).
-- Tests use port 3001 to avoid conflicts with running dev servers.
+- The canonical API port is **6107**. All agents, scripts, and tools must use port 6107 for the API server.
+- Vite's dev proxy forwards `/api` requests from 6108 → 6107 (see `web/vite.config.ts`).
+- In production (`distill serve`), only port 6107 is exposed (Hono serves both API + static files).
+- Tests use port 6109 to avoid conflicts with running dev servers.
 - **Never** introduce new arbitrary ports. If you need a port, use one from the table above.
 
 ### Web Commands

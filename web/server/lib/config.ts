@@ -5,7 +5,7 @@ import { z } from "zod";
 
 const EnvSchema = z.object({
 	OUTPUT_DIR: z.string().min(1),
-	PORT: z.coerce.number().default(4321),
+	PORT: z.coerce.number().default(6107),
 	PROJECT_DIR: z.string().default(""),
 	POSTIZ_URL: z.string().default(""),
 	POSTIZ_API_KEY: z.string().default(""),
