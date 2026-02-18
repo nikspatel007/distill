@@ -1,6 +1,6 @@
 """Style-specific system prompts for journal synthesis."""
 
-from distill.journal.config import JournalStyle
+from distill.journal.models import JournalStyle
 
 JOURNAL_SYSTEM_PROMPTS: dict[JournalStyle, str] = {
     JournalStyle.DEV_JOURNAL: """\

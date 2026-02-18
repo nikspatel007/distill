@@ -5,13 +5,17 @@ LLM-powered synthesis. Two-phase pipeline: deterministic context compression
 (testable without LLM) followed by Claude CLI prose synthesis.
 """
 
-from distill.journal.config import JournalConfig, JournalStyle
-from distill.journal.context import DailyContext, prepare_daily_context
-from distill.journal.memory import (
+from distill.journal.models import (
+    DailyContext,
     DailyMemoryEntry,
+    JournalConfig,
+    JournalStyle,
     MemoryThread,
     WorkingMemory,
+)
+from distill.journal.services import (
     load_memory,
+    prepare_daily_context,
     save_memory,
 )
 
