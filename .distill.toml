@@ -66,5 +66,15 @@ hacker_news = true
 hn_min_points = 50
 
 [ghost]
+default = "troopx"
 auto_publish = true
-blog_as_draft = true             # weekly/thematic blog posts land as drafts; intake digests still auto-publish
+blog_as_draft = true
+
+[ghost.troopx]
+url = ""                         # Set via GHOST_TROOPX_URL or GHOST_URL env var
+admin_api_key = ""               # Set via GHOST_TROOPX_ADMIN_API_KEY or GHOST_ADMIN_API_KEY env var
+
+[ghost.personal]
+url = "https://blog.nik-patel.com"
+admin_api_key = ""               # Set via GHOST_PERSONAL_ADMIN_API_KEY env var
+blog_as_draft = true

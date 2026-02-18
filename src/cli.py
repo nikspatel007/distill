@@ -1090,6 +1090,13 @@ def blog_cmd(
             help="Ghost newsletter slug for auto-send (or GHOST_NEWSLETTER_SLUG env var).",
         ),
     ] = None,
+    target: Annotated[
+        str | None,
+        typer.Option(
+            "--target",
+            help="Named Ghost target from .distill.toml (e.g. troopx, personal).",
+        ),
+    ] = None,
     limit: Annotated[
         int | None,
         typer.Option(
@@ -1129,10 +1136,15 @@ def blog_cmd(
 
     _blog_cfg = _load_blog_config()
 
-    # Build Ghost config from CLI options / env vars
+    # Build Ghost config: named target > CLI flags > env vars
     from distill.integrations.ghost import GhostConfig
 
-    ghost_config = GhostConfig.from_env()
+    if target:
+        ghost_config = _blog_cfg.to_ghost_config(target=target)
+    else:
+        ghost_config = GhostConfig.from_env()
+        if not ghost_config.is_configured:
+            ghost_config = _blog_cfg.to_ghost_config()
 
     if publish:
         platform_names = [p.strip() for p in publish.split(",")]

@@ -10,7 +10,9 @@ import os
 import tomllib
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from typing import Any
+
+from pydantic import BaseModel, Field, model_validator
 
 from distill.brainstorm.config import BrainstormConfig
 
@@ -86,14 +88,105 @@ class GraphSectionConfig(BaseModel):
     agent_prompt_patterns: list[str] = Field(default_factory=list)
 
 
-class GhostSectionConfig(BaseModel):
-    """[ghost] section."""
+class GhostTargetConfig(BaseModel):
+    """A single named Ghost target (e.g. [ghost.personal])."""
 
+    url: str = ""
+    admin_api_key: str = ""
+    newsletter_slug: str = ""
+    auto_publish: bool | None = None
+    blog_as_draft: bool | None = None
+
+
+class GhostSectionConfig(BaseModel):
+    """[ghost] section with optional named targets.
+
+    Supports two formats:
+
+    Legacy flat (single target)::
+
+        [ghost]
+        url = "https://ghost.example"
+        admin_api_key = "id:secret"
+
+    Named targets::
+
+        [ghost]
+        default = "troopx"
+        auto_publish = true
+
+        [ghost.troopx]
+        url = "https://troopx-ghost.example"
+
+        [ghost.personal]
+        url = "https://blog.nik-patel.com"
+    """
+
+    default: str = ""
     url: str = ""
     admin_api_key: str = ""
     newsletter_slug: str = ""
     auto_publish: bool = True
     blog_as_draft: bool = False
+    targets: dict[str, GhostTargetConfig] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _extract_targets(cls, data: Any) -> Any:
+        """Extract named sub-dicts as targets before validation."""
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)  # shallow copy
+        known = {
+            "default", "url", "admin_api_key", "newsletter_slug",
+            "auto_publish", "blog_as_draft", "targets",
+        }
+        targets: dict[str, object] = {}
+        for key in list(data.keys()):
+            if key not in known and isinstance(data[key], dict):
+                targets[key] = data.pop(key)
+        if targets:
+            existing = data.get("targets", {})
+            if isinstance(existing, dict):
+                existing.update(targets)
+                data["targets"] = existing
+            else:
+                data["targets"] = targets
+        return data
+
+    def get_target(self, name: str | None = None) -> "GhostTargetConfig":
+        """Resolve a named target, falling back to top-level config.
+
+        Args:
+            name: Target name (e.g. "personal", "troopx").
+                  If None, uses ``self.default``. If no default,
+                  returns the top-level flat config.
+
+        Returns:
+            Resolved GhostTargetConfig with inherited defaults.
+        """
+        target_name = name or self.default
+        if target_name and target_name in self.targets:
+            t = self.targets[target_name]
+            return GhostTargetConfig(
+                url=t.url or self.url,
+                admin_api_key=t.admin_api_key or self.admin_api_key,
+                newsletter_slug=t.newsletter_slug or self.newsletter_slug,
+                auto_publish=t.auto_publish if t.auto_publish is not None else self.auto_publish,
+                blog_as_draft=t.blog_as_draft if t.blog_as_draft is not None else self.blog_as_draft,
+            )
+        return GhostTargetConfig(
+            url=self.url,
+            admin_api_key=self.admin_api_key,
+            newsletter_slug=self.newsletter_slug,
+            auto_publish=self.auto_publish,
+            blog_as_draft=self.blog_as_draft,
+        )
+
+    @property
+    def target_names(self) -> list[str]:
+        """List all named targets."""
+        return list(self.targets.keys())
 
 
 class RedditSectionConfig(BaseModel):
@@ -234,16 +327,22 @@ class DistillConfig(BaseModel):
             user_role=self.user.role,
         )
 
-    def to_ghost_config(self) -> object:
-        """Convert to GhostConfig for Ghost CMS publishing."""
+    def to_ghost_config(self, target: str | None = None) -> object:
+        """Convert to GhostConfig for Ghost CMS publishing.
+
+        Args:
+            target: Named Ghost target (e.g. "personal", "troopx").
+                    If None, uses the default target from config.
+        """
         from distill.integrations.ghost import GhostConfig
 
+        t = self.ghost.get_target(target)
         return GhostConfig(
-            url=self.ghost.url,
-            admin_api_key=self.ghost.admin_api_key,
-            newsletter_slug=self.ghost.newsletter_slug,
-            auto_publish=self.ghost.auto_publish,
-            blog_as_draft=self.ghost.blog_as_draft,
+            url=t.url,
+            admin_api_key=t.admin_api_key,
+            newsletter_slug=t.newsletter_slug,
+            auto_publish=t.auto_publish if t.auto_publish is not None else True,
+            blog_as_draft=t.blog_as_draft if t.blog_as_draft is not None else False,
         )
 
     def to_postiz_config(self) -> object:
@@ -404,6 +503,15 @@ def _apply_env_vars(config: DistillConfig) -> DistillConfig:
         value = os.environ.get(env_var)
         if value is not None:
             data[section][field] = value
+
+    # Per-target Ghost env vars: GHOST_<TARGET>_URL, GHOST_<TARGET>_ADMIN_API_KEY
+    ghost_targets = data.get("ghost", {}).get("targets", {})
+    for target_name in list(ghost_targets.keys()):
+        prefix = f"GHOST_{target_name.upper()}_"
+        for env_suffix, field in [("URL", "url"), ("ADMIN_API_KEY", "admin_api_key")]:
+            val = os.environ.get(f"{prefix}{env_suffix}")
+            if val is not None:
+                ghost_targets[target_name][field] = val
 
     # Postiz scheduling env vars (non-string types)
     sched_raw = os.environ.get("POSTIZ_SCHEDULE_ENABLED")
