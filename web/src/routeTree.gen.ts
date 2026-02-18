@@ -11,6 +11,8 @@ import Reading from "./routes/reading.js";
 import ReadingDetail from "./routes/reading.$date.js";
 import Calendar from "./routes/calendar.js";
 import Publish from "./routes/publish.js";
+import Studio from "./routes/studio.js";
+import StudioDetail from "./routes/studio.$slug.js";
 import Settings from "./routes/settings.js";
 
 const rootRoute = createRootRoute({ component: RootLayout });
@@ -81,6 +83,18 @@ const publishRoute = createRoute({
   component: Publish,
 });
 
+const studioRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/studio",
+  component: Studio,
+});
+
+const studioDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/studio/$slug",
+  component: StudioDetail,
+});
+
 const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings",
@@ -99,5 +113,7 @@ export const routeTree = rootRoute.addChildren([
   readingDetailRoute,
   calendarRoute,
   publishRoute,
+  studioRoute,
+  studioDetailRoute,
   settingsRoute,
 ]);
