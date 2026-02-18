@@ -2,9 +2,8 @@
 
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
-
 from distill.integrations.ghost import GhostConfig  # noqa: F401 — re-export
+from pydantic import BaseModel, Field
 
 
 class BlogPostType(StrEnum):

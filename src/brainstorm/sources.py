@@ -60,7 +60,11 @@ def fetch_arxiv(
     """Fetch recent arXiv papers for given categories."""
     cats = categories or ["cs.AI"]
     query = "+OR+".join(f"cat:{c}" for c in cats)
-    url = f"{ARXIV_API_URL}?search_query={query}&sortBy=submittedDate&sortOrder=descending&max_results={max_results}"
+    url = (
+        f"{ARXIV_API_URL}?search_query={query}"
+        f"&sortBy=submittedDate&sortOrder=descending"
+        f"&max_results={max_results}"
+    )
 
     try:
         req = urllib.request.Request(url)
@@ -77,12 +81,11 @@ def fetch_arxiv(
             title_el = entry.find(f"{ATOM_NS}title")
             summary_el = entry.find(f"{ATOM_NS}summary")
             link_el = entry.find(f"{ATOM_NS}link[@rel='alternate']")
-            authors = [
-                a.find(f"{ATOM_NS}name").text
-                for a in entry.findall(f"{ATOM_NS}author")
-                if a.find(f"{ATOM_NS}name") is not None
-                and a.find(f"{ATOM_NS}name").text
-            ]
+            authors = []
+            for a in entry.findall(f"{ATOM_NS}author"):
+                name_el = a.find(f"{ATOM_NS}name")
+                if name_el is not None and name_el.text:
+                    authors.append(name_el.text)
             items.append(
                 ResearchItem(
                     title=(title_el.text or "").strip() if title_el is not None else "",

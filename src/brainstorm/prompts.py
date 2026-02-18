@@ -16,7 +16,10 @@ def get_analyst_prompt(
         "\n".join(f"- {t}" for t in published_titles[:20]) if published_titles else "(none)"
     )
 
-    return f"""You are a content strategist. Given today's research findings and the creator's context, propose 2-3 content ideas.
+    return (
+        "You are a content strategist. Given today's research findings"
+        " and the creator's context, propose 2-3 content ideas.\n"
+        f"""
 
 ## Content Pillars (ALL ideas must connect to at least one)
 {pillar_list}
@@ -51,3 +54,4 @@ Rules:
 - Titles should be provocative, not generic
 - Angles should be specific and opinionated
 - Return ONLY the JSON array, no other text"""
+    )

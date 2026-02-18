@@ -7,12 +7,11 @@ injection into daily journal prompts.
 
 from __future__ import annotations
 
+import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
-
-import re
 
 from distill.graph.models import EdgeType, GraphEdge, GraphNode, NodeType
 from distill.graph.store import GraphStore
@@ -213,10 +212,7 @@ class GraphInsights:
         warnings: list[ScopeWarning] = []
 
         for s in sessions:
-            if s.last_seen.tzinfo is None:
-                ts = s.last_seen.replace(tzinfo=UTC)
-            else:
-                ts = s.last_seen
+            ts = s.last_seen.replace(tzinfo=UTC) if s.last_seen.tzinfo is None else s.last_seen
             if ts < cutoff:
                 continue
 
@@ -272,7 +268,11 @@ class GraphInsights:
             for e in edges:
                 snode = self._store.get_node(e.source_key)
                 if snode:
-                    sname = str(snode.properties.get("summary", snode.name))[:60] if snode.properties else snode.name[:60]
+                    sname = (
+                        str(snode.properties.get("summary", snode.name))[:60]
+                        if snode.properties
+                        else snode.name[:60]
+                    )
                     pattern_sessions[msg].append(sname)
 
         recurring: list[RecurringProblem] = []
@@ -304,10 +304,7 @@ class GraphInsights:
         total_problems = 0
 
         for s in sessions:
-            if s.last_seen.tzinfo is None:
-                ts = s.last_seen.replace(tzinfo=UTC)
-            else:
-                ts = s.last_seen
+            ts = s.last_seen.replace(tzinfo=UTC) if s.last_seen.tzinfo is None else s.last_seen
             if ts < cutoff:
                 continue
             count += 1
@@ -367,7 +364,7 @@ class GraphInsights:
         count = 0
 
         # 1. Coupling clusters → INSIGHT nodes + RELATED_TO edges between files
-        for i, cluster in enumerate(insights.coupling_clusters):
+        for _i, cluster in enumerate(insights.coupling_clusters):
             insight_name = f"coupling:{insights.date}:{cluster.files[0]}+{cluster.files[1]}"
             node = GraphNode(
                 node_type=NodeType.INSIGHT,

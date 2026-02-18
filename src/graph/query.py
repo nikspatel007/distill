@@ -6,7 +6,6 @@ context injection, backed by ``GraphStore`` and ``ContextScorer``.
 
 from __future__ import annotations
 
-import math
 from datetime import UTC, datetime
 from typing import Any
 
@@ -273,7 +272,11 @@ class GraphQuery:
         all_sessions = self._store.find_nodes(node_type=NodeType.SESSION)
         recent: list[tuple[GraphNode, float]] = []
         for s in all_sessions:
-            session_type = s.properties.get("session_type", "unknown") if s.properties else "unknown"
+            session_type = (
+                s.properties.get("session_type", "unknown")
+                if s.properties
+                else "unknown"
+            )
             if session_type != "human":
                 continue
             if project and s.properties and s.properties.get("project") != project:

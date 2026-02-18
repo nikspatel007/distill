@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from distill.errors import PipelineReport
@@ -20,7 +20,7 @@ def generate_images(
     prose: str,
     output_dir: Path,
     date: str,
-    generator: object | None = None,
+    generator: Any = None,
 ) -> tuple[list, dict[int, str]]:
     """Generate images for an intake digest.
 

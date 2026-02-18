@@ -8,9 +8,9 @@ import re
 from datetime import date
 from pathlib import Path
 
-from distill.integrations.ghost import GhostConfig
 from distill.intake.context import DailyIntakeContext
 from distill.intake.publishers.base import IntakePublisher
+from distill.integrations.ghost import GhostConfig
 
 logger = logging.getLogger(__name__)
 

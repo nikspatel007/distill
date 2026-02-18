@@ -4,16 +4,11 @@ import contextlib
 import json
 import logging
 from collections.abc import Generator
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Annotated
 
 import typer
-
-logging.basicConfig(
-    level=logging.WARNING,
-    format="%(levelname)s: %(message)s",
-)
 from distill.core import (
     AnalysisResult,
     analyze,
@@ -31,6 +26,11 @@ from distill.parsers.claude import ClaudeParser
 from distill.parsers.codex import CodexParser
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
+
+logging.basicConfig(
+    level=logging.WARNING,
+    format="%(levelname)s: %(message)s",
+)
 
 app = typer.Typer(
     name="distill",
@@ -966,7 +966,11 @@ def journal_cmd(
     # Generate journal entries
     with _progress_context(quiet=dry_run) as progress:
         if progress:
-            label = f"Generating journal entries for {project}..." if project else "Generating journal entries..."
+            label = (
+                f"Generating journal entries for {project}..."
+                if project
+                else "Generating journal entries..."
+            )
             progress.add_task(label, total=None)
 
         written = generate_journal_notes(
@@ -1131,7 +1135,6 @@ def blog_cmd(
 
     # Parse platforms
     from distill.blog.config import Platform
-
     from distill.config import load_config as _load_blog_config
 
     _blog_cfg = _load_blog_config()
@@ -1793,7 +1796,10 @@ def run_cmd(
                     f"  [green]Generated {len(social_written)} daily social post(s)[/green]"
                 )
             else:
-                console.print("  [dim]No new daily social post (already posted or series complete)[/dim]")
+                console.print(
+                    "  [dim]No new daily social post"
+                    " (already posted or series complete)[/dim]"
+                )
         except Exception as exc:
             errors.append(f"Daily social: {exc}")
             report.add_error("daily_social", str(exc), error_type="stage_error", recoverable=True)
@@ -2113,10 +2119,10 @@ def note_list(
 
 @app.command()
 def brainstorm(
-    output: Path = typer.Option(Path("./insights"), help="Output directory"),
+    output: Path = typer.Option(Path("./insights"), help="Output directory"),  # noqa: B008
 ) -> None:
     """Brainstorm daily content ideas from research sources."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from distill.brainstorm.analyst import analyze_research, score_against_pillars
     from distill.brainstorm.publisher import publish_calendar
@@ -2130,7 +2136,7 @@ def brainstorm(
 
     config = load_config()
     bc = config.brainstorm
-    today = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
 
     typer.echo(f"Brainstorming content ideas for {today}...")
 
@@ -2270,7 +2276,7 @@ def graph_build(
             "--claude-dir",
             help="Path to .claude directory containing session JSONL files.",
         ),
-    ] = Path.home() / ".claude",
+    ] = Path.home() / ".claude",  # noqa: B008
     output: Annotated[
         Path,
         typer.Option(

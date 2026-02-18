@@ -220,9 +220,9 @@ def insert_images_into_prose(
     # Sort: hero first (priority), then by position
     insertions.sort(key=lambda x: (0 if x[0] <= 1 else 1, x[0]))
 
-    # Enforce minimum content gap: at least MIN_CONTENT_LINES non-blank lines
+    # Enforce minimum content gap: at least min_content_lines non-blank lines
     # must separate any two images. Hero always wins.
-    MIN_CONTENT_LINES = 2
+    min_content_lines = 2
     kept: list[tuple[int, str]] = []
     for pos, img_md in insertions:
         too_close = False
@@ -231,7 +231,7 @@ def insert_images_into_prose(
             content_between = sum(
                 1 for i in range(lo, hi) if lines[i].strip()
             )
-            if content_between < MIN_CONTENT_LINES:
+            if content_between < min_content_lines:
                 too_close = True
                 break
         if not too_close:

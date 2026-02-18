@@ -59,12 +59,15 @@ class GraphStore:
             return node
 
         # Merge timestamps (ensure both are tz-aware for comparison)
-        from datetime import UTC
+        from datetime import UTC, datetime
 
-        e_first = existing.first_seen if existing.first_seen.tzinfo else existing.first_seen.replace(tzinfo=UTC)
-        n_first = node.first_seen if node.first_seen.tzinfo else node.first_seen.replace(tzinfo=UTC)
-        e_last = existing.last_seen if existing.last_seen.tzinfo else existing.last_seen.replace(tzinfo=UTC)
-        n_last = node.last_seen if node.last_seen.tzinfo else node.last_seen.replace(tzinfo=UTC)
+        def _ensure_tz(dt: datetime) -> datetime:
+            return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+
+        e_first = _ensure_tz(existing.first_seen)
+        n_first = _ensure_tz(node.first_seen)
+        e_last = _ensure_tz(existing.last_seen)
+        n_last = _ensure_tz(node.last_seen)
         first_seen = min(e_first, n_first)
         last_seen = max(e_last, n_last)
 

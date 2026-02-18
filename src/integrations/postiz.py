@@ -231,7 +231,11 @@ class PostizClient:
                         img_list.append(img)
                     else:
                         img_list.append({"id": f"img-{idx}", "path": str(img)})
-            value = _split_thread(content) if prov == "x" else [{"content": content, "image": img_list}]
+            value = (
+                _split_thread(content)
+                if prov == "x"
+                else [{"content": content, "image": img_list}]
+            )
             # Attach images to the first entry of threads
             if prov == "x" and value and img_list:
                 value[0]["image"] = img_list

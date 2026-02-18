@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import json
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 
 from pydantic import BaseModel, Field
 
 
-class SourceTier(str, Enum):
+class SourceTier(StrEnum):
     MANUAL = "manual"
     FOLLOWED = "followed"
     HN = "hacker_news"

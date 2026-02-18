@@ -7,6 +7,7 @@ Tier 2 adds entity hints from known tech names found in tool arguments.
 
 from __future__ import annotations
 
+import contextlib
 import re
 from collections import Counter
 from datetime import UTC, datetime
@@ -49,7 +50,9 @@ _AGENT_PROMPT_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"^You are [\w]+-[\w-]+\."),  # Hyphenated agent name: "You are corp-planner-x."
     re.compile(r"^You are \w+ (?:supervisor|lead)\b", re.IGNORECASE),  # factory/squad lead
     re.compile(r"^You are (?:a |the |an )?\w+ agent\b", re.IGNORECASE),  # "You are X agent"
-    re.compile(r"^You are (?:a |the |an )?[\w ]{1,40}\.[\s\n]", re.IGNORECASE),  # Role + instruction
+    re.compile(
+        r"^You are (?:a |the |an )?[\w ]{1,40}\.[\s\n]", re.IGNORECASE
+    ),  # Role + instruction
     re.compile(r"^You are joining ", re.IGNORECASE),  # Meeting summon
     re.compile(r"^## (?:TASK|ROLE|MISSION)\b"),  # Structured agent task headers
 ]
@@ -178,10 +181,8 @@ class SessionGraphExtractor:
         # Merge defaults with user-supplied patterns
         self._agent_patterns: list[re.Pattern[str]] = list(_AGENT_PROMPT_PATTERNS)
         for raw in extra_agent_patterns or []:
-            try:
+            with contextlib.suppress(re.error):
                 self._agent_patterns.append(re.compile(raw, re.IGNORECASE))
-            except re.error:
-                pass
 
     # -- Public API ----------------------------------------------------------
 

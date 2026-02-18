@@ -9,12 +9,10 @@ import logging
 import os
 import tomllib
 from pathlib import Path
-
 from typing import Any
 
-from pydantic import BaseModel, Field, model_validator
-
 from distill.brainstorm.config import BrainstormConfig
+from pydantic import BaseModel, Field, model_validator
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +152,7 @@ class GhostSectionConfig(BaseModel):
                 data["targets"] = targets
         return data
 
-    def get_target(self, name: str | None = None) -> "GhostTargetConfig":
+    def get_target(self, name: str | None = None) -> GhostTargetConfig:
         """Resolve a named target, falling back to top-level config.
 
         Args:
@@ -173,7 +171,11 @@ class GhostSectionConfig(BaseModel):
                 admin_api_key=t.admin_api_key or self.admin_api_key,
                 newsletter_slug=t.newsletter_slug or self.newsletter_slug,
                 auto_publish=t.auto_publish if t.auto_publish is not None else self.auto_publish,
-                blog_as_draft=t.blog_as_draft if t.blog_as_draft is not None else self.blog_as_draft,
+                blog_as_draft=(
+                    t.blog_as_draft
+                    if t.blog_as_draft is not None
+                    else self.blog_as_draft
+                ),
             )
         return GhostTargetConfig(
             url=self.url,

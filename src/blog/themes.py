@@ -319,9 +319,7 @@ def _is_generic_name(name: str) -> bool:
     if lower in _GENERIC_NAMES:
         return True
     # Single-word names are almost always too generic
-    if " " not in lower and "-" not in lower:
-        return True
-    return False
+    return " " not in lower and "-" not in lower
 
 
 def _entry_matches_theme(entry: JournalEntry, theme: ThemeDefinition) -> bool:
