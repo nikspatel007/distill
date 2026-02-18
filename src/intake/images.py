@@ -228,9 +228,7 @@ def insert_images_into_prose(
         too_close = False
         for kept_pos, _ in kept:
             lo, hi = min(pos, kept_pos), max(pos, kept_pos)
-            content_between = sum(
-                1 for i in range(lo, hi) if lines[i].strip()
-            )
+            content_between = sum(1 for i in range(lo, hi) if lines[i].strip())
             if content_between < min_content_lines:
                 too_close = True
                 break
