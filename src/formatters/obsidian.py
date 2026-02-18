@@ -416,4 +416,3 @@ class ObsidianFormatter:
             patterns.append(f"- Outcome success rate: {rate:.0f}%")
 
         return "\n".join(patterns) if patterns else "_No patterns detected._"
-

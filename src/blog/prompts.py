@@ -12,6 +12,7 @@ _OUTPUT_INSTRUCTION = (
     ' annotations, no "Should I save this?". Just the post.'
 )
 
+
 def get_social_prompt(platform: str, hashtags: str = "") -> str:
     """Get the social adaptation prompt for a given platform.
 
@@ -220,9 +221,7 @@ _SOCIAL_PROMPTS_TEMPLATES: dict[str, str] = {
 
 # Backwards-compat: dict that returns default-parameterized prompts
 SOCIAL_PROMPTS: dict[str, str] = {
-    k: v.format(hashtags=_SOCIAL_HASHTAG_DEFAULTS.get(k, ""))
-    if "{hashtags}" in v
-    else v
+    k: v.format(hashtags=_SOCIAL_HASHTAG_DEFAULTS.get(k, "")) if "{hashtags}" in v else v
     for k, v in _SOCIAL_PROMPTS_TEMPLATES.items()
 }
 

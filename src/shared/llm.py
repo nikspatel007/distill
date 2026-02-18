@@ -62,16 +62,13 @@ def call_claude(
             env=env,
         )
     except FileNotFoundError as exc:
-        raise LLMError(
-            f"Claude CLI not found — is 'claude' on the PATH? (label={label})"
-        ) from exc
+        raise LLMError(f"Claude CLI not found — is 'claude' on the PATH? (label={label})") from exc
     except subprocess.TimeoutExpired as exc:
         raise LLMError(f"Claude CLI timed out after {timeout}s (label={label})") from exc
 
     if result.returncode != 0:
         raise LLMError(
-            f"Claude CLI failed (exit {result.returncode}, label={label}): "
-            f"{result.stderr[:500]}"
+            f"Claude CLI failed (exit {result.returncode}, label={label}): {result.stderr[:500]}"
         )
 
     return result.stdout.strip()

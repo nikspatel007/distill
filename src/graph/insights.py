@@ -48,8 +48,15 @@ def _is_noise_problem(msg: str) -> bool:
 
 # File patterns to exclude from hotspot analysis (templates, generated, non-code)
 _HOTSPOT_EXCLUDE = {
-    "_feature.md", "_epic.md", "_bug.md", "_task.md", "_story.md",
-    "DONE.md", "TASK.md", "status.yaml", "events.log",
+    "_feature.md",
+    "_epic.md",
+    "_bug.md",
+    "_task.md",
+    "_story.md",
+    "DONE.md",
+    "TASK.md",
+    "status.yaml",
+    "events.log",
 }
 
 
@@ -132,9 +139,7 @@ class GraphInsights:
         for s in sessions:
             modified = [
                 e.target_key.removeprefix("file:")
-                for e in self._store.find_edges(
-                    source_key=s.node_key, edge_type=EdgeType.MODIFIES
-                )
+                for e in self._store.find_edges(source_key=s.node_key, edge_type=EdgeType.MODIFIES)
             ]
             short = [_short_path(f) for f in modified]
             unique = sorted(set(short))
@@ -168,9 +173,7 @@ class GraphInsights:
         for s in sessions:
             skey = s.node_key
             # Find problems in this session
-            problems = self._store.find_edges(
-                source_key=skey, edge_type=EdgeType.BLOCKED_BY
-            )
+            problems = self._store.find_edges(source_key=skey, edge_type=EdgeType.BLOCKED_BY)
             if not problems:
                 continue
 
@@ -183,9 +186,7 @@ class GraphInsights:
                         problem_snippets.append(snippet)
 
             # Find files modified in this session
-            modified = self._store.find_edges(
-                source_key=skey, edge_type=EdgeType.MODIFIES
-            )
+            modified = self._store.find_edges(source_key=skey, edge_type=EdgeType.MODIFIES)
             for me in modified:
                 fname = me.target_key.removeprefix("file:")
                 short = _short_path(fname)
@@ -203,9 +204,7 @@ class GraphInsights:
                 break
         return hotspots
 
-    def scope_warnings(
-        self, *, lookback_hours: float = 48.0
-    ) -> list[ScopeWarning]:
+    def scope_warnings(self, *, lookback_hours: float = 48.0) -> list[ScopeWarning]:
         """Find recent sessions that exceeded the safe file-modification threshold."""
         cutoff = self._now - timedelta(hours=lookback_hours)
         sessions = self._store.find_nodes(node_type=NodeType.SESSION)
@@ -216,16 +215,12 @@ class GraphInsights:
             if ts < cutoff:
                 continue
 
-            modified = self._store.find_edges(
-                source_key=s.node_key, edge_type=EdgeType.MODIFIES
-            )
+            modified = self._store.find_edges(source_key=s.node_key, edge_type=EdgeType.MODIFIES)
             n_files = len(modified)
             if n_files <= self.SCOPE_THRESHOLD:
                 continue
 
-            problems = self._store.find_edges(
-                source_key=s.node_key, edge_type=EdgeType.BLOCKED_BY
-            )
+            problems = self._store.find_edges(source_key=s.node_key, edge_type=EdgeType.BLOCKED_BY)
             project = ""
             if s.properties:
                 project = str(s.properties.get("project", ""))
@@ -262,9 +257,7 @@ class GraphInsights:
                 continue
 
             # Find session(s) connected to this problem
-            edges = self._store.find_edges(
-                target_key=p.node_key, edge_type=EdgeType.BLOCKED_BY
-            )
+            edges = self._store.find_edges(target_key=p.node_key, edge_type=EdgeType.BLOCKED_BY)
             for e in edges:
                 snode = self._store.get_node(e.source_key)
                 if snode:
@@ -276,9 +269,7 @@ class GraphInsights:
                     pattern_sessions[msg].append(sname)
 
         recurring: list[RecurringProblem] = []
-        for pattern, sessions in sorted(
-            pattern_sessions.items(), key=lambda x: -len(x[1])
-        ):
+        for pattern, sessions in sorted(pattern_sessions.items(), key=lambda x: -len(x[1])):
             if len(sessions) < min_occurrences:
                 continue
             recurring.append(
@@ -292,9 +283,7 @@ class GraphInsights:
                 break
         return recurring
 
-    def daily_session_stats(
-        self, *, lookback_hours: float = 48.0
-    ) -> dict[str, Any]:
+    def daily_session_stats(self, *, lookback_hours: float = 48.0) -> dict[str, Any]:
         """Compute session statistics for recent sessions."""
         cutoff = self._now - timedelta(hours=lookback_hours)
         sessions = self._store.find_nodes(node_type=NodeType.SESSION)
@@ -309,15 +298,11 @@ class GraphInsights:
                 continue
             count += 1
             n_files = len(
-                self._store.find_edges(
-                    source_key=s.node_key, edge_type=EdgeType.MODIFIES
-                )
+                self._store.find_edges(source_key=s.node_key, edge_type=EdgeType.MODIFIES)
             )
             total_files += n_files
             total_problems += len(
-                self._store.find_edges(
-                    source_key=s.node_key, edge_type=EdgeType.BLOCKED_BY
-                )
+                self._store.find_edges(source_key=s.node_key, edge_type=EdgeType.BLOCKED_BY)
             )
 
         return {
@@ -326,9 +311,7 @@ class GraphInsights:
             "total_problems": total_problems,
         }
 
-    def generate_daily_insights(
-        self, *, lookback_hours: float = 48.0
-    ) -> DailyInsights:
+    def generate_daily_insights(self, *, lookback_hours: float = 48.0) -> DailyInsights:
         """Generate all structural insights for the current period.
 
         Runs all analysis methods and returns a ``DailyInsights`` object.
@@ -344,7 +327,6 @@ class GraphInsights:
             avg_files_per_session=stats["avg_files_per_session"],
             total_problems=stats["total_problems"],
         )
-
 
     def persist_insights(self, insights: DailyInsights) -> int:
         """Write insights back into the graph as INSIGHT, THREAD, and RELATED_TO structures.
@@ -387,9 +369,7 @@ class GraphInsights:
 
             # RELATED_TO edge between the two files (if they exist as nodes)
             for f in cluster.files:
-                file_nodes = self._store.find_nodes(
-                    node_type=NodeType.FILE, name_contains=f
-                )
+                file_nodes = self._store.find_nodes(node_type=NodeType.FILE, name_contains=f)
                 for fn in file_nodes[:1]:  # link to first match
                     self._store.upsert_edge(
                         GraphEdge(
@@ -446,9 +426,7 @@ class GraphInsights:
             count += 1
 
             # Link to the actual file node
-            file_nodes = self._store.find_nodes(
-                node_type=NodeType.FILE, name_contains=hotspot.file
-            )
+            file_nodes = self._store.find_nodes(node_type=NodeType.FILE, name_contains=hotspot.file)
             for fn in file_nodes[:1]:
                 self._store.upsert_edge(
                     GraphEdge(
@@ -481,10 +459,7 @@ class GraphInsights:
                     "total_occurrences": mention_count,
                     "last_date": insights.date,
                     "status": "active",
-                    "description": (
-                        f"Recurring: \"{rp.pattern}\" — "
-                        f"seen {mention_count} times"
-                    ),
+                    "description": (f'Recurring: "{rp.pattern}" — seen {mention_count} times'),
                 },
             )
             self._store.upsert_node(node)
@@ -564,8 +539,7 @@ def format_insights_for_prompt(insights: DailyInsights) -> str:
         lines.append("File pairs that always change together (hidden dependencies):")
         for c in insights.coupling_clusters[:5]:
             lines.append(
-                f"- {c.files[0]} + {c.files[1]}: "
-                f"co-modified in {c.co_modification_count} sessions"
+                f"- {c.files[0]} + {c.files[1]}: co-modified in {c.co_modification_count} sessions"
             )
         lines.append("")
 
@@ -573,9 +547,7 @@ def format_insights_for_prompt(insights: DailyInsights) -> str:
     if insights.recurring_problems:
         lines.append("### Recurring Problems")
         for rp in insights.recurring_problems[:3]:
-            lines.append(
-                f"- \"{rp.pattern}\" — appeared {rp.occurrence_count} times"
-            )
+            lines.append(f'- "{rp.pattern}" — appeared {rp.occurrence_count} times')
         lines.append("")
 
     # Only return content if there's something meaningful

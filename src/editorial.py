@@ -1,4 +1,5 @@
 """Backward-compat shim — import from distill.shared.editorial instead."""
+
 import sys as _sys
 
 import distill.shared.editorial as _real_module

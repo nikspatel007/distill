@@ -111,9 +111,7 @@ def fetch_arxiv(
                     title=(title_el.text or "").strip() if title_el is not None else "",
                     url=link_el.get("href", "") if link_el is not None else "",
                     summary=(
-                        (summary_el.text or "").strip()[:300]
-                        if summary_el is not None
-                        else ""
+                        (summary_el.text or "").strip()[:300] if summary_el is not None else ""
                     ),
                     source_tier=SourceTier.ARXIV,
                     authors=authors,

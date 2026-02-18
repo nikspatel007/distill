@@ -127,9 +127,7 @@ def generate_blog_posts(
             if graph_data.get("sessions"):
                 from distill.graph.prompts import _format_user_prompt
 
-                graph_context = (
-                    "\n\n## Knowledge Graph Context\n" + _format_user_prompt(graph_data)
-                )
+                graph_context = "\n\n## Knowledge Graph Context\n" + _format_user_prompt(graph_data)
 
             # Append structural insights for blog context
             from distill.graph.insights import (
@@ -540,9 +538,7 @@ def _generate_thematic_posts(
                     themes_to_generate.append((series_theme, evidence))
 
         # Prioritize by evidence strength (unique days desc), cap total
-        themes_to_generate.sort(
-            key=lambda te: len({e.date for e in te[1]}), reverse=True
-        )
+        themes_to_generate.sort(key=lambda te: len({e.date for e in te[1]}), reverse=True)
         max_posts = getattr(config, "max_thematic_posts", 2) if config else 2
         if len(themes_to_generate) > max_posts:
             logger.info(

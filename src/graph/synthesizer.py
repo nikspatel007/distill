@@ -81,21 +81,15 @@ def synthesize_context(
             env=env,
         )
     except FileNotFoundError as e:
-        raise ContextSynthesisError(
-            "Claude CLI not found — is 'claude' on the PATH?"
-        ) from e
+        raise ContextSynthesisError("Claude CLI not found — is 'claude' on the PATH?") from e
     except subprocess.TimeoutExpired as e:
-        raise ContextSynthesisError(
-            f"Claude CLI timed out after {timeout}s"
-        ) from e
+        raise ContextSynthesisError(f"Claude CLI timed out after {timeout}s") from e
     except OSError as e:
         raise ContextSynthesisError(f"Failed to run Claude CLI: {e}") from e
 
     if result.returncode != 0:
         err_text = result.stderr.strip() if result.stderr else ""
-        raise ContextSynthesisError(
-            f"Claude CLI exited {result.returncode}: {err_text}"
-        )
+        raise ContextSynthesisError(f"Claude CLI exited {result.returncode}: {err_text}")
 
     return result.stdout.strip()
 

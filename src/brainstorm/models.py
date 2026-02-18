@@ -36,6 +36,7 @@ class SourceTier(StrEnum):
 
 class ResearchItem(BaseModel):
     """A single item gathered from a research source."""
+
     title: str
     url: str
     summary: str
@@ -46,6 +47,7 @@ class ResearchItem(BaseModel):
 
 class ContentIdea(BaseModel):
     """A content idea produced by the analyst."""
+
     title: str
     angle: str
     source_url: str
@@ -59,6 +61,7 @@ class ContentIdea(BaseModel):
 
 class ContentCalendar(BaseModel):
     """A day's content calendar with brainstormed ideas."""
+
     date: str  # YYYY-MM-DD
     ideas: list[ContentIdea] = Field(default_factory=list)
 

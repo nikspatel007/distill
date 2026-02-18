@@ -207,8 +207,10 @@ class GhostPublisher(BlogPublisher):
                 logger.info("Published '%s' to Ghost with newsletter", title)
             else:
                 # Single step: create as published or draft
-                status = "draft" if force_draft else (
-                    "published" if self._config.auto_publish else "draft"
+                status = (
+                    "draft"
+                    if force_draft
+                    else ("published" if self._config.auto_publish else "draft")
                 )
                 post = self._api.create_post(
                     title, prose, tags, status=status, feature_image=feature_image_url

@@ -935,9 +935,7 @@ def journal_cmd(
 
     # Filter to specific project if requested
     if project:
-        all_sessions = [
-            s for s in all_sessions if project.lower() in (s.project or "").lower()
-        ]
+        all_sessions = [s for s in all_sessions if project.lower() in (s.project or "").lower()]
         if not all_sessions:
             console.print(f"[yellow]No sessions found for project '{project}'.[/yellow]")
             raise typer.Exit(0)
@@ -1295,9 +1293,7 @@ def intake_cmd(
         typer.Option(
             "--publish",
             help=(
-                "Comma-separated publishers"
-                " (obsidian, markdown, ghost, postiz)."
-                " Default: obsidian."
+                "Comma-separated publishers (obsidian, markdown, ghost, postiz). Default: obsidian."
             ),
         ),
     ] = None,
@@ -1682,9 +1678,7 @@ def run_cmd(
                         f"{graph_store.edge_count()} edges[/green]"
                     )
                 except Exception as exc:
-                    report.add_error(
-                        "graph", str(exc), error_type="stage_error", recoverable=True
-                    )
+                    report.add_error("graph", str(exc), error_type="stage_error", recoverable=True)
                     console.print(f"  [dim]Graph build skipped: {exc}[/dim]")
 
                 written = generate_journal_notes(
@@ -1797,8 +1791,7 @@ def run_cmd(
                 )
             else:
                 console.print(
-                    "  [dim]No new daily social post"
-                    " (already posted or series complete)[/dim]"
+                    "  [dim]No new daily social post (already posted or series complete)[/dim]"
                 )
         except Exception as exc:
             errors.append(f"Daily social: {exc}")
@@ -2163,9 +2156,7 @@ def brainstorm(
     journal_dir = output / "journal"
     if journal_dir.exists():
         recent = sorted(journal_dir.glob("*.md"), reverse=True)[:3]
-        journal_context = "\n---\n".join(
-            f.read_text(encoding="utf-8")[:1000] for f in recent
-        )
+        journal_context = "\n---\n".join(f.read_text(encoding="utf-8")[:1000] for f in recent)
 
     # Analyze
     ideas = analyze_research(
@@ -2331,9 +2322,7 @@ def graph_build(
     cfg = load_config()
     output.mkdir(parents=True, exist_ok=True)
     store = GraphStore(path=output)
-    extractor = SessionGraphExtractor(
-        store, extra_agent_patterns=cfg.graph.agent_prompt_patterns
-    )
+    extractor = SessionGraphExtractor(store, extra_agent_patterns=cfg.graph.agent_prompt_patterns)
 
     with _progress_context(quiet=quiet) as progress:
         task = progress.add_task("Extracting graph...", total=len(sessions)) if progress else None
@@ -2437,19 +2426,14 @@ def graph_query(
             console.print()
             console.print(f"[bold]Neighbors ({len(neighbors)}):[/bold]")
             for nb in neighbors:
-                console.print(
-                    f"  {nb['name']} ({nb['type']}) "
-                    f"— relevance: {nb['relevance']:.4f}"
-                )
+                console.print(f"  {nb['name']} ({nb['type']}) — relevance: {nb['relevance']:.4f}")
 
         edges = result["edges"]
         if edges:
             console.print()
             console.print(f"[bold]Edges ({len(edges)}):[/bold]")
             for edge in edges:
-                console.print(
-                    f"  {edge['source']} —[{edge['type']}]→ {edge['target']}"
-                )
+                console.print(f"  {edge['source']} —[{edge['type']}]→ {edge['target']}")
 
 
 @graph_app.command(name="context")
@@ -2514,9 +2498,7 @@ def graph_context(
 
     store = GraphStore(path=output)
     if store.node_count() == 0:
-        console.print(
-            "[yellow]No graph data found.[/yellow] Run 'distill graph build' first."
-        )
+        console.print("[yellow]No graph data found.[/yellow] Run 'distill graph build' first.")
         raise typer.Exit(1)
 
     query = GraphQuery(store)
@@ -2620,9 +2602,7 @@ def graph_inject(
 
     store = GraphStore(path=output)
     if store.node_count() == 0:
-        console.print(
-            "[yellow]No graph data found.[/yellow] Run 'distill graph build' first."
-        )
+        console.print("[yellow]No graph data found.[/yellow] Run 'distill graph build' first.")
         raise typer.Exit(1)
 
     query = GraphQuery(store)
@@ -2638,9 +2618,7 @@ def graph_inject(
         raise typer.Exit(0)
 
     if not quiet:
-        console.print(
-            f"[dim]Synthesizing context from {len(data['sessions'])} session(s)...[/dim]"
-        )
+        console.print(f"[dim]Synthesizing context from {len(data['sessions'])} session(s)...[/dim]")
 
     try:
         context_md = synthesize_context(data, model=model)

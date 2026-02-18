@@ -136,8 +136,13 @@ class GhostSectionConfig(BaseModel):
             return data
         data = dict(data)  # shallow copy
         known = {
-            "default", "url", "admin_api_key", "newsletter_slug",
-            "auto_publish", "blog_as_draft", "targets",
+            "default",
+            "url",
+            "admin_api_key",
+            "newsletter_slug",
+            "auto_publish",
+            "blog_as_draft",
+            "targets",
         }
         targets: dict[str, object] = {}
         for key in list(data.keys()):
@@ -172,9 +177,7 @@ class GhostSectionConfig(BaseModel):
                 newsletter_slug=t.newsletter_slug or self.newsletter_slug,
                 auto_publish=t.auto_publish if t.auto_publish is not None else self.auto_publish,
                 blog_as_draft=(
-                    t.blog_as_draft
-                    if t.blog_as_draft is not None
-                    else self.blog_as_draft
+                    t.blog_as_draft if t.blog_as_draft is not None else self.blog_as_draft
                 ),
             )
         return GhostTargetConfig(

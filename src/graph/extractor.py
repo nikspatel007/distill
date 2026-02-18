@@ -120,9 +120,7 @@ KNOWN_ENTITIES: frozenset[str] = frozenset(
 
 # Short tokens that are too ambiguous when found in file paths.
 # Only match these in Bash commands, not in file/path args.
-_AMBIGUOUS_ENTITIES: frozenset[str] = frozenset(
-    {"go", "node", "click", "java", "rust", "bun"}
-)
+_AMBIGUOUS_ENTITIES: frozenset[str] = frozenset({"go", "node", "click", "java", "rust", "bun"})
 
 # Known path anchors for fallback normalization
 _PATH_ANCHORS = ("src/", "tests/", "web/", "docs/")
@@ -293,9 +291,7 @@ class SessionGraphExtractor:
 
     # -- Step 1: Session node ------------------------------------------------
 
-    def _extract_session_node(
-        self, session: BaseSession, session_type: str = "human"
-    ) -> str:
+    def _extract_session_node(self, session: BaseSession, session_type: str = "human") -> str:
         """Create a SESSION node and return its node_key."""
         name = self._clean_summary(session.summary, session.session_id)
         canonical_project = self._resolve_project(session.project) if session.project else ""
@@ -520,18 +516,14 @@ class SessionGraphExtractor:
 
     # -- Step 6b: Entity co-occurrence edges ---------------------------------
 
-    def _extract_co_occurrences(
-        self, session: BaseSession, session_key: str
-    ) -> None:
+    def _extract_co_occurrences(self, session: BaseSession, session_key: str) -> None:
         """Create CO_OCCURS edges between entities found in the same session.
 
         Weight accumulates across sessions: if entities A and B co-occur
         in 3 sessions, the edge weight becomes 3.0.
         """
         # Find which entities this session uses
-        uses_edges = self._store.find_edges(
-            source_key=session_key, edge_type=EdgeType.USES
-        )
+        uses_edges = self._store.find_edges(source_key=session_key, edge_type=EdgeType.USES)
         entity_keys = sorted(e.target_key for e in uses_edges)
 
         # Create pairwise co-occurrence edges (sorted to ensure stable ordering)
@@ -545,9 +537,7 @@ class SessionGraphExtractor:
                 # Read existing weight and accumulate
                 existing = self._store._edges.get(edge.edge_key)
                 if existing is not None:
-                    edge = edge.model_copy(
-                        update={"weight": existing.weight + 1.0}
-                    )
+                    edge = edge.model_copy(update={"weight": existing.weight + 1.0})
                 self._store.upsert_edge(edge)
 
     # -- Step 7: Session chaining --------------------------------------------

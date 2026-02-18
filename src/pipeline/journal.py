@@ -108,9 +108,8 @@ def generate_journal_notes(
                 if graph_data.get("sessions"):
                     from distill.graph.prompts import _format_user_prompt
 
-                    graph_section = (
-                        "\n\n## Knowledge Graph Context\n"
-                        + _format_user_prompt(graph_data)
+                    graph_section = "\n\n## Knowledge Graph Context\n" + _format_user_prompt(
+                        graph_data
                     )
                     context.previous_context += graph_section
 

@@ -74,8 +74,16 @@ def _build_daily_social_context(
                     aliases.extend(a.lower() for a in (proj.aliases or []))
                     # Extract key terms from project description
                     desc = (proj.description or "").lower()
-                    for term in ["agent", "orchestrat", "blackboard", "roster",
-                                 "squad", "spawn", "workflow", "temporal"]:
+                    for term in [
+                        "agent",
+                        "orchestrat",
+                        "blackboard",
+                        "roster",
+                        "squad",
+                        "spawn",
+                        "workflow",
+                        "temporal",
+                    ]:
                         if term in desc:
                             aliases.append(term)
         except Exception:
@@ -83,10 +91,7 @@ def _build_daily_social_context(
 
         # Collect project-relevant paragraphs from today
         paragraphs = prose.split("\n\n")
-        relevant = [
-            p for p in paragraphs
-            if any(alias in p.lower() for alias in aliases)
-        ]
+        relevant = [p for p in paragraphs if any(alias in p.lower() for alias in aliases)]
 
         # If today is thin, pull from recent entries too
         if len(relevant) < 2 and recent_entries:
@@ -95,8 +100,7 @@ def _build_daily_social_context(
                     continue
                 older_paras = older.prose.split("\n\n")
                 older_relevant = [
-                    p for p in older_paras
-                    if any(alias in p.lower() for alias in aliases)
+                    p for p in older_paras if any(alias in p.lower() for alias in aliases)
                 ]
                 if older_relevant:
                     relevant.extend(older_relevant)
@@ -127,9 +131,8 @@ def _build_daily_social_context(
                 unused = project_seeds
         if unused:
             seed_texts = [s.text for s in unused[:3]]  # Cap at 3
-            seeds_section = (
-                "\n\n## Seed ideas (angles you can riff on):\n"
-                + "\n".join(f"- {t}" for t in seed_texts)
+            seeds_section = "\n\n## Seed ideas (angles you can riff on):\n" + "\n".join(
+                f"- {t}" for t in seed_texts
             )
     except Exception:
         pass

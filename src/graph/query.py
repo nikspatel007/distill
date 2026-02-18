@@ -196,9 +196,7 @@ class GraphQuery:
             ):
                 machine_keys.add(node.node_key)
 
-        scores = scorer.score_all(
-            focus_key=focus_key, top_k=top_k, exclude_keys=machine_keys
-        )
+        scores = scorer.score_all(focus_key=focus_key, top_k=top_k, exclude_keys=machine_keys)
 
         if not scores:
             return "No relevant context found."
@@ -273,9 +271,7 @@ class GraphQuery:
         recent: list[tuple[GraphNode, float]] = []
         for s in all_sessions:
             session_type = (
-                s.properties.get("session_type", "unknown")
-                if s.properties
-                else "unknown"
+                s.properties.get("session_type", "unknown") if s.properties else "unknown"
             )
             if session_type != "human":
                 continue
@@ -317,11 +313,13 @@ class GraphQuery:
             for edge in self._store.find_edges(source_key=skey, edge_type=EdgeType.BLOCKED_BY):
                 pnode = self._store.get_node(edge.target_key)
                 if pnode and pnode.properties:
-                    problems.append({
-                        "error": str(pnode.properties.get("error_snippet", "")),
-                        "command": str(pnode.properties.get("command", "")),
-                        "resolved": bool(pnode.properties.get("resolved", False)),
-                    })
+                    problems.append(
+                        {
+                            "error": str(pnode.properties.get("error_snippet", "")),
+                            "command": str(pnode.properties.get("command", "")),
+                            "resolved": bool(pnode.properties.get("resolved", False)),
+                        }
+                    )
 
             # Goal
             goal = ""
@@ -341,17 +339,19 @@ class GraphQuery:
             if sess_node.properties:
                 sess_proj = str(sess_node.properties.get("project", ""))
 
-            session_data.append({
-                "id": sess_node.name,
-                "summary": summary,
-                "hours_ago": round(hours_ago, 1),
-                "project": sess_proj,
-                "goal": goal,
-                "files_modified": files_modified,
-                "files_read": files_read,
-                "problems": problems,
-                "entities": entities,
-            })
+            session_data.append(
+                {
+                    "id": sess_node.name,
+                    "summary": summary,
+                    "hours_ago": round(hours_ago, 1),
+                    "project": sess_proj,
+                    "goal": goal,
+                    "files_modified": files_modified,
+                    "files_read": files_read,
+                    "problems": problems,
+                    "entities": entities,
+                }
+            )
 
         # Other projects with recent activity (if not filtering by project)
         other_projects: list[dict[str, Any]] = []
@@ -368,11 +368,13 @@ class GraphQuery:
                     continue
                 hours_ago = (now.timestamp() - ts) / 3600
                 summary = str(s.properties.get("summary", s.name))
-                other_projects.append({
-                    "project": sp,
-                    "summary": summary,
-                    "hours_ago": round(hours_ago, 1),
-                })
+                other_projects.append(
+                    {
+                        "project": sp,
+                        "summary": summary,
+                        "hours_ago": round(hours_ago, 1),
+                    }
+                )
             other_projects.sort(key=lambda x: x["hours_ago"])
             other_projects = other_projects[:5]
 

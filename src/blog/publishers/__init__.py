@@ -40,9 +40,7 @@ def create_publisher(
         Platform.OBSIDIAN: ObsidianPublisher(),
         Platform.GHOST: GhostPublisher(ghost_config=ghost_config),
         Platform.MARKDOWN: MarkdownPublisher(),
-        Platform.POSTIZ: PostizBlogPublisher(
-            synthesizer=synthesizer, postiz_config=postiz_config
-        ),
+        Platform.POSTIZ: PostizBlogPublisher(synthesizer=synthesizer, postiz_config=postiz_config),
     }
 
     if platform in publishers:

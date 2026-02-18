@@ -124,8 +124,7 @@ class GhostAPIClient:
         file_data = file_path.read_bytes()
 
         disposition = (
-            f'Content-Disposition: form-data; name="{field}";'
-            f' filename="{file_path.name}"\r\n'
+            f'Content-Disposition: form-data; name="{field}"; filename="{file_path.name}"\r\n'
         )
         body_parts: list[bytes] = [
             f"--{boundary}\r\n".encode(),
