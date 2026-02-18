@@ -47,7 +47,8 @@ class BlogSynthesizer:
             blog_memory=blog_memory,
         )
         user_prompt = _render_weekly_prompt(context)
-        return self._call_claude(system_prompt, user_prompt, f"weekly W{context.week}")
+        raw = self._call_claude(system_prompt, user_prompt, f"weekly W{context.week}")
+        return _strip_preamble(raw)
 
     def synthesize_thematic(self, context: ThematicBlogContext, blog_memory: str = "") -> str:
         """Transform thematic context into blog prose.
@@ -71,7 +72,8 @@ class BlogSynthesizer:
             seed_angle=context.seed_angle,
         )
         user_prompt = _render_thematic_prompt(context)
-        return self._call_claude(system_prompt, user_prompt, context.theme.slug)
+        raw = self._call_claude(system_prompt, user_prompt, context.theme.slug)
+        return _strip_preamble(raw)
 
     def synthesize_raw(self, system_prompt: str, user_prompt: str) -> str:
         """Synthesize content from raw system and user prompts."""
@@ -160,6 +162,24 @@ class BlogSynthesizer:
             )
         except LLMError as exc:
             raise BlogSynthesisError(str(exc)) from exc
+
+
+def _strip_preamble(text: str) -> str:
+    """Strip LLM thinking/preamble before the first markdown heading.
+
+    Claude sometimes outputs reasoning text before the actual blog post
+    despite prompt instructions. This strips everything before the first
+    line starting with '# ' (H1 heading).
+    """
+    import re
+
+    match = re.search(r"^# ", text, re.MULTILINE)
+    if match:
+        stripped = text[match.start():]
+        if stripped != text:
+            logger.info("Stripped %d chars of LLM preamble", match.start())
+        return stripped
+    return text
 
 
 def _strip_json_fences(text: str) -> str:
