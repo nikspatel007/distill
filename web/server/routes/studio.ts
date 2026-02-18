@@ -1,10 +1,18 @@
 import { basename, join } from "node:path";
+import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
-import { BlogFrontmatterSchema, type ReviewItem } from "../../shared/schemas.js";
+import { z } from "zod";
+import {
+	BlogFrontmatterSchema,
+	ChatMessageSchema,
+	type PlatformContent,
+	type ReviewItem,
+	StudioPublishRequestSchema,
+} from "../../shared/schemas.js";
 import { getConfig } from "../lib/config.js";
 import { listFiles, readMarkdown } from "../lib/files.js";
 import { parseFrontmatter } from "../lib/frontmatter.js";
-import { isPostizConfigured, listIntegrations } from "../lib/postiz.js";
+import { createPost, isPostizConfigured, listIntegrations } from "../lib/postiz.js";
 import { getReviewItem, loadReviewQueue, upsertReviewItem } from "../lib/review-queue.js";
 
 const app = new Hono();
@@ -152,6 +160,128 @@ app.get("/api/studio/platforms", async (c) => {
 	} catch {
 		return c.json({ integrations: [], configured: false });
 	}
+});
+
+/** Map platform names to Postiz provider identifiers. */
+const PLATFORM_PROVIDER_MAP: Record<string, string> = {
+	x: "x",
+	linkedin: "linkedin",
+	slack: "slack",
+};
+
+// ---------------------------------------------------------------------------
+// POST /api/studio/publish/:slug — publish to Postiz
+// ---------------------------------------------------------------------------
+app.post("/api/studio/publish/:slug", zValidator("json", StudioPublishRequestSchema), async (c) => {
+	const slug = c.req.param("slug");
+	const body = c.req.valid("json");
+
+	if (!isPostizConfigured()) {
+		return c.json({ error: "Postiz not configured" }, 503);
+	}
+
+	const item = await getReviewItem(slug);
+	if (!item) {
+		return c.json({ error: "Review item not found" }, 404);
+	}
+
+	let integrations: Awaited<ReturnType<typeof listIntegrations>> = [];
+	try {
+		integrations = await listIntegrations();
+	} catch {
+		return c.json({ error: "Failed to fetch integrations" }, 502);
+	}
+
+	const results: Array<{ platform: string; success: boolean; error?: string }> = [];
+
+	for (const platform of body.platforms) {
+		const platformEntry = item.platforms[platform];
+		if (!platformEntry?.content) {
+			results.push({ platform, success: false, error: "No adapted content" });
+			continue;
+		}
+		if (platformEntry.published) {
+			results.push({ platform, success: false, error: "Already published" });
+			continue;
+		}
+
+		const provider = PLATFORM_PROVIDER_MAP[platform] ?? platform;
+		const integration = integrations.find((i) => i.provider.includes(provider));
+		if (!integration) {
+			results.push({ platform, success: false, error: `No integration for ${platform}` });
+			continue;
+		}
+
+		try {
+			await createPost(platformEntry.content, [integration.id], {
+				postType: body.mode,
+				scheduledAt: body.scheduled_at,
+			});
+			platformEntry.published = true;
+			results.push({ platform, success: true });
+		} catch (err) {
+			const message = err instanceof Error ? err.message : "Unknown error";
+			results.push({ platform, success: false, error: message });
+		}
+	}
+
+	// Check if all platforms are published
+	const allPublished = Object.values(item.platforms).every((p) => p.published);
+	if (allPublished && Object.keys(item.platforms).length > 0) {
+		item.status = "published";
+	}
+
+	await upsertReviewItem(item);
+	return c.json({ results });
+});
+
+// ---------------------------------------------------------------------------
+// PUT /api/studio/items/:slug/platform/:platform — save adapted content
+// ---------------------------------------------------------------------------
+const PlatformContentBodySchema = z.object({ content: z.string() });
+
+app.put(
+	"/api/studio/items/:slug/platform/:platform",
+	zValidator("json", PlatformContentBodySchema),
+	async (c) => {
+		const slug = c.req.param("slug");
+		const platform = c.req.param("platform");
+		const { content } = c.req.valid("json");
+
+		const item = await getReviewItem(slug);
+		if (!item) return c.json({ error: "Review item not found" }, 404);
+
+		const existing: PlatformContent = item.platforms[platform] ?? {
+			enabled: true,
+			content: null,
+			published: false,
+			postiz_id: null,
+		};
+		existing.content = content;
+		item.platforms[platform] = existing;
+
+		await upsertReviewItem(item);
+		return c.json({ success: true });
+	},
+);
+
+// ---------------------------------------------------------------------------
+// PUT /api/studio/items/:slug/chat — save chat history
+// ---------------------------------------------------------------------------
+const ChatHistoryBodySchema = z.object({
+	chat_history: z.array(ChatMessageSchema),
+});
+
+app.put("/api/studio/items/:slug/chat", zValidator("json", ChatHistoryBodySchema), async (c) => {
+	const slug = c.req.param("slug");
+	const { chat_history } = c.req.valid("json");
+
+	const item = await getReviewItem(slug);
+	if (!item) return c.json({ error: "Review item not found" }, 404);
+
+	item.chat_history = chat_history;
+	await upsertReviewItem(item);
+	return c.json({ success: true });
 });
 
 export default app;

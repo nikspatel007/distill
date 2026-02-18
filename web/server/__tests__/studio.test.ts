@@ -121,3 +121,127 @@ describe("GET /api/studio/platforms", () => {
 		expect(data.integrations).toEqual([]);
 	});
 });
+
+describe("POST /api/studio/publish/:slug", () => {
+	test("returns 503 when postiz not configured", async () => {
+		await setupBlogFiles(tempDir);
+
+		// First GET the item to auto-create the review entry
+		await app.request("/api/studio/items/weekly-2026-W07");
+
+		const res = await app.request("/api/studio/publish/weekly-2026-W07", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ platforms: ["x"], mode: "draft" }),
+		});
+		expect(res.status).toBe(503);
+
+		const data = await res.json();
+		expect(data.error).toBe("Postiz not configured");
+	});
+
+	test("returns 404 for nonexistent review item", async () => {
+		// Configure Postiz so we don't hit 503
+		setConfig({
+			OUTPUT_DIR: tempDir,
+			PORT: 3001,
+			PROJECT_DIR: "",
+			POSTIZ_URL: "http://localhost:9999",
+			POSTIZ_API_KEY: "fake-key",
+		});
+
+		const res = await app.request("/api/studio/publish/nonexistent", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ platforms: ["x"], mode: "draft" }),
+		});
+		expect(res.status).toBe(404);
+	});
+});
+
+describe("PUT /api/studio/items/:slug/platform/:platform", () => {
+	test("saves adapted content", async () => {
+		await setupBlogFiles(tempDir);
+
+		// Auto-create the review item
+		const getRes = await app.request("/api/studio/items/weekly-2026-W07");
+		expect(getRes.status).toBe(200);
+
+		// PUT adapted content for X platform
+		const putRes = await app.request("/api/studio/items/weekly-2026-W07/platform/x", {
+			method: "PUT",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ content: "Adapted tweet content for X" }),
+		});
+		expect(putRes.status).toBe(200);
+
+		const putData = await putRes.json();
+		expect(putData.success).toBe(true);
+
+		// Verify via GET that platform content was saved
+		const verifyRes = await app.request("/api/studio/items/weekly-2026-W07");
+		expect(verifyRes.status).toBe(200);
+
+		const verifyData = await verifyRes.json();
+		expect(verifyData.review.platforms).toHaveProperty("x");
+		expect(verifyData.review.platforms.x.content).toBe("Adapted tweet content for X");
+		expect(verifyData.review.platforms.x.published).toBe(false);
+	});
+
+	test("returns 404 for nonexistent review item", async () => {
+		const res = await app.request("/api/studio/items/nonexistent/platform/x", {
+			method: "PUT",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ content: "test" }),
+		});
+		expect(res.status).toBe(404);
+	});
+});
+
+describe("PUT /api/studio/items/:slug/chat", () => {
+	test("saves chat history", async () => {
+		await setupBlogFiles(tempDir);
+
+		// Auto-create the review item
+		const getRes = await app.request("/api/studio/items/weekly-2026-W07");
+		expect(getRes.status).toBe(200);
+
+		// PUT chat history
+		const chatHistory = [
+			{ role: "user" as const, content: "Make it punchier", timestamp: "2026-02-18T10:00:00Z" },
+			{
+				role: "assistant" as const,
+				content: "Here is a punchier version",
+				timestamp: "2026-02-18T10:00:01Z",
+			},
+		];
+
+		const putRes = await app.request("/api/studio/items/weekly-2026-W07/chat", {
+			method: "PUT",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ chat_history: chatHistory }),
+		});
+		expect(putRes.status).toBe(200);
+
+		const putData = await putRes.json();
+		expect(putData.success).toBe(true);
+
+		// Verify via GET that chat was saved
+		const verifyRes = await app.request("/api/studio/items/weekly-2026-W07");
+		expect(verifyRes.status).toBe(200);
+
+		const verifyData = await verifyRes.json();
+		expect(verifyData.review.chat_history).toHaveLength(2);
+		expect(verifyData.review.chat_history[0].content).toBe("Make it punchier");
+		expect(verifyData.review.chat_history[1].role).toBe("assistant");
+	});
+
+	test("returns 404 for nonexistent review item", async () => {
+		const res = await app.request("/api/studio/items/nonexistent/chat", {
+			method: "PUT",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ chat_history: [] }),
+		});
+		expect(res.status).toBe(404);
+	});
+});

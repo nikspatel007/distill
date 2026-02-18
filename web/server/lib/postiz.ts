@@ -69,11 +69,12 @@ export async function listIntegrations(): Promise<
 export async function createPost(
 	content: string,
 	integrationIds: string[],
-	options: { postType?: string; scheduledAt?: string } = {},
+	options: { postType?: string; scheduledAt?: string; imageUrl?: string } = {},
 ): Promise<unknown> {
+	const imageArray = options.imageUrl ? [{ url: options.imageUrl }] : [];
 	const posts = integrationIds.map((id) => ({
 		integration: { id },
-		value: [{ content, image: [] }],
+		value: [{ content, image: imageArray }],
 		settings: { __type: "" },
 	}));
 
