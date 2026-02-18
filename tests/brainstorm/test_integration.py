@@ -48,7 +48,7 @@ def test_full_pipeline(tmp_path):
     ])
 
     # 3. Analyze
-    with patch("distill.brainstorm.analyst._call_llm", return_value=llm_response):
+    with patch("distill.brainstorm.services._call_llm", return_value=llm_response):
         ideas = analyze_research(
             items=items,
             pillars=pillars,

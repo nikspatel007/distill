@@ -112,8 +112,8 @@ class TestGenerateJournalNotes:
         ctx = _make_daily_context(date(2026, 2, 10))
 
         with (
-            patch("distill.journal.context.prepare_daily_context", return_value=ctx),
-            patch("distill.journal.memory.load_memory", return_value=WorkingMemory()),
+            patch("distill.journal.prepare_daily_context", return_value=ctx),
+            patch("distill.journal.load_memory", return_value=WorkingMemory()),
             patch("distill.memory.load_unified_memory", return_value=UnifiedMemory()),
             patch("distill.trends.detect_trends", return_value=[]),
         ):
@@ -139,8 +139,8 @@ class TestGenerateJournalNotes:
         mock_cache.is_generated.return_value = True
 
         with (
-            patch("distill.journal.cache.JournalCache", return_value=mock_cache),
-            patch("distill.journal.memory.load_memory", return_value=WorkingMemory()),
+            patch("distill.journal.JournalCache", return_value=mock_cache),
+            patch("distill.journal.load_memory", return_value=WorkingMemory()),
             patch("distill.memory.load_unified_memory", return_value=UnifiedMemory()),
             patch("distill.trends.detect_trends", return_value=[]),
         ):
@@ -160,7 +160,7 @@ class TestGenerateJournalNotes:
         session = _make_session(dt)
 
         with (
-            patch("distill.journal.memory.load_memory", return_value=WorkingMemory()),
+            patch("distill.journal.load_memory", return_value=WorkingMemory()),
             patch("distill.memory.load_unified_memory", return_value=UnifiedMemory()),
             patch("distill.trends.detect_trends", return_value=[]),
         ):
@@ -183,10 +183,10 @@ class TestGenerateJournalNotes:
         mock_synth.synthesize.side_effect = RuntimeError("LLM failed")
 
         with (
-            patch("distill.journal.cache.JournalCache") as mock_cache_cls,
-            patch("distill.journal.synthesizer.JournalSynthesizer", return_value=mock_synth),
-            patch("distill.journal.context.prepare_daily_context", return_value=_make_daily_context(date(2026, 2, 10))),
-            patch("distill.journal.memory.load_memory", return_value=WorkingMemory()),
+            patch("distill.journal.JournalCache") as mock_cache_cls,
+            patch("distill.journal.JournalSynthesizer", return_value=mock_synth),
+            patch("distill.journal.prepare_daily_context", return_value=_make_daily_context(date(2026, 2, 10))),
+            patch("distill.journal.load_memory", return_value=WorkingMemory()),
             patch("distill.memory.load_unified_memory", return_value=UnifiedMemory()),
             patch("distill.trends.detect_trends", return_value=[]),
         ):
@@ -216,12 +216,12 @@ class TestGenerateJournalNotes:
         mock_formatter.output_path.return_value = out_file
 
         with (
-            patch("distill.journal.cache.JournalCache") as mock_cache_cls,
-            patch("distill.journal.synthesizer.JournalSynthesizer", return_value=mock_synth),
-            patch("distill.journal.formatter.JournalFormatter", return_value=mock_formatter),
-            patch("distill.journal.context.prepare_daily_context", return_value=_make_daily_context(date(2026, 2, 10))),
-            patch("distill.journal.memory.load_memory", return_value=WorkingMemory()),
-            patch("distill.journal.memory.save_memory"),
+            patch("distill.journal.JournalCache") as mock_cache_cls,
+            patch("distill.journal.JournalSynthesizer", return_value=mock_synth),
+            patch("distill.journal.JournalFormatter", return_value=mock_formatter),
+            patch("distill.journal.prepare_daily_context", return_value=_make_daily_context(date(2026, 2, 10))),
+            patch("distill.journal.load_memory", return_value=WorkingMemory()),
+            patch("distill.journal.save_memory"),
             patch("distill.memory.load_unified_memory", return_value=UnifiedMemory()),
             patch("distill.memory.save_unified_memory"),
             patch("distill.trends.detect_trends", return_value=[]),
@@ -264,12 +264,12 @@ class TestGenerateJournalNotes:
         mock_formatter.output_path.return_value = out_file
 
         with (
-            patch("distill.journal.cache.JournalCache") as mock_cache_cls,
-            patch("distill.journal.synthesizer.JournalSynthesizer", return_value=mock_synth),
-            patch("distill.journal.formatter.JournalFormatter", return_value=mock_formatter),
-            patch("distill.journal.context.prepare_daily_context", return_value=_make_daily_context(date(2026, 2, 10))),
-            patch("distill.journal.memory.load_memory", return_value=WorkingMemory()),
-            patch("distill.journal.memory.save_memory"),
+            patch("distill.journal.JournalCache") as mock_cache_cls,
+            patch("distill.journal.JournalSynthesizer", return_value=mock_synth),
+            patch("distill.journal.JournalFormatter", return_value=mock_formatter),
+            patch("distill.journal.prepare_daily_context", return_value=_make_daily_context(date(2026, 2, 10))),
+            patch("distill.journal.load_memory", return_value=WorkingMemory()),
+            patch("distill.journal.save_memory"),
             patch("distill.memory.load_unified_memory", return_value=UnifiedMemory()),
             patch("distill.memory.save_unified_memory"),
             patch("distill.trends.detect_trends", return_value=[]),
@@ -299,8 +299,8 @@ class TestGenerateJournalNotes:
         mock_cache.is_generated.return_value = True
 
         with (
-            patch("distill.journal.cache.JournalCache", return_value=mock_cache),
-            patch("distill.journal.memory.load_memory", return_value=WorkingMemory()),
+            patch("distill.journal.JournalCache", return_value=mock_cache),
+            patch("distill.journal.load_memory", return_value=WorkingMemory()),
             patch("distill.memory.load_unified_memory", return_value=UnifiedMemory()),
             patch("distill.trends.detect_trends", return_value=[]),
         ):
@@ -324,9 +324,9 @@ class TestGenerateJournalNotes:
         mock_synth.synthesize.side_effect = RuntimeError("LLM failed")
 
         with (
-            patch("distill.journal.synthesizer.JournalSynthesizer", return_value=mock_synth),
-            patch("distill.journal.context.prepare_daily_context", return_value=_make_daily_context(date(2026, 2, 10))),
-            patch("distill.journal.memory.load_memory", return_value=WorkingMemory()),
+            patch("distill.journal.JournalSynthesizer", return_value=mock_synth),
+            patch("distill.journal.prepare_daily_context", return_value=_make_daily_context(date(2026, 2, 10))),
+            patch("distill.journal.load_memory", return_value=WorkingMemory()),
             patch("distill.memory.load_unified_memory", return_value=UnifiedMemory()),
             patch("distill.trends.detect_trends", return_value=[]),
         ):
@@ -353,10 +353,10 @@ class TestGenerateJournalNotes:
         mock_report = MagicMock()
 
         with (
-            patch("distill.journal.cache.JournalCache") as mock_cache_cls,
-            patch("distill.journal.synthesizer.JournalSynthesizer", return_value=mock_synth),
-            patch("distill.journal.context.prepare_daily_context", return_value=_make_daily_context(date(2026, 2, 10))),
-            patch("distill.journal.memory.load_memory", return_value=WorkingMemory()),
+            patch("distill.journal.JournalCache") as mock_cache_cls,
+            patch("distill.journal.JournalSynthesizer", return_value=mock_synth),
+            patch("distill.journal.prepare_daily_context", return_value=_make_daily_context(date(2026, 2, 10))),
+            patch("distill.journal.load_memory", return_value=WorkingMemory()),
             patch("distill.memory.load_unified_memory", return_value=UnifiedMemory()),
             patch("distill.trends.detect_trends", return_value=[]),
         ):
@@ -383,10 +383,10 @@ class TestGenerateJournalNotes:
         mock_synth.synthesize.side_effect = RuntimeError("stop early")
 
         with (
-            patch("distill.journal.cache.JournalCache") as mock_cache_cls,
-            patch("distill.journal.synthesizer.JournalSynthesizer", return_value=mock_synth),
-            patch("distill.journal.context.prepare_daily_context", return_value=ctx),
-            patch("distill.journal.memory.load_memory", return_value=WorkingMemory()),
+            patch("distill.journal.JournalCache") as mock_cache_cls,
+            patch("distill.journal.JournalSynthesizer", return_value=mock_synth),
+            patch("distill.journal.prepare_daily_context", return_value=ctx),
+            patch("distill.journal.load_memory", return_value=WorkingMemory()),
             patch("distill.memory.load_unified_memory", return_value=UnifiedMemory()),
             patch("distill.trends.detect_trends", return_value=[]),
         ):
@@ -418,8 +418,8 @@ class TestGenerateBlogPosts:
         mock_reader.read_intake_digests.return_value = []
 
         with (
-            patch("distill.config.load_config") as mock_load_config,
-            patch("distill.blog.reader.JournalReader", return_value=mock_reader),
+            patch("distill.shared.config.load_config") as mock_load_config,
+            patch("distill.blog.JournalReader", return_value=mock_reader),
         ):
             mock_cfg = MagicMock()
             mock_cfg.render_project_context.return_value = ""
@@ -447,14 +447,14 @@ class TestGenerateBlogPosts:
         mock_reader.read_intake_digests.return_value = []
 
         with (
-            patch("distill.config.load_config") as mock_load_config,
-            patch("distill.blog.reader.JournalReader", return_value=mock_reader),
-            patch("distill.journal.memory.load_memory", return_value=WorkingMemory()),
-            patch("distill.blog.state.load_blog_state", return_value=BlogState()),
-            patch("distill.blog.blog_memory.load_blog_memory", return_value=BlogMemory()),
+            patch("distill.shared.config.load_config") as mock_load_config,
+            patch("distill.blog.JournalReader", return_value=mock_reader),
+            patch("distill.journal.load_memory", return_value=WorkingMemory()),
+            patch("distill.blog.load_blog_state", return_value=BlogState()),
+            patch("distill.blog.load_blog_memory", return_value=BlogMemory()),
             patch("distill.memory.load_unified_memory", return_value=UnifiedMemory()),
             patch("distill.trends.detect_trends", return_value=[]),
-            patch("distill.editorial.EditorialStore") as mock_es,
+            patch("distill.shared.editorial.EditorialStore") as mock_es,
         ):
             mock_cfg = MagicMock()
             mock_cfg.render_project_context.return_value = ""
@@ -505,20 +505,20 @@ class TestGenerateBlogPosts:
         mock_publisher.index_path.return_value = tmp_path / "blog" / "index.md"
 
         with (
-            patch("distill.config.load_config") as mock_load_config,
-            patch("distill.blog.reader.JournalReader", return_value=mock_reader),
-            patch("distill.blog.synthesizer.BlogSynthesizer", return_value=mock_synth),
-            patch("distill.journal.memory.load_memory", return_value=WorkingMemory()),
-            patch("distill.blog.state.load_blog_state", return_value=BlogState()),
-            patch("distill.blog.blog_memory.load_blog_memory", return_value=BlogMemory()),
-            patch("distill.blog.state.save_blog_state"),
-            patch("distill.blog.blog_memory.save_blog_memory"),
+            patch("distill.shared.config.load_config") as mock_load_config,
+            patch("distill.blog.JournalReader", return_value=mock_reader),
+            patch("distill.blog.BlogSynthesizer", return_value=mock_synth),
+            patch("distill.journal.load_memory", return_value=WorkingMemory()),
+            patch("distill.blog.load_blog_state", return_value=BlogState()),
+            patch("distill.blog.load_blog_memory", return_value=BlogMemory()),
+            patch("distill.blog.save_blog_state"),
+            patch("distill.blog.save_blog_memory"),
             patch("distill.memory.load_unified_memory", return_value=UnifiedMemory()),
             patch("distill.memory.save_unified_memory"),
             patch("distill.trends.detect_trends", return_value=[]),
-            patch("distill.editorial.EditorialStore") as mock_es,
-            patch("distill.blog.context.prepare_weekly_context", return_value=_make_weekly_context()),
-            patch("distill.blog.diagrams.clean_diagrams", side_effect=lambda x: x),
+            patch("distill.shared.editorial.EditorialStore") as mock_es,
+            patch("distill.blog.prepare_weekly_context", return_value=_make_weekly_context()),
+            patch("distill.blog.clean_diagrams", side_effect=lambda x: x),
             patch("distill.pipeline.blog._generate_blog_images", return_value=None),
             patch("distill.blog.publishers.create_publisher", return_value=mock_publisher),
         ):
@@ -551,18 +551,18 @@ class TestGenerateBlogPosts:
         mock_publisher.format_index.return_value = ""
 
         with (
-            patch("distill.config.load_config") as mock_load_config,
-            patch("distill.blog.reader.JournalReader", return_value=mock_reader),
-            patch("distill.blog.synthesizer.BlogSynthesizer"),
-            patch("distill.journal.memory.load_memory", return_value=WorkingMemory()),
-            patch("distill.blog.state.load_blog_state", return_value=BlogState()),
-            patch("distill.blog.blog_memory.load_blog_memory", return_value=BlogMemory()),
-            patch("distill.blog.state.save_blog_state") as mock_save_state,
-            patch("distill.blog.blog_memory.save_blog_memory") as mock_save_memory,
+            patch("distill.shared.config.load_config") as mock_load_config,
+            patch("distill.blog.JournalReader", return_value=mock_reader),
+            patch("distill.blog.BlogSynthesizer"),
+            patch("distill.journal.load_memory", return_value=WorkingMemory()),
+            patch("distill.blog.load_blog_state", return_value=BlogState()),
+            patch("distill.blog.load_blog_memory", return_value=BlogMemory()),
+            patch("distill.blog.save_blog_state") as mock_save_state,
+            patch("distill.blog.save_blog_memory") as mock_save_memory,
             patch("distill.memory.load_unified_memory", return_value=UnifiedMemory()),
             patch("distill.memory.save_unified_memory") as mock_save_unified,
             patch("distill.trends.detect_trends", return_value=[]),
-            patch("distill.editorial.EditorialStore") as mock_es,
+            patch("distill.shared.editorial.EditorialStore") as mock_es,
             patch("distill.blog.publishers.create_publisher", return_value=mock_publisher),
         ):
             mock_cfg = MagicMock()
@@ -591,17 +591,17 @@ class TestGenerateBlogPosts:
         mock_reader.read_intake_digests.return_value = []
 
         with (
-            patch("distill.config.load_config") as mock_load_config,
-            patch("distill.blog.reader.JournalReader", return_value=mock_reader),
-            patch("distill.journal.memory.load_memory", return_value=WorkingMemory()),
-            patch("distill.blog.state.load_blog_state", return_value=BlogState()),
-            patch("distill.blog.blog_memory.load_blog_memory", return_value=BlogMemory()),
-            patch("distill.blog.state.save_blog_state") as mock_save_state,
-            patch("distill.blog.blog_memory.save_blog_memory") as mock_save_memory,
+            patch("distill.shared.config.load_config") as mock_load_config,
+            patch("distill.blog.JournalReader", return_value=mock_reader),
+            patch("distill.journal.load_memory", return_value=WorkingMemory()),
+            patch("distill.blog.load_blog_state", return_value=BlogState()),
+            patch("distill.blog.load_blog_memory", return_value=BlogMemory()),
+            patch("distill.blog.save_blog_state") as mock_save_state,
+            patch("distill.blog.save_blog_memory") as mock_save_memory,
             patch("distill.memory.load_unified_memory", return_value=UnifiedMemory()),
             patch("distill.memory.save_unified_memory") as mock_save_unified,
             patch("distill.trends.detect_trends", return_value=[]),
-            patch("distill.editorial.EditorialStore") as mock_es,
+            patch("distill.shared.editorial.EditorialStore") as mock_es,
         ):
             mock_cfg = MagicMock()
             mock_cfg.render_project_context.return_value = ""
@@ -629,10 +629,10 @@ class TestGenerateBlogPosts:
         mock_reader.read_intake_digests.return_value = []
 
         with (
-            patch("distill.config.load_config") as mock_load_config,
-            patch("distill.blog.reader.JournalReader", return_value=mock_reader),
-            patch("distill.blog.state.load_blog_state") as mock_load_state,
-            patch("distill.blog.blog_memory.load_blog_memory", return_value=BlogMemory()),
+            patch("distill.shared.config.load_config") as mock_load_config,
+            patch("distill.blog.JournalReader", return_value=mock_reader),
+            patch("distill.blog.load_blog_state") as mock_load_state,
+            patch("distill.blog.load_blog_memory", return_value=BlogMemory()),
             patch("distill.memory.load_unified_memory", return_value=UnifiedMemory()),
             patch("distill.trends.detect_trends", return_value=[]),
         ):
@@ -666,17 +666,17 @@ class TestGenerateBlogPosts:
         mock_publisher.format_index.return_value = ""
 
         with (
-            patch("distill.config.load_config") as mock_load_config,
-            patch("distill.blog.reader.JournalReader", return_value=mock_reader),
-            patch("distill.journal.memory.load_memory", return_value=WorkingMemory()),
-            patch("distill.blog.state.load_blog_state", return_value=BlogState()),
-            patch("distill.blog.blog_memory.load_blog_memory", return_value=BlogMemory()),
-            patch("distill.blog.state.save_blog_state"),
-            patch("distill.blog.blog_memory.save_blog_memory"),
+            patch("distill.shared.config.load_config") as mock_load_config,
+            patch("distill.blog.JournalReader", return_value=mock_reader),
+            patch("distill.journal.load_memory", return_value=WorkingMemory()),
+            patch("distill.blog.load_blog_state", return_value=BlogState()),
+            patch("distill.blog.load_blog_memory", return_value=BlogMemory()),
+            patch("distill.blog.save_blog_state"),
+            patch("distill.blog.save_blog_memory"),
             patch("distill.memory.load_unified_memory", return_value=UnifiedMemory()),
             patch("distill.memory.save_unified_memory"),
             patch("distill.trends.detect_trends", return_value=[]),
-            patch("distill.editorial.EditorialStore") as mock_es,
+            patch("distill.shared.editorial.EditorialStore") as mock_es,
             patch("distill.pipeline.blog._generate_weekly_posts", return_value=[]) as mock_weekly,
             patch("distill.pipeline.blog._generate_thematic_posts", return_value=[]) as mock_thematic,
             patch("distill.pipeline.blog._generate_reading_list_posts", return_value=[]) as mock_reading,
@@ -843,8 +843,8 @@ class TestGenerateWeeklyPosts:
         mock_publisher.weekly_output_path.return_value = tmp_path / "blog" / "weekly" / "2026-W07.md"
 
         with (
-            patch("distill.blog.context.prepare_weekly_context", return_value=_make_weekly_context()),
-            patch("distill.blog.diagrams.clean_diagrams", side_effect=lambda x: x),
+            patch("distill.blog.prepare_weekly_context", return_value=_make_weekly_context()),
+            patch("distill.blog.clean_diagrams", side_effect=lambda x: x),
             patch("distill.pipeline.blog._generate_blog_images", return_value=None),
             patch("distill.blog.publishers.create_publisher", return_value=mock_publisher),
         ):
@@ -890,8 +890,8 @@ class TestGenerateWeeklyPosts:
         postiz_counter = [5]
 
         with (
-            patch("distill.blog.context.prepare_weekly_context", return_value=_make_weekly_context()),
-            patch("distill.blog.diagrams.clean_diagrams", side_effect=lambda x: x),
+            patch("distill.blog.prepare_weekly_context", return_value=_make_weekly_context()),
+            patch("distill.blog.clean_diagrams", side_effect=lambda x: x),
             patch("distill.pipeline.blog._generate_blog_images", return_value=None),
             patch("distill.blog.publishers.create_publisher", return_value=mock_publisher),
         ):
@@ -923,7 +923,7 @@ class TestGenerateWeeklyPosts:
 
         ctx = _make_weekly_context()
 
-        with patch("distill.blog.context.prepare_weekly_context", return_value=ctx):
+        with patch("distill.blog.prepare_weekly_context", return_value=ctx):
             _generate_weekly_posts(
                 entries=entries,
                 memory=WorkingMemory(),
@@ -954,7 +954,7 @@ class TestGenerateThematicPosts:
         """target_theme that doesn't exist returns empty."""
         from distill.pipeline.blog import _generate_thematic_posts
 
-        with patch("distill.intake.seeds.SeedStore") as mock_ss:
+        with patch("distill.intake.SeedStore") as mock_ss:
             mock_ss.return_value.list_unused.return_value = []
             result = _generate_thematic_posts(
                 entries=[_make_journal_entry(date(2026, 2, 10))],
@@ -987,11 +987,11 @@ class TestGenerateThematicPosts:
         entry = _make_journal_entry(d, prose="test keyword here")
 
         with (
-            patch("distill.blog.themes.THEMES", [theme]),
-            patch("distill.blog.themes.gather_evidence", return_value=[entry]),
-            patch("distill.blog.context.prepare_thematic_context", return_value=_make_thematic_context(theme)),
-            patch("distill.intake.seeds.SeedStore") as mock_ss,
-            patch("distill.blog.themes.themes_from_seeds", return_value=[]),
+            patch("distill.blog.THEMES", [theme]),
+            patch("distill.blog.gather_evidence", return_value=[entry]),
+            patch("distill.blog.prepare_thematic_context", return_value=_make_thematic_context(theme)),
+            patch("distill.intake.SeedStore") as mock_ss,
+            patch("distill.blog.themes_from_seeds", return_value=[]),
         ):
             mock_ss.return_value.list_unused.return_value = []
 
@@ -1038,11 +1038,11 @@ class TestGenerateThematicPosts:
         entry = _make_journal_entry(d, prose="test keyword here")
 
         with (
-            patch("distill.blog.themes.THEMES", [theme]),
-            patch("distill.blog.themes.gather_evidence", return_value=[entry]),
-            patch("distill.blog.context.prepare_thematic_context", return_value=_make_thematic_context(theme)),
-            patch("distill.intake.seeds.SeedStore") as mock_ss,
-            patch("distill.blog.themes.themes_from_seeds", return_value=[]),
+            patch("distill.blog.THEMES", [theme]),
+            patch("distill.blog.gather_evidence", return_value=[entry]),
+            patch("distill.blog.prepare_thematic_context", return_value=_make_thematic_context(theme)),
+            patch("distill.intake.SeedStore") as mock_ss,
+            patch("distill.blog.themes_from_seeds", return_value=[]),
         ):
             mock_ss.return_value.list_unused.return_value = []
 
@@ -1094,14 +1094,14 @@ class TestGenerateThematicPosts:
         state = BlogState()
 
         with (
-            patch("distill.blog.themes.THEMES", [theme]),
-            patch("distill.blog.themes.gather_evidence", return_value=[entry]),
-            patch("distill.blog.context.prepare_thematic_context", return_value=_make_thematic_context(theme)),
-            patch("distill.blog.diagrams.clean_diagrams", side_effect=lambda x: x),
+            patch("distill.blog.THEMES", [theme]),
+            patch("distill.blog.gather_evidence", return_value=[entry]),
+            patch("distill.blog.prepare_thematic_context", return_value=_make_thematic_context(theme)),
+            patch("distill.blog.clean_diagrams", side_effect=lambda x: x),
             patch("distill.pipeline.blog._generate_blog_images", return_value=None),
             patch("distill.blog.publishers.create_publisher", return_value=mock_publisher),
-            patch("distill.intake.seeds.SeedStore") as mock_ss,
-            patch("distill.blog.themes.themes_from_seeds", return_value=[]),
+            patch("distill.intake.SeedStore") as mock_ss,
+            patch("distill.blog.themes_from_seeds", return_value=[]),
         ):
             mock_ss.return_value.list_unused.return_value = []
 
@@ -1136,10 +1136,10 @@ class TestGenerateThematicPosts:
         )
 
         with (
-            patch("distill.blog.themes.THEMES", [theme]),
-            patch("distill.blog.themes.gather_evidence", return_value=[]),
-            patch("distill.intake.seeds.SeedStore") as mock_ss,
-            patch("distill.blog.themes.themes_from_seeds", return_value=[]),
+            patch("distill.blog.THEMES", [theme]),
+            patch("distill.blog.gather_evidence", return_value=[]),
+            patch("distill.intake.SeedStore") as mock_ss,
+            patch("distill.blog.themes_from_seeds", return_value=[]),
         ):
             mock_ss.return_value.list_unused.return_value = []
 
@@ -1185,16 +1185,16 @@ class TestGenerateThematicPosts:
         config.max_thematic_posts = 2
 
         with (
-            patch("distill.blog.themes.get_ready_themes", return_value=[
+            patch("distill.blog.get_ready_themes", return_value=[
                 (theme1, entries),
                 (theme2, entries),
                 (theme3, entries),
             ]),
-            patch("distill.blog.themes.themes_from_seeds", return_value=[]),
-            patch("distill.blog.context.prepare_thematic_context") as mock_prep,
-            patch("distill.intake.seeds.SeedStore") as mock_ss,
+            patch("distill.blog.themes_from_seeds", return_value=[]),
+            patch("distill.blog.prepare_thematic_context") as mock_prep,
+            patch("distill.intake.SeedStore") as mock_ss,
             patch("distill.memory.load_unified_memory", return_value=UnifiedMemory()),
-            patch("distill.blog.themes.detect_series_candidates", return_value=[]),
+            patch("distill.blog.detect_series_candidates", return_value=[]),
         ):
             mock_ss.return_value.list_unused.return_value = []
             mock_prep.return_value = _make_thematic_context(theme1)
@@ -1235,11 +1235,11 @@ class TestGenerateThematicPosts:
         mock_es.render_for_prompt.return_value = "Focus on testing patterns."
 
         with (
-            patch("distill.blog.themes.THEMES", [theme]),
-            patch("distill.blog.themes.gather_evidence", return_value=[entry]),
-            patch("distill.blog.context.prepare_thematic_context", return_value=ctx),
-            patch("distill.intake.seeds.SeedStore") as mock_ss,
-            patch("distill.blog.themes.themes_from_seeds", return_value=[]),
+            patch("distill.blog.THEMES", [theme]),
+            patch("distill.blog.gather_evidence", return_value=[entry]),
+            patch("distill.blog.prepare_thematic_context", return_value=ctx),
+            patch("distill.intake.SeedStore") as mock_ss,
+            patch("distill.blog.themes_from_seeds", return_value=[]),
         ):
             mock_ss.return_value.list_unused.return_value = []
 
@@ -1285,9 +1285,9 @@ class TestGenerateReadingListPosts:
         )
 
         with (
-            patch("distill.store.create_store", return_value=MagicMock()),
+            patch("distill.shared.store.create_store", return_value=MagicMock()),
             patch(
-                "distill.blog.reading_list.prepare_reading_list_context",
+                "distill.blog.prepare_reading_list_context",
                 return_value=ctx,
             ),
         ):
@@ -1317,9 +1317,9 @@ class TestGenerateReadingListPosts:
         entries = [_make_journal_entry(d)]
 
         with (
-            patch("distill.store.create_store", return_value=MagicMock()),
+            patch("distill.shared.store.create_store", return_value=MagicMock()),
             patch(
-                "distill.blog.reading_list.prepare_reading_list_context",
+                "distill.blog.prepare_reading_list_context",
                 return_value=None,
             ),
         ):
@@ -1354,7 +1354,7 @@ class TestGenerateReadingListPosts:
             )
         )
 
-        with patch("distill.store.create_store", return_value=MagicMock()):
+        with patch("distill.shared.store.create_store", return_value=MagicMock()):
             result = _generate_reading_list_posts(
                 entries=entries,
                 unified=UnifiedMemory(),
@@ -1396,16 +1396,16 @@ class TestGenerateReadingListPosts:
         state = BlogState()
 
         with (
-            patch("distill.store.create_store", return_value=MagicMock()),
+            patch("distill.shared.store.create_store", return_value=MagicMock()),
             patch(
-                "distill.blog.reading_list.prepare_reading_list_context",
+                "distill.blog.prepare_reading_list_context",
                 return_value=ctx,
             ),
             patch(
-                "distill.blog.reading_list.render_reading_list_prompt",
+                "distill.blog.render_reading_list_prompt",
                 return_value="prompt text",
             ),
-            patch("distill.blog.prompts.get_blog_prompt", return_value="system prompt"),
+            patch("distill.blog.get_blog_prompt", return_value="system prompt"),
             patch("distill.blog.publishers.create_publisher", return_value=mock_publisher),
         ):
             result = _generate_reading_list_posts(
@@ -1451,16 +1451,16 @@ class TestGenerateReadingListPosts:
         postiz_counter = [3]
 
         with (
-            patch("distill.store.create_store", return_value=MagicMock()),
+            patch("distill.shared.store.create_store", return_value=MagicMock()),
             patch(
-                "distill.blog.reading_list.prepare_reading_list_context",
+                "distill.blog.prepare_reading_list_context",
                 return_value=ctx,
             ),
             patch(
-                "distill.blog.reading_list.render_reading_list_prompt",
+                "distill.blog.render_reading_list_prompt",
                 return_value="prompt",
             ),
-            patch("distill.blog.prompts.get_blog_prompt", return_value="system"),
+            patch("distill.blog.get_blog_prompt", return_value="system"),
             patch("distill.blog.publishers.create_publisher", return_value=mock_publisher),
         ):
             result = _generate_reading_list_posts(
@@ -1500,16 +1500,16 @@ class TestGenerateReadingListPosts:
         mock_synth.synthesize_raw.return_value = "Content."
 
         with (
-            patch("distill.store.create_store", return_value=MagicMock()),
+            patch("distill.shared.store.create_store", return_value=MagicMock()),
             patch(
-                "distill.blog.reading_list.prepare_reading_list_context",
+                "distill.blog.prepare_reading_list_context",
                 return_value=ctx,
             ),
             patch(
-                "distill.blog.reading_list.render_reading_list_prompt",
+                "distill.blog.render_reading_list_prompt",
                 return_value="prompt",
             ),
-            patch("distill.blog.prompts.get_blog_prompt", return_value="system"),
+            patch("distill.blog.get_blog_prompt", return_value="system"),
             patch(
                 "distill.blog.publishers.create_publisher",
                 side_effect=ValueError("Unknown platform"),
@@ -1546,7 +1546,7 @@ class TestGenerateBlogImages:
         mock_gen = MagicMock()
         mock_gen.is_configured.return_value = False
 
-        with patch("distill.images.ImageGenerator", return_value=mock_gen):
+        with patch("distill.shared.images.ImageGenerator", return_value=mock_gen):
             result = _generate_blog_images("Some prose.", tmp_path, "test-slug")
 
         assert result is None
@@ -1559,7 +1559,7 @@ class TestGenerateBlogImages:
         mock_gen.is_configured.return_value = True
 
         with (
-            patch("distill.images.ImageGenerator", return_value=mock_gen),
+            patch("distill.shared.images.ImageGenerator", return_value=mock_gen),
             patch("distill.intake.images.extract_image_prompts", return_value=[]),
         ):
             result = _generate_blog_images("Some prose.", tmp_path, "test-slug")
@@ -1570,7 +1570,7 @@ class TestGenerateBlogImages:
         """Returns None on any exception."""
         from distill.pipeline.blog import _generate_blog_images
 
-        with patch("distill.images.ImageGenerator", side_effect=RuntimeError("boom")):
+        with patch("distill.shared.images.ImageGenerator", side_effect=RuntimeError("boom")):
             result = _generate_blog_images("Some prose.", tmp_path, "test-slug")
 
         assert result is None

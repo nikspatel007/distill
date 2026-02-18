@@ -132,7 +132,7 @@ class TestBuildPrompts:
 class TestExtractEntities:
     """Test entity extraction via mocked LLM."""
 
-    @patch("distill.intake.intelligence._call_claude")
+    @patch("distill.intake.services._call_claude_intelligence")
     def test_basic_extraction(self, mock_claude):
         mock_claude.return_value = json.dumps([
             {
@@ -153,7 +153,7 @@ class TestExtractEntities:
         assert "python" in entities["technologies"]
         assert "Anthropic" in entities["organizations"]
 
-    @patch("distill.intake.intelligence._call_claude")
+    @patch("distill.intake.services._call_claude_intelligence")
     def test_populates_topics(self, mock_claude):
         mock_claude.return_value = json.dumps([
             {
@@ -170,7 +170,7 @@ class TestExtractEntities:
 
         assert items[0].topics == ["AI agents", "tool use"]
 
-    @patch("distill.intake.intelligence._call_claude")
+    @patch("distill.intake.services._call_claude_intelligence")
     def test_preserves_existing_topics(self, mock_claude):
         mock_claude.return_value = json.dumps([
             {
@@ -188,7 +188,7 @@ class TestExtractEntities:
 
         assert items[0].topics == ["existing topic"]
 
-    @patch("distill.intake.intelligence._call_claude")
+    @patch("distill.intake.services._call_claude_intelligence")
     def test_batch_processing(self, mock_claude):
         """Multiple items in a single batch."""
         mock_claude.return_value = json.dumps([
@@ -202,7 +202,7 @@ class TestExtractEntities:
         assert items[0].metadata["entities"]["projects"] == ["p1"]
         assert items[1].metadata["entities"]["projects"] == ["p2"]
 
-    @patch("distill.intake.intelligence._call_claude")
+    @patch("distill.intake.services._call_claude_intelligence")
     def test_llm_failure_graceful(self, mock_claude):
         """When LLM fails, items should not have entities but no crash."""
         mock_claude.return_value = ""
@@ -213,7 +213,7 @@ class TestExtractEntities:
         assert len(result) == 1
         assert "entities" not in result[0].metadata
 
-    @patch("distill.intake.intelligence._call_claude")
+    @patch("distill.intake.services._call_claude_intelligence")
     def test_invalid_json_graceful(self, mock_claude):
         mock_claude.return_value = "not json"
 
@@ -222,7 +222,7 @@ class TestExtractEntities:
 
         assert "entities" not in result[0].metadata
 
-    @patch("distill.intake.intelligence._call_claude")
+    @patch("distill.intake.services._call_claude_intelligence")
     def test_partial_response(self, mock_claude):
         """Response has fewer items than batch — only available items get entities."""
         mock_claude.return_value = json.dumps([
@@ -235,7 +235,7 @@ class TestExtractEntities:
         assert "entities" in items[0].metadata
         assert "entities" not in items[1].metadata
 
-    @patch("distill.intake.intelligence._call_claude")
+    @patch("distill.intake.services._call_claude_intelligence")
     def test_large_batch_splits(self, mock_claude):
         """Items exceeding batch size are processed in multiple calls."""
         # Create 12 items (batch size is 8, so 2 calls)
@@ -248,7 +248,7 @@ class TestExtractEntities:
 
         assert mock_claude.call_count == 2
 
-    @patch("distill.intake.intelligence._call_claude")
+    @patch("distill.intake.services._call_claude_intelligence")
     def test_session_entities(self, mock_claude):
         """Session items get entity extraction too."""
         mock_claude.return_value = json.dumps([
@@ -266,7 +266,7 @@ class TestExtractEntities:
 
         assert items[0].metadata["entities"]["projects"] == ["distill"]
 
-    @patch("distill.intake.intelligence._call_claude")
+    @patch("distill.intake.services._call_claude_intelligence")
     def test_preamble_response_parsed(self, mock_claude):
         """Response with preamble text before JSON should still parse."""
         entity = {
@@ -284,13 +284,13 @@ class TestExtractEntities:
         assert "entities" in items[0].metadata
         assert items[0].metadata["entities"]["projects"] == ["distill"]
 
-    @patch("distill.intake.intelligence._call_claude")
+    @patch("distill.intake.services._call_claude_intelligence")
     def test_summary_logging_on_failures(self, mock_claude, caplog):
         """Failed batches produce a single summary warning, not per-batch warnings."""
         mock_claude.return_value = "totally not json {{"
 
         items = [_make_item(title=f"Item {i}") for i in range(3)]
-        with caplog.at_level(logging.WARNING, logger="distill.intake.intelligence"):
+        with caplog.at_level(logging.WARNING, logger="distill.intake.services"):
             extract_entities(items)
 
         warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
@@ -298,7 +298,7 @@ class TestExtractEntities:
         assert "0/1 batches succeeded" in warnings[0].message
         assert "1 parse failures" in warnings[0].message
 
-    @patch("distill.intake.intelligence._call_claude")
+    @patch("distill.intake.services._call_claude_intelligence")
     def test_no_warning_when_all_succeed(self, mock_claude, caplog):
         """No warning logged when all batches succeed."""
         mock_claude.return_value = json.dumps([
@@ -306,7 +306,7 @@ class TestExtractEntities:
         ])
 
         items = [_make_item()]
-        with caplog.at_level(logging.WARNING, logger="distill.intake.intelligence"):
+        with caplog.at_level(logging.WARNING, logger="distill.intake.services"):
             extract_entities(items)
 
         warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
@@ -316,7 +316,7 @@ class TestExtractEntities:
 class TestClassifyItems:
     """Test content classification via mocked LLM."""
 
-    @patch("distill.intake.intelligence._call_claude")
+    @patch("distill.intake.services._call_claude_intelligence")
     def test_basic_classification(self, mock_claude):
         mock_claude.return_value = json.dumps([
             {"category": "tutorial", "sentiment": "positive", "relevance": 4}
@@ -330,7 +330,7 @@ class TestClassifyItems:
         assert cls["sentiment"] == "positive"
         assert cls["relevance"] == 4
 
-    @patch("distill.intake.intelligence._call_claude")
+    @patch("distill.intake.services._call_claude_intelligence")
     def test_multiple_items(self, mock_claude):
         mock_claude.return_value = json.dumps([
             {"category": "tutorial", "sentiment": "positive", "relevance": 4},
@@ -343,14 +343,14 @@ class TestClassifyItems:
         assert items[0].metadata["classification"]["category"] == "tutorial"
         assert items[1].metadata["classification"]["category"] == "news"
 
-    @patch("distill.intake.intelligence._call_claude")
+    @patch("distill.intake.services._call_claude_intelligence")
     def test_llm_failure_graceful(self, mock_claude):
         mock_claude.return_value = ""
         items = [_make_item()]
         classify_items(items)
         assert "classification" not in items[0].metadata
 
-    @patch("distill.intake.intelligence._call_claude")
+    @patch("distill.intake.services._call_claude_intelligence")
     def test_session_classification(self, mock_claude):
         mock_claude.return_value = json.dumps([
             {"category": "session-log", "sentiment": "positive", "relevance": 5}
@@ -360,7 +360,7 @@ class TestClassifyItems:
         classify_items(items)
         assert items[0].metadata["classification"]["category"] == "session-log"
 
-    @patch("distill.intake.intelligence._call_claude")
+    @patch("distill.intake.services._call_claude_intelligence")
     def test_preamble_response_parsed(self, mock_claude):
         """Response with preamble text before JSON should still parse."""
         cls = {"category": "tutorial", "sentiment": "positive", "relevance": 4}
@@ -372,13 +372,13 @@ class TestClassifyItems:
         assert "classification" in items[0].metadata
         assert items[0].metadata["classification"]["category"] == "tutorial"
 
-    @patch("distill.intake.intelligence._call_claude")
+    @patch("distill.intake.services._call_claude_intelligence")
     def test_summary_logging_on_failures(self, mock_claude, caplog):
         """Failed batches produce a single summary warning."""
         mock_claude.return_value = "broken json {{"
 
         items = [_make_item(title=f"Item {i}") for i in range(3)]
-        with caplog.at_level(logging.WARNING, logger="distill.intake.intelligence"):
+        with caplog.at_level(logging.WARNING, logger="distill.intake.services"):
             classify_items(items)
 
         warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
@@ -390,7 +390,7 @@ class TestClassifyItems:
 class TestExtractTopics:
     """Test topic extraction across items."""
 
-    @patch("distill.intake.intelligence._call_claude")
+    @patch("distill.intake.services._call_claude_intelligence")
     def test_basic_topic_extraction(self, mock_claude):
         mock_claude.return_value = json.dumps(["AI agents", "testing", "deployment"])
 
@@ -399,7 +399,7 @@ class TestExtractTopics:
 
         assert topics == ["AI agents", "testing", "deployment"]
 
-    @patch("distill.intake.intelligence._call_claude")
+    @patch("distill.intake.services._call_claude_intelligence")
     def test_preserves_existing_topics(self, mock_claude):
         mock_claude.return_value = json.dumps(["AI", "testing"])
 
@@ -408,14 +408,14 @@ class TestExtractTopics:
         )
         assert topics == ["AI", "testing"]
 
-    @patch("distill.intake.intelligence._call_claude")
+    @patch("distill.intake.services._call_claude_intelligence")
     def test_fallback_on_failure(self, mock_claude):
         mock_claude.return_value = ""
         existing = ["topic1", "topic2"]
         topics = extract_topics([_make_item()], existing_topics=existing)
         assert topics == existing
 
-    @patch("distill.intake.intelligence._call_claude")
+    @patch("distill.intake.services._call_claude_intelligence")
     def test_fallback_on_invalid_json(self, mock_claude):
         mock_claude.return_value = "not json"
         topics = extract_topics([_make_item()], existing_topics=["existing"])
@@ -429,7 +429,7 @@ class TestExtractTopics:
         topics = extract_topics([])
         assert topics == []
 
-    @patch("distill.intake.intelligence._call_claude")
+    @patch("distill.intake.services._call_claude_intelligence")
     def test_non_string_topics_rejected(self, mock_claude):
         """If LLM returns non-string items, fall back."""
         mock_claude.return_value = json.dumps([1, 2, 3])

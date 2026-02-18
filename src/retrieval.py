@@ -7,21 +7,21 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from distill.intake.models import ContentItem
-    from distill.store import JsonStore, PgvectorStore
+    from distill.shared.store import JsonStore, PgvectorStore
 
 logger = logging.getLogger(__name__)
 
 
 def _embeddings_available() -> bool:
     """Check if embeddings are available."""
-    from distill.embeddings import is_available
+    from distill.shared.embeddings import is_available
 
     return is_available()
 
 
 def _embed_text(text: str) -> list[float]:
     """Embed text using sentence-transformers."""
-    from distill.embeddings import embed_text
+    from distill.shared.embeddings import embed_text
 
     return embed_text(text)
 

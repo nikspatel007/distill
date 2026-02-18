@@ -166,7 +166,7 @@ def parse_sessions(
     Returns:
         List of parsed sessions.
     """
-    from distill.narrative import enrich_narrative
+    from distill.shared.narrative import enrich_narrative
 
     sessions: list[BaseSession] = []
     if source == "claude":

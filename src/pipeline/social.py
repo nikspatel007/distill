@@ -66,7 +66,7 @@ def _build_daily_social_context(
         aliases = [focus_project.lower()]
         # Also match common aliases and related keywords
         try:
-            from distill.config import load_config
+            from distill.shared.config import load_config
 
             cfg = load_config()
             for proj in cfg.projects:
@@ -109,7 +109,7 @@ def _build_daily_social_context(
     # --- 2. Append unused seed ideas ---
     seeds_section = ""
     try:
-        from distill.intake.seeds import SeedStore
+        from distill.intake import SeedStore
 
         store = SeedStore(output_dir)
         unused = [s for s in store.list_active() if not s.used]
@@ -137,7 +137,7 @@ def _build_daily_social_context(
     # --- 3. Append editorial notes targeting "daily" ---
     editorial_section = ""
     try:
-        from distill.editorial import EditorialStore
+        from distill.shared.editorial import EditorialStore
 
         store = EditorialStore(output_dir)
         rendered = store.render_for_prompt(target="daily")
@@ -165,7 +165,7 @@ def _generate_daily_social_image(
         return None
 
     try:
-        from distill.images import ImageGenerator
+        from distill.shared.images import ImageGenerator
 
         generator = ImageGenerator()
         if not generator.is_configured():
@@ -205,8 +205,8 @@ def _generate_daily_social_image(
 
         # Upload to Ghost to get a CDN URL (Postiz needs a URL, not a file path)
         try:
-            from distill.config import load_config
             from distill.integrations.ghost import GhostAPIClient
+            from distill.shared.config import load_config
 
             cfg = load_config()
             ghost_config = cfg.to_ghost_config()
@@ -255,9 +255,7 @@ def generate_daily_social(
     Returns:
         List of written file paths.
     """
-    from distill.blog.config import BlogConfig
-    from distill.blog.reader import JournalReader
-    from distill.blog.synthesizer import BlogSynthesizer
+    from distill.blog import BlogConfig, BlogSynthesizer, JournalReader
 
     if postiz_config is None:
         return []
@@ -321,8 +319,8 @@ def generate_daily_social(
     )
 
     # Synthesize per-platform content
-    from distill.blog.prompts import get_daily_social_prompt
-    from distill.config import load_config as _load_cfg
+    from distill.blog import get_daily_social_prompt
+    from distill.shared.config import load_config as _load_cfg
 
     _cfg = _load_cfg()
     _focus_project = getattr(postiz_config, "daily_social_project", "")
