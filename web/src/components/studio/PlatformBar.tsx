@@ -14,21 +14,25 @@ const PLATFORMS = [
 		key: "ghost",
 		label: "Ghost",
 		color: "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300",
+		activeColor: "bg-purple-600 text-white dark:bg-purple-500 dark:text-white",
 	},
 	{
 		key: "x",
 		label: "X",
 		color: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
+		activeColor: "bg-sky-600 text-white dark:bg-sky-500 dark:text-white",
 	},
 	{
 		key: "linkedin",
 		label: "LinkedIn",
 		color: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
+		activeColor: "bg-blue-600 text-white dark:bg-blue-500 dark:text-white",
 	},
 	{
 		key: "slack",
 		label: "Slack",
 		color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+		activeColor: "bg-emerald-600 text-white dark:bg-emerald-500 dark:text-white",
 	},
 ];
 
@@ -81,60 +85,55 @@ export function PlatformBar({
 
 	const readyCount = Object.values(platforms).filter((p) => p.content && !p.published).length;
 	const allPublished = Object.values(platforms).every((p) => !p.content || p.published);
-	const selectedContent = platforms[selectedPlatform]?.content ?? null;
 	const _configured = integrationsData?.configured ?? false;
 
 	return (
-		<div className="border-t border-zinc-200 dark:border-zinc-800">
-			<div className="flex items-center justify-between px-4 py-3">
-				<div className="flex items-center gap-2">
-					{PLATFORMS.map((p) => {
-						const platformData = platforms[p.key];
-						const hasContent = !!platformData?.content;
-						const isPublished = !!platformData?.published;
-						const isSelected = selectedPlatform === p.key;
+		<div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2 dark:border-zinc-800">
+			<div className="flex items-center gap-1.5">
+				{PLATFORMS.map((p) => {
+					const platformData = platforms[p.key];
+					const hasContent = !!platformData?.content;
+					const isPublished = !!platformData?.published;
+					const isSelected = selectedPlatform === p.key;
 
-						return (
-							<button
-								key={p.key}
-								type="button"
-								onClick={() => onSelectPlatform(p.key)}
-								className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-all ${
-									hasContent
+					return (
+						<button
+							key={p.key}
+							type="button"
+							onClick={() => onSelectPlatform(p.key)}
+							className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-all ${
+								isSelected
+									? hasContent
+										? p.activeColor
+										: "bg-zinc-600 text-white dark:bg-zinc-500"
+									: hasContent
 										? p.color
-										: "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
-								} ${isSelected ? "ring-2 ring-indigo-500 ring-offset-1 dark:ring-offset-zinc-900" : ""}`}
-							>
-								{isPublished && <span>&#10003;</span>}
-								{p.label}
-							</button>
-						);
-					})}
-				</div>
+										: "bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500"
+							}`}
+						>
+							{isPublished && <span>&#10003;</span>}
+							{p.label}
+							{hasContent && !isSelected && (
+								<span className="ml-0.5 inline-block h-1.5 w-1.5 rounded-full bg-current opacity-60" />
+							)}
+						</button>
+					);
+				})}
+			</div>
 
-				<div className="flex items-center gap-3">
-					{publishError && <span className="text-xs text-red-500">{publishError}</span>}
+			<div className="flex items-center gap-3">
+				{publishError && <span className="text-xs text-red-500">{publishError}</span>}
+				{readyCount > 0 && !allPublished && (
 					<button
 						type="button"
 						onClick={() => publishMutation.mutate()}
-						disabled={readyCount === 0 || allPublished || publishMutation.isPending}
-						className="rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+						disabled={publishMutation.isPending}
+						className="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
 					>
-						{publishMutation.isPending ? "Publishing..." : `Publish All Ready (${readyCount})`}
+						{publishMutation.isPending ? "Publishing..." : `Publish ${readyCount}`}
 					</button>
-				</div>
+				)}
 			</div>
-
-			{selectedContent && (
-				<div className="border-t border-zinc-100 px-4 py-3 dark:border-zinc-800">
-					<p className="mb-1 text-xs font-medium text-zinc-500">
-						Preview: <span className="capitalize">{selectedPlatform}</span>
-					</p>
-					<div className="max-h-32 overflow-y-auto rounded-lg bg-zinc-50 p-3 text-sm text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
-						<p className="whitespace-pre-wrap">{selectedContent}</p>
-					</div>
-				</div>
-			)}
 		</div>
 	);
 }

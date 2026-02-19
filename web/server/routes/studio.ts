@@ -631,4 +631,23 @@ ADAPTED_CONTENT:
 	}
 });
 
+// ---------------------------------------------------------------------------
+// GET /api/studio/images/* — serve content images from output_dir
+// ---------------------------------------------------------------------------
+app.get("/api/studio/images/*", async (c) => {
+	const { OUTPUT_DIR } = getConfig();
+	const imagePath = c.req.path.replace("/api/studio/images/", "");
+	const fullPath = join(OUTPUT_DIR, imagePath);
+
+	try {
+		const file = Bun.file(fullPath);
+		if (!(await file.exists())) {
+			return c.json({ error: "Image not found" }, 404);
+		}
+		return new Response(file);
+	} catch {
+		return c.json({ error: "Failed to read image" }, 500);
+	}
+});
+
 export default app;

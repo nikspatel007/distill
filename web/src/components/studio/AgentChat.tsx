@@ -1,4 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
+import { Send } from "lucide-react";
 import { useRef, useState } from "react";
 import type { ChatMessage } from "../../../shared/schemas.js";
 
@@ -13,6 +14,7 @@ export function AgentChat({ content, platform, chatHistory, onResponse }: AgentC
 	const [input, setInput] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const scrollRef = useRef<HTMLDivElement>(null);
+	const inputRef = useRef<HTMLTextAreaElement>(null);
 
 	const chatMutation = useMutation({
 		mutationFn: async (message: string) => {
@@ -30,12 +32,19 @@ export function AgentChat({ content, platform, chatHistory, onResponse }: AgentC
 				const err = await res.json().catch(() => ({ error: "Unknown error" }));
 				throw new Error(err.error || "Chat failed");
 			}
-			return res.json() as Promise<{ response: string; adapted_content: string }>;
+			return res.json() as Promise<{
+				response: string;
+				adapted_content: string;
+			}>;
 		},
 		onSuccess: (data, message) => {
 			setError(null);
 			const now = new Date().toISOString();
-			const userMsg: ChatMessage = { role: "user", content: message, timestamp: now };
+			const userMsg: ChatMessage = {
+				role: "user",
+				content: message,
+				timestamp: now,
+			};
 			const assistantMsg: ChatMessage = {
 				role: "assistant",
 				content: data.response,
@@ -44,7 +53,10 @@ export function AgentChat({ content, platform, chatHistory, onResponse }: AgentC
 			const newHistory = [...chatHistory, userMsg, assistantMsg];
 			onResponse(data.response, data.adapted_content, newHistory);
 			setTimeout(() => {
-				scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+				scrollRef.current?.scrollTo({
+					top: scrollRef.current.scrollHeight,
+					behavior: "smooth",
+				});
 			}, 50);
 		},
 		onError: (err: Error) => {
@@ -66,74 +78,75 @@ export function AgentChat({ content, platform, chatHistory, onResponse }: AgentC
 		}
 	};
 
+	const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+		setInput(e.target.value);
+		e.target.style.height = "auto";
+		e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+	};
+
 	return (
-		<div className="flex h-full flex-col border-l border-zinc-200 dark:border-zinc-800">
-			<div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-				<h3 className="text-sm font-semibold">
-					Adapting for <span className="capitalize">{platform}</span>
-				</h3>
-			</div>
-
-			<div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">
-				{chatHistory.length === 0 && !chatMutation.isPending && (
-					<div className="flex h-full items-center justify-center">
-						<p className="text-center text-sm text-zinc-400">
-							Ask Claude to adapt your content for{" "}
-							<span className="font-medium capitalize">{platform}</span>.
-						</p>
-					</div>
-				)}
-
-				{chatHistory.map((msg, i) => (
-					<div
-						key={`${msg.timestamp}-${i}`}
-						className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-					>
+		<div ref={scrollRef} className="flex flex-col">
+			{/* Messages */}
+			{chatHistory.length > 0 && (
+				<div className="space-y-3 px-4 pb-3">
+					{chatHistory.map((msg, i) => (
 						<div
-							className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
-								msg.role === "user"
-									? "bg-indigo-600 text-white"
-									: "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
-							}`}
+							key={`${msg.timestamp}-${i}`}
+							className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
 						>
-							<p className="whitespace-pre-wrap">{msg.content}</p>
+							<div
+								className={`max-w-[90%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed ${
+									msg.role === "user"
+										? "bg-indigo-600 text-white"
+										: "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
+								}`}
+							>
+								<p className="whitespace-pre-wrap">{msg.content}</p>
+							</div>
 						</div>
-					</div>
-				))}
+					))}
+				</div>
+			)}
 
-				{chatMutation.isPending && (
-					<div className="flex justify-start">
-						<div className="rounded-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-							Claude is thinking...
-						</div>
+			{chatMutation.isPending && (
+				<div className="flex justify-start px-4 pb-3">
+					<div className="flex items-center gap-2 rounded-xl bg-zinc-100 px-3.5 py-2.5 text-sm text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+						<span className="inline-flex gap-1">
+							<span className="animate-bounce [animation-delay:0ms]">.</span>
+							<span className="animate-bounce [animation-delay:150ms]">.</span>
+							<span className="animate-bounce [animation-delay:300ms]">.</span>
+						</span>
+						Claude is thinking
 					</div>
-				)}
-			</div>
+				</div>
+			)}
 
 			{error && (
-				<div className="border-t border-red-200 bg-red-50 px-4 py-2 text-xs text-red-600 dark:border-red-900 dark:bg-red-950 dark:text-red-400">
+				<div className="mx-4 mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600 dark:bg-red-950 dark:text-red-400">
 					{error}
 				</div>
 			)}
 
-			<div className="border-t border-zinc-200 p-3 dark:border-zinc-800">
-				<div className="flex gap-2">
-					<input
-						type="text"
+			{/* Input */}
+			<div className="sticky bottom-0 border-t border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950">
+				<div className="flex items-end gap-2">
+					<textarea
+						ref={inputRef}
 						value={input}
-						onChange={(e) => setInput(e.target.value)}
+						onChange={handleInput}
 						onKeyDown={handleKeyDown}
 						disabled={chatMutation.isPending}
-						placeholder={`Ask Claude about ${platform} adaptation...`}
-						className="flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm placeholder-zinc-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:placeholder-zinc-500"
+						placeholder={`Refine ${platform} content...`}
+						rows={1}
+						className="flex-1 resize-none rounded-xl border border-zinc-300 bg-white px-3.5 py-2.5 text-sm leading-relaxed placeholder-zinc-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:placeholder-zinc-500"
 					/>
 					<button
 						type="button"
 						onClick={handleSend}
 						disabled={chatMutation.isPending || !input.trim()}
-						className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+						className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-30"
 					>
-						Send
+						<Send className="h-4 w-4" />
 					</button>
 				</div>
 			</div>
