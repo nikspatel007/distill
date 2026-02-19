@@ -1,4 +1,6 @@
 import { spawn } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
@@ -592,8 +594,13 @@ ADAPTED_CONTENT:
 <the adapted content>`;
 
 	try {
+		// Write prompt to temp file and pipe via stdin to avoid OS arg-length limits
+		const tmpDir = mkdtempSync(join(tmpdir(), "distill-chat-"));
+		const promptFile = join(tmpDir, "prompt.txt");
+		writeFileSync(promptFile, fullPrompt, "utf-8");
+
 		const result = await new Promise<string>((resolve, reject) => {
-			const proc = spawn("claude", ["-p", fullPrompt], {
+			const proc = spawn("sh", ["-c", `cat "${promptFile}" | claude -p`], {
 				stdio: ["pipe", "pipe", "pipe"],
 				timeout: 120_000,
 			});
