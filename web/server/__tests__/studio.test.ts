@@ -200,7 +200,7 @@ describe("PUT /api/studio/items/:slug/platform/:platform", () => {
 });
 
 describe("POST /api/studio/chat", () => {
-	test("rejects invalid request body", async () => {
+	test("rejects missing required fields", async () => {
 		const res = await app.request("/api/studio/chat", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
@@ -221,10 +221,9 @@ describe("POST /api/studio/chat", () => {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({
+				messages: [{ role: "user", content: "Make it punchier" }],
 				content: "Blog post text",
 				platform: "linkedin",
-				message: "Make it punchier",
-				history: [],
 			}),
 		});
 		// Without an API key, the endpoint returns 503
@@ -235,32 +234,6 @@ describe("POST /api/studio/chat", () => {
 			...agent,
 			isAgentConfigured: origFn,
 		}));
-	});
-});
-
-describe("POST /api/studio/chat/stream", () => {
-	test("rejects invalid request body", async () => {
-		const res = await app.request("/api/studio/chat/stream", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ invalid: true }),
-		});
-		expect(res.status).toBe(400);
-	});
-
-	test("returns 503 when ANTHROPIC_API_KEY not set", async () => {
-		const res = await app.request("/api/studio/chat/stream", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({
-				content: "Blog post text",
-				platform: "x",
-				message: "Create a thread",
-				history: [],
-			}),
-		});
-		// Without an API key, the streaming endpoint also returns 503
-		expect([503, 500]).toContain(res.status);
 	});
 });
 

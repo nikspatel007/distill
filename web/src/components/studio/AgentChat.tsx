@@ -1,7 +1,13 @@
 import { useMutation } from "@tanstack/react-query";
 import { Send } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
-import type { ChatMessage, StudioStreamEvent } from "../../../shared/schemas.js";
+import type { ChatMessage } from "../../../shared/schemas.js";
+
+/** Inline type for legacy SSE stream events (schemas removed in AI SDK migration). */
+type StudioStreamEvent =
+	| { type: "text_delta"; text: string }
+	| { type: "done"; response: string; adapted_content: string }
+	| { type: "error"; error: string };
 
 interface AgentChatProps {
 	content: string;

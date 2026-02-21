@@ -577,28 +577,6 @@ export const ReviewQueueSchema = z.object({
 	items: z.array(ReviewItemSchema).default([]),
 });
 
-export const StudioChatRequestSchema = z.object({
-	content: z.string(),
-	platform: z.string(),
-	message: z.string(),
-	history: z.array(ChatMessageSchema).default([]),
-});
-
-export const StudioChatResponseSchema = z.object({
-	response: z.string(),
-	adapted_content: z.string(),
-});
-
-export const StudioStreamEventSchema = z.discriminatedUnion("type", [
-	z.object({ type: z.literal("text_delta"), text: z.string() }),
-	z.object({
-		type: z.literal("done"),
-		response: z.string(),
-		adapted_content: z.string(),
-	}),
-	z.object({ type: z.literal("error"), error: z.string() }),
-]);
-
 export const CreateStudioItemSchema = z.object({
 	title: z.string().min(1),
 	body: z.string().min(1),
@@ -621,7 +599,4 @@ export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export type PlatformContent = z.infer<typeof PlatformContentSchema>;
 export type ReviewItem = z.infer<typeof ReviewItemSchema>;
 export type ReviewQueue = z.infer<typeof ReviewQueueSchema>;
-export type StudioChatRequest = z.infer<typeof StudioChatRequestSchema>;
-export type StudioChatResponse = z.infer<typeof StudioChatResponseSchema>;
-export type StudioStreamEvent = z.infer<typeof StudioStreamEventSchema>;
 export type StudioPublishRequest = z.infer<typeof StudioPublishRequestSchema>;

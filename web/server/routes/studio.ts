@@ -1,18 +1,17 @@
 import { basename, join } from "node:path";
 import { zValidator } from "@hono/zod-validator";
+import { stepCountIs, streamText, tool } from "ai";
 import { Hono } from "hono";
 import { z } from "zod";
 import {
 	BlogFrontmatterSchema,
-	type ChatMessage,
 	ChatMessageSchema,
 	CreateStudioItemSchema,
 	type PlatformContent,
 	type ReviewItem,
-	StudioChatRequestSchema,
 	StudioPublishRequestSchema,
 } from "../../shared/schemas.js";
-import { callAgent, callAgentStreaming, isAgentConfigured } from "../lib/agent.js";
+import { getModel, isAgentConfigured } from "../lib/agent.js";
 import { getConfig } from "../lib/config.js";
 import {
 	getContentRecord,
@@ -22,6 +21,7 @@ import {
 } from "../lib/content-store.js";
 import { listFiles, readMarkdown } from "../lib/files.js";
 import { parseFrontmatter } from "../lib/frontmatter.js";
+import { generateImage, isImageConfigured } from "../lib/images.js";
 import { createPost, isPostizConfigured, listIntegrations } from "../lib/postiz.js";
 import { getReviewItem, loadReviewQueue, upsertReviewItem } from "../lib/review-queue.js";
 
@@ -567,7 +567,7 @@ app.put("/api/studio/items/:slug/chat", zValidator("json", ChatHistoryBodySchema
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/studio/chat — Claude-powered content adaptation
+// POST /api/studio/chat — AI SDK streaming chat with tools
 // ---------------------------------------------------------------------------
 
 const PLATFORM_PROMPTS: Record<string, string> = {
@@ -579,7 +579,9 @@ Rules:
 - Last tweet has a call to action
 - Use conversational, punchy tone — write like a person, not a brand
 - No hashtags in tweets
-- The source material is journal notes — extract the most interesting insight and build around it`,
+- The source material is journal notes — extract the most interesting insight and build around it
+
+After writing the thread, ALWAYS call the savePlatformContent tool with the full thread content.`,
 
 	linkedin: `You are helping craft a LinkedIn post from the author's notes. Write a single post of 1200-1800 characters.
 Rules:
@@ -589,7 +591,9 @@ Rules:
 - Add line breaks between paragraphs for readability
 - End with a question or call to action
 - No emojis in the first line
-- The source material is journal notes — find the compelling narrative and shape it for a professional audience`,
+- The source material is journal notes — find the compelling narrative and shape it for a professional audience
+
+After writing the post, ALWAYS call the savePlatformContent tool with the full post content.`,
 
 	slack: `You are helping craft a Slack message from the author's notes. Write 800-1400 characters.
 Rules:
@@ -598,7 +602,9 @@ Rules:
 - Break into bullet points for key insights
 - Keep it scannable
 - End with a discussion question
-- The source material is journal notes — distill the key learnings`,
+- The source material is journal notes — distill the key learnings
+
+After writing the message, ALWAYS call the savePlatformContent tool with the full message content.`,
 
 	ghost: `You are helping shape a blog post or newsletter from the author's journal notes.
 Rules:
@@ -607,147 +613,131 @@ Rules:
 - The content should work as a standalone newsletter or blog post
 - Keep the author's voice — don't over-polish
 - Ask clarifying questions if the direction isn't clear
-- Focus on what makes this interesting to someone who wasn't there`,
+- Focus on what makes this interesting to someone who wasn't there
+
+After writing the post, ALWAYS call the savePlatformContent tool with the full post content.`,
 };
 
-/**
- * Build the user prompt from chat request fields.
- */
-function buildChatPrompt(
-	content: string,
-	platform: string,
-	message: string,
-	history: ChatMessage[],
-): { systemPrompt: string; userPrompt: string } {
-	const systemPrompt =
-		PLATFORM_PROMPTS[platform] ?? `You are adapting a blog post for ${platform}.`;
-
-	let historyBlock = "";
-	if (history.length > 0) {
-		const formatted = history
-			.map((msg: ChatMessage) => {
-				const role = msg.role === "user" ? "Human" : "Assistant";
-				return `${role}: ${msg.content}`;
-			})
-			.join("\n\n");
-		historyBlock = `\nPrevious conversation:\n${formatted}\n`;
+app.post("/api/studio/chat", async (c) => {
+	if (!isAgentConfigured()) {
+		return c.json({ error: "ANTHROPIC_API_KEY not configured" }, 503);
 	}
 
-	const userPrompt = `Here are the author's notes/journal to work with:
+	const body = await c.req.json();
+	const { messages, content, platform, slug } = body;
+
+	if (!messages || !content || !platform) {
+		return c.json({ error: "Missing required fields: messages, content, platform" }, 400);
+	}
+
+	const platformPrompt =
+		PLATFORM_PROMPTS[platform] ??
+		`You are adapting content for ${platform}.
+
+After writing the adapted content, ALWAYS call the savePlatformContent tool with the full content.`;
+
+	const systemPrompt = `${platformPrompt}
+
+Here are the author's source notes to work with:
 
 ---
 ${content}
 ---
-${historyBlock}
-Author's direction: ${message}
 
-Respond with two sections:
-1. RESPONSE: Your conversational response — be a thoughtful collaborator. Ask questions, suggest angles, explain your choices. Keep it brief (2-4 sentences).
-2. ADAPTED_CONTENT: The full crafted content for this platform. If the author is still exploring direction, write your best draft based on what you know so far — they'll iterate.
+Be a thoughtful collaborator. Ask questions, suggest angles, explain your choices. When you write content for the platform, call the savePlatformContent tool with it.${isImageConfigured() ? "\n\nYou can generate images to accompany the content using the generateImage tool. Generate a hero image when you write the first draft, or when the author asks for one." : ""}`;
 
-Format:
-RESPONSE:
-<your response>
-
-ADAPTED_CONTENT:
-<the adapted content>`;
-
-	return { systemPrompt, userPrompt };
-}
-
-/**
- * Parse RESPONSE / ADAPTED_CONTENT sections from Claude's output.
- */
-function parseChatResponse(raw: string): { response: string; adapted_content: string } {
-	const responseMatch = raw.match(/RESPONSE:\s*([\s\S]*?)(?=ADAPTED_CONTENT:|$)/);
-	const contentMatch = raw.match(/ADAPTED_CONTENT:\s*([\s\S]*?)$/);
-	return {
-		response: responseMatch?.[1]?.trim() ?? raw.trim(),
-		adapted_content: contentMatch?.[1]?.trim() ?? "",
-	};
-}
-
-// POST /api/studio/chat — blocking (non-streaming) chat
-app.post("/api/studio/chat", zValidator("json", StudioChatRequestSchema), async (c) => {
-	const body = c.req.valid("json");
-	const { content, platform, message, history } = body;
-
-	if (!isAgentConfigured()) {
-		return c.json({ error: "ANTHROPIC_API_KEY not configured" }, 503);
-	}
-
-	const { systemPrompt, userPrompt } = buildChatPrompt(content, platform, message, history);
-
-	try {
-		const raw = await callAgent(userPrompt, systemPrompt);
-		return c.json(parseChatResponse(raw));
-	} catch (err) {
-		const errMessage = err instanceof Error ? err.message : "Unknown error";
-		return c.json({ error: `Chat failed: ${errMessage}` }, 500);
-	}
-});
-
-// POST /api/studio/chat/stream — SSE streaming chat
-app.post("/api/studio/chat/stream", zValidator("json", StudioChatRequestSchema), async (c) => {
-	const body = c.req.valid("json");
-	const { content, platform, message, history } = body;
-
-	if (!isAgentConfigured()) {
-		return c.json({ error: "ANTHROPIC_API_KEY not configured" }, 503);
-	}
-
-	const { systemPrompt, userPrompt } = buildChatPrompt(content, platform, message, history);
-	const agentStream = callAgentStreaming(userPrompt, systemPrompt);
-
-	const encoder = new TextEncoder();
-	const stream = new ReadableStream({
-		async start(controller) {
-			try {
-				let fullText = "";
-				for await (const msg of agentStream) {
-					// Stream partial text deltas
-					if (msg.type === "stream_event") {
-						const event = (
-							msg as { event?: { type?: string; delta?: { type?: string; text?: string } } }
-						).event;
-						if (
-							event?.type === "content_block_delta" &&
-							event.delta?.type === "text_delta" &&
-							event.delta.text
-						) {
-							fullText += event.delta.text;
-							controller.enqueue(
-								encoder.encode(
-									`data: ${JSON.stringify({ type: "text_delta", text: event.delta.text })}\n\n`,
-								),
-							);
+	const result = streamText({
+		model: getModel(),
+		system: systemPrompt,
+		messages,
+		tools: {
+			savePlatformContent: tool({
+				description:
+					"Save the adapted content for the target platform. Call this every time you write or revise content for the platform.",
+				inputSchema: z.object({
+					content: z.string().describe("The full adapted content for the platform"),
+				}),
+				execute: async ({ content: adaptedContent }) => {
+					if (slug) {
+						const storeRecord = getContentRecord(slug);
+						if (storeRecord) {
+							const store = loadContentStore();
+							const record = store[slug];
+							if (record) {
+								const existing = record.platforms[platform] ?? {
+									platform,
+									content: "",
+									published: false,
+									published_at: null,
+									external_id: "",
+								};
+								existing.content = adaptedContent;
+								record.platforms[platform] = existing;
+								saveContentStore(store);
+							}
 						}
 					}
-				}
+					return { saved: true, platform, length: adaptedContent.length };
+				},
+			}),
+			generateImage: tool({
+				description:
+					"Generate an image to accompany the content. Use for hero images or when the author asks.",
+				inputSchema: z.object({
+					prompt: z
+						.string()
+						.describe("Visual metaphor description — describe the scene, not the article topic"),
+					mood: z
+						.enum([
+							"reflective",
+							"energetic",
+							"cautionary",
+							"triumphant",
+							"intimate",
+							"technical",
+							"playful",
+							"somber",
+						])
+						.describe("Visual mood matching the content tone"),
+				}),
+				execute: async ({ prompt: imagePrompt, mood }) => {
+					const config = getConfig();
+					const imageResult = await generateImage(imagePrompt, {
+						outputDir: config.OUTPUT_DIR,
+						mood,
+						slug: slug ?? "studio",
+					});
 
-				// Send parsed final result
-				const parsed = parseChatResponse(fullText);
-				controller.enqueue(
-					encoder.encode(`data: ${JSON.stringify({ type: "done", ...parsed })}\n\n`),
-				);
-				controller.close();
-			} catch (err) {
-				const errMessage = err instanceof Error ? err.message : "Unknown error";
-				controller.enqueue(
-					encoder.encode(`data: ${JSON.stringify({ type: "error", error: errMessage })}\n\n`),
-				);
-				controller.close();
-			}
+					if (!imageResult) {
+						return { error: "Image generation not available or failed" };
+					}
+
+					if (slug) {
+						const store = loadContentStore();
+						const record = store[slug];
+						if (record) {
+							record.images.push({
+								filename: imageResult.filename,
+								role: "hero",
+								prompt: imagePrompt,
+								relative_path: imageResult.relativePath,
+							});
+							saveContentStore(store);
+						}
+					}
+
+					return {
+						url: `/api/studio/images/${imageResult.relativePath}`,
+						alt: imagePrompt,
+						mood,
+					};
+				},
+			}),
 		},
+		stopWhen: stepCountIs(3),
 	});
 
-	return new Response(stream, {
-		headers: {
-			"Content-Type": "text/event-stream",
-			"Cache-Control": "no-cache",
-			Connection: "keep-alive",
-		},
-	});
+	return result.toTextStreamResponse();
 });
 
 // ---------------------------------------------------------------------------
