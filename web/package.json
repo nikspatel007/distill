@@ -19,6 +19,7 @@
 		"test:coverage": "vitest run --coverage"
 	},
 	"dependencies": {
+		"@anthropic-ai/claude-agent-sdk": "^0.2.50",
 		"@hono/zod-validator": "^0.4.1",
 		"@monaco-editor/react": "^4.7.0",
 		"@tailwindcss/typography": "^0.5.19",

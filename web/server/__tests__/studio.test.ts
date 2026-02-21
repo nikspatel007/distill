@@ -1,8 +1,9 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { app } from "../index.js";
+import * as agent from "../lib/agent.js";
 import { resetConfig, setConfig } from "../lib/config.js";
 
 let tempDir: string;
@@ -208,7 +209,14 @@ describe("POST /api/studio/chat", () => {
 		expect(res.status).toBe(400);
 	});
 
-	test("accepts valid chat request shape", async () => {
+	test("returns 503 when ANTHROPIC_API_KEY not set", async () => {
+		// isAgentConfigured() checks env — no key in test env → 503
+		const origFn = agent.isAgentConfigured;
+		mock.module("../lib/agent.js", () => ({
+			...agent,
+			isAgentConfigured: () => false,
+		}));
+
 		const res = await app.request("/api/studio/chat", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
@@ -219,8 +227,104 @@ describe("POST /api/studio/chat", () => {
 				history: [],
 			}),
 		});
-		// 200 if claude is available, 500 if not — but NOT 400
-		expect([200, 500]).toContain(res.status);
+		// Without an API key, the endpoint returns 503
+		expect([503, 500]).toContain(res.status);
+
+		// Restore
+		mock.module("../lib/agent.js", () => ({
+			...agent,
+			isAgentConfigured: origFn,
+		}));
+	});
+});
+
+describe("POST /api/studio/chat/stream", () => {
+	test("rejects invalid request body", async () => {
+		const res = await app.request("/api/studio/chat/stream", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ invalid: true }),
+		});
+		expect(res.status).toBe(400);
+	});
+
+	test("returns 503 when ANTHROPIC_API_KEY not set", async () => {
+		const res = await app.request("/api/studio/chat/stream", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				content: "Blog post text",
+				platform: "x",
+				message: "Create a thread",
+				history: [],
+			}),
+		});
+		// Without an API key, the streaming endpoint also returns 503
+		expect([503, 500]).toContain(res.status);
+	});
+});
+
+describe("POST /api/studio/items", () => {
+	test("creates a new studio item from journal content", async () => {
+		const res = await app.request("/api/studio/items", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				title: "What I learned about agent orchestration",
+				body: "Today I worked on agent orchestration patterns...",
+				content_type: "journal",
+				source_date: "2026-02-21",
+				tags: ["vermas"],
+			}),
+		});
+		expect(res.status).toBe(200);
+
+		const data = await res.json();
+		expect(data.created).toBe(true);
+		expect(data.slug).toBe("what-i-learned-about-agent-orchestration");
+
+		// Verify the item is in the store via GET
+		const getRes = await app.request(`/api/studio/items/${data.slug}`);
+		expect(getRes.status).toBe(200);
+
+		const item = await getRes.json();
+		expect(item.title).toBe("What I learned about agent orchestration");
+		expect(item.content).toContain("agent orchestration patterns");
+		expect(item.content_store).toBe(true);
+		expect(item.store_status).toBe("draft");
+	});
+
+	test("generates unique slugs for duplicate titles", async () => {
+		const body = {
+			title: "My Post",
+			body: "Content here",
+			content_type: "journal",
+		};
+
+		const res1 = await app.request("/api/studio/items", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(body),
+		});
+		const data1 = await res1.json();
+		expect(data1.slug).toBe("my-post");
+
+		const res2 = await app.request("/api/studio/items", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(body),
+		});
+		const data2 = await res2.json();
+		expect(data2.slug).toBe("my-post-1");
+	});
+
+	test("rejects empty title", async () => {
+		const res = await app.request("/api/studio/items", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ title: "", body: "Content" }),
+		});
+		expect(res.status).toBe(400);
 	});
 });
 

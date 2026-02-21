@@ -40,6 +40,7 @@ dev = [
     "mypy>=1.0",
     "ruff>=0.1",
     "types-PyYAML>=6.0",
+    "claude-agent-sdk>=0.1.35",
 ]
 reddit = ["praw>=7.0"]
 google = [
@@ -54,6 +55,9 @@ db = [
 ]
 embeddings = [
     "sentence-transformers>=2.0",
+]
+llm = [
+    "claude-agent-sdk>=0.1.35",
 ]
 images = [
     "google-genai>=1.0",

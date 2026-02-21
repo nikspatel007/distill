@@ -517,7 +517,15 @@ export const ContentStoreChatMessageSchema = z.object({
 
 export const ContentStoreRecordSchema = z.object({
 	slug: z.string(),
-	content_type: z.enum(["weekly", "thematic", "digest", "daily_social", "seed"]),
+	content_type: z.enum([
+		"weekly",
+		"thematic",
+		"reading_list",
+		"digest",
+		"daily_social",
+		"seed",
+		"journal",
+	]),
 	title: z.string(),
 	body: z.string().default(""),
 	status: z.enum(["draft", "review", "ready", "published", "archived"]).default("draft"),
@@ -581,6 +589,28 @@ export const StudioChatResponseSchema = z.object({
 	adapted_content: z.string(),
 });
 
+export const StudioStreamEventSchema = z.discriminatedUnion("type", [
+	z.object({ type: z.literal("text_delta"), text: z.string() }),
+	z.object({
+		type: z.literal("done"),
+		response: z.string(),
+		adapted_content: z.string(),
+	}),
+	z.object({ type: z.literal("error"), error: z.string() }),
+]);
+
+export const CreateStudioItemSchema = z.object({
+	title: z.string().min(1),
+	body: z.string().min(1),
+	content_type: z
+		.enum(["weekly", "thematic", "reading_list", "digest", "daily_social", "seed", "journal"])
+		.default("journal"),
+	source_date: z.string().optional(),
+	tags: z.array(z.string()).default([]),
+});
+
+export type CreateStudioItem = z.infer<typeof CreateStudioItemSchema>;
+
 export const StudioPublishRequestSchema = z.object({
 	platforms: z.array(z.string()).min(1),
 	mode: z.enum(["draft", "schedule", "now"]).default("draft"),
@@ -593,4 +623,5 @@ export type ReviewItem = z.infer<typeof ReviewItemSchema>;
 export type ReviewQueue = z.infer<typeof ReviewQueueSchema>;
 export type StudioChatRequest = z.infer<typeof StudioChatRequestSchema>;
 export type StudioChatResponse = z.infer<typeof StudioChatResponseSchema>;
+export type StudioStreamEvent = z.infer<typeof StudioStreamEventSchema>;
 export type StudioPublishRequest = z.infer<typeof StudioPublishRequestSchema>;

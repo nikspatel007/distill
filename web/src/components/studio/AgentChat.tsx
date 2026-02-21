@@ -1,7 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { Send } from "lucide-react";
-import { useRef, useState } from "react";
-import type { ChatMessage } from "../../../shared/schemas.js";
+import { useCallback, useRef, useState } from "react";
+import type { ChatMessage, StudioStreamEvent } from "../../../shared/schemas.js";
 
 interface AgentChatProps {
 	content: string;
@@ -10,35 +10,104 @@ interface AgentChatProps {
 	onResponse: (response: string, adaptedContent: string, newHistory: ChatMessage[]) => void;
 }
 
+/**
+ * Stream chat via SSE endpoint. Falls back to blocking endpoint on failure.
+ */
+async function streamChat(
+	body: { content: string; platform: string; message: string; history: ChatMessage[] },
+	onDelta: (text: string) => void,
+): Promise<{ response: string; adapted_content: string }> {
+	const res = await fetch("/api/studio/chat/stream", {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(body),
+	});
+
+	// If streaming endpoint fails (e.g. 503), fall back to blocking
+	if (!res.ok) {
+		const fallbackRes = await fetch("/api/studio/chat", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(body),
+		});
+		if (!fallbackRes.ok) {
+			const err = await fallbackRes.json().catch(() => ({ error: "Unknown error" }));
+			throw new Error(err.error || "Chat failed");
+		}
+		return fallbackRes.json();
+	}
+
+	// Read SSE stream
+	const reader = res.body?.getReader();
+	if (!reader) {
+		throw new Error("No response body");
+	}
+
+	const decoder = new TextDecoder();
+	let buffer = "";
+	let result: { response: string; adapted_content: string } | null = null;
+
+	while (true) {
+		const { done, value } = await reader.read();
+		if (done) break;
+
+		buffer += decoder.decode(value, { stream: true });
+
+		// Parse SSE lines
+		const lines = buffer.split("\n");
+		// Keep incomplete last line in buffer
+		buffer = lines.pop() ?? "";
+
+		for (const line of lines) {
+			if (!line.startsWith("data: ")) continue;
+			const json = line.slice(6).trim();
+			if (!json) continue;
+
+			try {
+				const event = JSON.parse(json) as StudioStreamEvent;
+
+				if (event.type === "text_delta") {
+					onDelta(event.text);
+				} else if (event.type === "done") {
+					result = {
+						response: event.response,
+						adapted_content: event.adapted_content,
+					};
+				} else if (event.type === "error") {
+					throw new Error(event.error);
+				}
+			} catch (e) {
+				if (e instanceof SyntaxError) continue;
+				throw e;
+			}
+		}
+	}
+
+	if (!result) {
+		throw new Error("Stream ended without done event");
+	}
+	return result;
+}
+
 export function AgentChat({ content, platform, chatHistory, onResponse }: AgentChatProps) {
 	const [input, setInput] = useState("");
 	const [error, setError] = useState<string | null>(null);
+	const [streamingText, setStreamingText] = useState("");
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 
+	const onDelta = useCallback((text: string) => {
+		setStreamingText((prev) => prev + text);
+	}, []);
+
 	const chatMutation = useMutation({
 		mutationFn: async (message: string) => {
-			const res = await fetch("/api/studio/chat", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					content,
-					platform,
-					message,
-					history: chatHistory,
-				}),
-			});
-			if (!res.ok) {
-				const err = await res.json().catch(() => ({ error: "Unknown error" }));
-				throw new Error(err.error || "Chat failed");
-			}
-			return res.json() as Promise<{
-				response: string;
-				adapted_content: string;
-			}>;
+			setStreamingText("");
+			return streamChat({ content, platform, message, history: chatHistory }, onDelta);
 		},
 		onSuccess: (data, message) => {
 			setError(null);
+			setStreamingText("");
 			const now = new Date().toISOString();
 			const userMsg: ChatMessage = {
 				role: "user",
@@ -60,6 +129,7 @@ export function AgentChat({ content, platform, chatHistory, onResponse }: AgentC
 			}, 50);
 		},
 		onError: (err: Error) => {
+			setStreamingText("");
 			setError(err.message);
 		},
 	});
@@ -108,7 +178,17 @@ export function AgentChat({ content, platform, chatHistory, onResponse }: AgentC
 				</div>
 			)}
 
-			{chatMutation.isPending && (
+			{/* Streaming response */}
+			{chatMutation.isPending && streamingText && (
+				<div className="flex justify-start px-4 pb-3">
+					<div className="max-w-[90%] rounded-xl bg-zinc-100 px-3.5 py-2.5 text-sm leading-relaxed text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200">
+						<p className="whitespace-pre-wrap">{streamingText}</p>
+					</div>
+				</div>
+			)}
+
+			{/* Thinking indicator (no streaming text yet) */}
+			{chatMutation.isPending && !streamingText && (
 				<div className="flex justify-start px-4 pb-3">
 					<div className="flex items-center gap-2 rounded-xl bg-zinc-100 px-3.5 py-2.5 text-sm text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
 						<span className="inline-flex gap-1">
@@ -136,7 +216,7 @@ export function AgentChat({ content, platform, chatHistory, onResponse }: AgentC
 						onChange={handleInput}
 						onKeyDown={handleKeyDown}
 						disabled={chatMutation.isPending}
-						placeholder={`Refine ${platform} content...`}
+						placeholder={`Write or refine ${platform} content...`}
 						rows={1}
 						className="flex-1 resize-none rounded-xl border border-zinc-300 bg-white px-3.5 py-2.5 text-sm leading-relaxed placeholder-zinc-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:placeholder-zinc-500"
 					/>

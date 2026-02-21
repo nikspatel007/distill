@@ -1,6 +1,3 @@
-import { spawn } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
@@ -9,11 +6,13 @@ import {
 	BlogFrontmatterSchema,
 	type ChatMessage,
 	ChatMessageSchema,
+	CreateStudioItemSchema,
 	type PlatformContent,
 	type ReviewItem,
 	StudioChatRequestSchema,
 	StudioPublishRequestSchema,
 } from "../../shared/schemas.js";
+import { callAgent, callAgentStreaming, isAgentConfigured } from "../lib/agent.js";
 import { getConfig } from "../lib/config.js";
 import {
 	getContentRecord,
@@ -34,6 +33,7 @@ const app = new Hono();
  */
 function mapContentType(contentType: string): string {
 	if (contentType === "daily_social") return "daily-social";
+	if (contentType === "reading_list") return "reading-list";
 	return contentType;
 }
 
@@ -244,6 +244,57 @@ app.get("/api/studio/items/:slug", async (c) => {
 		review,
 		content_store: false,
 	});
+});
+
+/**
+ * POST /api/studio/items — create a new Studio item from journal content.
+ * Creates a ContentStore record and returns the slug for navigation.
+ */
+app.post("/api/studio/items", zValidator("json", CreateStudioItemSchema), async (c) => {
+	const body = c.req.valid("json");
+	const store = loadContentStore();
+
+	// Generate a slug from the title
+	const baseSlug = body.title
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-|-$/g, "")
+		.slice(0, 60);
+
+	// Ensure uniqueness
+	let slug = baseSlug;
+	let counter = 1;
+	while (store[slug]) {
+		slug = `${baseSlug}-${counter}`;
+		counter++;
+	}
+
+	const now = new Date().toISOString();
+	store[slug] = {
+		slug,
+		content_type: body.content_type as
+			| "journal"
+			| "weekly"
+			| "thematic"
+			| "reading_list"
+			| "digest"
+			| "daily_social"
+			| "seed",
+		title: body.title,
+		body: body.body,
+		status: "draft",
+		created_at: now,
+		source_dates: body.source_date ? [body.source_date] : [],
+		tags: body.tags,
+		images: [],
+		platforms: {},
+		chat_history: [],
+		metadata: {},
+		file_path: "",
+	};
+
+	saveContentStore(store);
+	return c.json({ slug, created: true });
 });
 
 /**
@@ -520,45 +571,55 @@ app.put("/api/studio/items/:slug/chat", zValidator("json", ChatHistoryBodySchema
 // ---------------------------------------------------------------------------
 
 const PLATFORM_PROMPTS: Record<string, string> = {
-	x: `You are adapting a blog post for X/Twitter. Create a thread of 6-10 tweets.
+	x: `You are helping craft content for X/Twitter. Create a thread of 3-8 tweets.
 Rules:
 - Each tweet MUST be under 280 characters
 - Separate tweets with "---" on its own line
-- First tweet hooks the reader
-- Last tweet links back or has a call to action
-- Use conversational, punchy tone
-- No hashtags in tweets`,
+- First tweet hooks the reader with a bold insight or question
+- Last tweet has a call to action
+- Use conversational, punchy tone — write like a person, not a brand
+- No hashtags in tweets
+- The source material is journal notes — extract the most interesting insight and build around it`,
 
-	linkedin: `You are adapting a blog post for LinkedIn. Write a single post of 1200-1800 characters.
+	linkedin: `You are helping craft a LinkedIn post from the author's notes. Write a single post of 1200-1800 characters.
 Rules:
-- Open with a hook (question, bold claim, or surprising stat)
+- Open with a hook (question, bold claim, or surprising insight from the journal)
 - Write in first person, conversational but professional
 - Use short paragraphs (1-2 sentences)
 - Add line breaks between paragraphs for readability
 - End with a question or call to action
-- No emojis in the first line`,
+- No emojis in the first line
+- The source material is journal notes — find the compelling narrative and shape it for a professional audience`,
 
-	slack: `You are adapting a blog post for a Slack channel. Write a concise summary of 800-1400 characters.
+	slack: `You are helping craft a Slack message from the author's notes. Write 800-1400 characters.
 Rules:
 - Use Slack mrkdwn: *bold*, _italic_, \`code\`, > quote
 - Start with a one-line summary
 - Break into bullet points for key insights
 - Keep it scannable
-- End with a discussion question`,
+- End with a discussion question
+- The source material is journal notes — distill the key learnings`,
 
-	ghost: `You are helping refine a blog post for Ghost (newsletter/website).
+	ghost: `You are helping shape a blog post or newsletter from the author's journal notes.
 Rules:
-- Maintain the essay structure
-- Suggest improvements to clarity, flow, and engagement
-- The content should work as a standalone newsletter
-- Keep the author's voice intact`,
+- Help the author find the narrative arc in their notes
+- Suggest a structure: hook, story, insight, takeaway
+- The content should work as a standalone newsletter or blog post
+- Keep the author's voice — don't over-polish
+- Ask clarifying questions if the direction isn't clear
+- Focus on what makes this interesting to someone who wasn't there`,
 };
 
-app.post("/api/studio/chat", zValidator("json", StudioChatRequestSchema), async (c) => {
-	const body = c.req.valid("json");
-	const { content, platform, message, history } = body;
-
-	const platformPrompt =
+/**
+ * Build the user prompt from chat request fields.
+ */
+function buildChatPrompt(
+	content: string,
+	platform: string,
+	message: string,
+	history: ChatMessage[],
+): { systemPrompt: string; userPrompt: string } {
+	const systemPrompt =
 		PLATFORM_PROMPTS[platform] ?? `You are adapting a blog post for ${platform}.`;
 
 	let historyBlock = "";
@@ -572,19 +633,17 @@ app.post("/api/studio/chat", zValidator("json", StudioChatRequestSchema), async 
 		historyBlock = `\nPrevious conversation:\n${formatted}\n`;
 	}
 
-	const fullPrompt = `${platformPrompt}
-
-Here is the blog post to work with:
+	const userPrompt = `Here are the author's notes/journal to work with:
 
 ---
 ${content}
 ---
 ${historyBlock}
-User's direction: ${message}
+Author's direction: ${message}
 
 Respond with two sections:
-1. RESPONSE: Your conversational response to the user
-2. ADAPTED_CONTENT: The full adapted content for this platform
+1. RESPONSE: Your conversational response — be a thoughtful collaborator. Ask questions, suggest angles, explain your choices. Keep it brief (2-4 sentences).
+2. ADAPTED_CONTENT: The full crafted content for this platform. If the author is still exploring direction, write your best draft based on what you know so far — they'll iterate.
 
 Format:
 RESPONSE:
@@ -593,42 +652,102 @@ RESPONSE:
 ADAPTED_CONTENT:
 <the adapted content>`;
 
+	return { systemPrompt, userPrompt };
+}
+
+/**
+ * Parse RESPONSE / ADAPTED_CONTENT sections from Claude's output.
+ */
+function parseChatResponse(raw: string): { response: string; adapted_content: string } {
+	const responseMatch = raw.match(/RESPONSE:\s*([\s\S]*?)(?=ADAPTED_CONTENT:|$)/);
+	const contentMatch = raw.match(/ADAPTED_CONTENT:\s*([\s\S]*?)$/);
+	return {
+		response: responseMatch?.[1]?.trim() ?? raw.trim(),
+		adapted_content: contentMatch?.[1]?.trim() ?? "",
+	};
+}
+
+// POST /api/studio/chat — blocking (non-streaming) chat
+app.post("/api/studio/chat", zValidator("json", StudioChatRequestSchema), async (c) => {
+	const body = c.req.valid("json");
+	const { content, platform, message, history } = body;
+
+	if (!isAgentConfigured()) {
+		return c.json({ error: "ANTHROPIC_API_KEY not configured" }, 503);
+	}
+
+	const { systemPrompt, userPrompt } = buildChatPrompt(content, platform, message, history);
+
 	try {
-		// Write prompt to temp file and pipe via stdin to avoid OS arg-length limits
-		const tmpDir = mkdtempSync(join(tmpdir(), "distill-chat-"));
-		const promptFile = join(tmpDir, "prompt.txt");
-		writeFileSync(promptFile, fullPrompt, "utf-8");
-
-		const result = await new Promise<string>((resolve, reject) => {
-			const proc = spawn("sh", ["-c", `cat "${promptFile}" | claude -p`], {
-				stdio: ["pipe", "pipe", "pipe"],
-				timeout: 120_000,
-			});
-			let stdout = "";
-			let stderr = "";
-			proc.stdout.on("data", (data: Buffer) => {
-				stdout += data.toString();
-			});
-			proc.stderr.on("data", (data: Buffer) => {
-				stderr += data.toString();
-			});
-			proc.on("close", (code: number | null) => {
-				if (code === 0) resolve(stdout);
-				else reject(new Error(`claude exited with code ${code}: ${stderr}`));
-			});
-			proc.on("error", reject);
-		});
-
-		const responseMatch = result.match(/RESPONSE:\s*([\s\S]*?)(?=ADAPTED_CONTENT:|$)/);
-		const contentMatch = result.match(/ADAPTED_CONTENT:\s*([\s\S]*?)$/);
-		const response = responseMatch?.[1]?.trim() ?? result.trim();
-		const adaptedContent = contentMatch?.[1]?.trim() ?? "";
-
-		return c.json({ response, adapted_content: adaptedContent });
+		const raw = await callAgent(userPrompt, systemPrompt);
+		return c.json(parseChatResponse(raw));
 	} catch (err) {
 		const errMessage = err instanceof Error ? err.message : "Unknown error";
 		return c.json({ error: `Chat failed: ${errMessage}` }, 500);
 	}
+});
+
+// POST /api/studio/chat/stream — SSE streaming chat
+app.post("/api/studio/chat/stream", zValidator("json", StudioChatRequestSchema), async (c) => {
+	const body = c.req.valid("json");
+	const { content, platform, message, history } = body;
+
+	if (!isAgentConfigured()) {
+		return c.json({ error: "ANTHROPIC_API_KEY not configured" }, 503);
+	}
+
+	const { systemPrompt, userPrompt } = buildChatPrompt(content, platform, message, history);
+	const agentStream = callAgentStreaming(userPrompt, systemPrompt);
+
+	const encoder = new TextEncoder();
+	const stream = new ReadableStream({
+		async start(controller) {
+			try {
+				let fullText = "";
+				for await (const msg of agentStream) {
+					// Stream partial text deltas
+					if (msg.type === "stream_event") {
+						const event = (
+							msg as { event?: { type?: string; delta?: { type?: string; text?: string } } }
+						).event;
+						if (
+							event?.type === "content_block_delta" &&
+							event.delta?.type === "text_delta" &&
+							event.delta.text
+						) {
+							fullText += event.delta.text;
+							controller.enqueue(
+								encoder.encode(
+									`data: ${JSON.stringify({ type: "text_delta", text: event.delta.text })}\n\n`,
+								),
+							);
+						}
+					}
+				}
+
+				// Send parsed final result
+				const parsed = parseChatResponse(fullText);
+				controller.enqueue(
+					encoder.encode(`data: ${JSON.stringify({ type: "done", ...parsed })}\n\n`),
+				);
+				controller.close();
+			} catch (err) {
+				const errMessage = err instanceof Error ? err.message : "Unknown error";
+				controller.enqueue(
+					encoder.encode(`data: ${JSON.stringify({ type: "error", error: errMessage })}\n\n`),
+				);
+				controller.close();
+			}
+		},
+	});
+
+	return new Response(stream, {
+		headers: {
+			"Content-Type": "text/event-stream",
+			"Cache-Control": "no-cache",
+			Connection: "keep-alive",
+		},
+	});
 });
 
 // ---------------------------------------------------------------------------
