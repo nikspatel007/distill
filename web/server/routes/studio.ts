@@ -572,13 +572,7 @@ app.post("/api/studio/chat", zValidator("json", StudioChatRequestSchema), async 
 		return c.json({ error: "ANTHROPIC_API_KEY not configured" }, 503);
 	}
 
-	const { messages: rawMessages, content, platform, slug } = c.req.valid("json");
-
-	// Map validated messages to CoreMessage format expected by streamText
-	const messages = rawMessages.map((m) => ({
-		role: m.role as "user" | "assistant",
-		content: typeof m.content === "string" ? m.content : JSON.stringify(m.content),
-	}));
+	const { messages, content, platform, slug } = c.req.valid("json");
 
 	const platformPrompt =
 		PLATFORM_PROMPTS[platform] ??
@@ -596,10 +590,12 @@ ${content}
 
 Be a thoughtful collaborator. Ask questions, suggest angles, explain your choices. When you write content for the platform, call the savePlatformContent tool with it.${isImageConfigured() ? "\n\nYou can generate images to accompany the content using the generateImage tool. Generate a hero image when you write the first draft, or when the author asks for one." : ""}`;
 
+	// Messages arrive in AI SDK wire format (parts-based) — cast to satisfy streamText types
 	const result = streamText({
 		model: getModel(),
 		system: systemPrompt,
-		messages,
+		// biome-ignore lint/suspicious/noExplicitAny: AI SDK wire format is opaque
+		messages: messages as any,
 		tools: {
 			savePlatformContent: tool({
 				description:

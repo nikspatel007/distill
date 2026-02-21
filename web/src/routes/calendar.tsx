@@ -108,52 +108,54 @@ export default function Calendar() {
 	const ideas = calendarData?.ideas ?? [];
 
 	return (
-		<div className="space-y-6">
-			<h2 className="text-2xl font-bold">Content Calendar</h2>
+		<div className="mx-auto max-w-5xl p-6">
+			<div className="space-y-6">
+				<h2 className="text-2xl font-bold">Content Calendar</h2>
 
-			{listLoading ? (
-				<div className="animate-pulse text-zinc-400">Loading calendars...</div>
-			) : dates.length === 0 ? (
-				<p className="text-sm text-zinc-500">
-					No content calendars yet. Run <code>distill brainstorm</code> to generate ideas.
-				</p>
-			) : (
-				<>
-					{/* Date selector */}
-					<div className="flex flex-wrap gap-2">
-						{dates.map((d) => (
-							<button
-								key={d}
-								type="button"
-								onClick={() => setSelectedDate(d)}
-								className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${
-									d === activeDate
-										? "border-indigo-600 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-950 dark:text-indigo-300"
-										: "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-500"
-								}`}
-							>
-								{d}
-							</button>
-						))}
-					</div>
-
-					{/* Calendar content */}
-					{calendarLoading ? (
-						<div className="animate-pulse text-zinc-400">Loading ideas...</div>
-					) : ideas.length === 0 ? (
-						<p className="text-sm text-zinc-500">No ideas for this date.</p>
-					) : (
-						<div className="space-y-3">
-							<p className="text-sm text-zinc-500">
-								{ideas.length} idea{ideas.length !== 1 ? "s" : ""} for {activeDate}
-							</p>
-							{ideas.map((idea, i) => (
-								<IdeaCard key={`${idea.title}-${i}`} idea={idea} />
+				{listLoading ? (
+					<div className="animate-pulse text-zinc-400">Loading calendars...</div>
+				) : dates.length === 0 ? (
+					<p className="text-sm text-zinc-500">
+						No content calendars yet. Run <code>distill brainstorm</code> to generate ideas.
+					</p>
+				) : (
+					<>
+						{/* Date selector */}
+						<div className="flex flex-wrap gap-2">
+							{dates.map((d) => (
+								<button
+									key={d}
+									type="button"
+									onClick={() => setSelectedDate(d)}
+									className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${
+										d === activeDate
+											? "border-indigo-600 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-950 dark:text-indigo-300"
+											: "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-500"
+									}`}
+								>
+									{d}
+								</button>
 							))}
 						</div>
-					)}
-				</>
-			)}
+
+						{/* Calendar content */}
+						{calendarLoading ? (
+							<div className="animate-pulse text-zinc-400">Loading ideas...</div>
+						) : ideas.length === 0 ? (
+							<p className="text-sm text-zinc-500">No ideas for this date.</p>
+						) : (
+							<div className="space-y-3">
+								<p className="text-sm text-zinc-500">
+									{ideas.length} idea{ideas.length !== 1 ? "s" : ""} for {activeDate}
+								</p>
+								{ideas.map((idea, i) => (
+									<IdeaCard key={`${idea.title}-${i}`} idea={idea} />
+								))}
+							</div>
+						)}
+					</>
+				)}
+			</div>
 		</div>
 	);
 }

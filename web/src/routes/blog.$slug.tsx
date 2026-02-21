@@ -28,50 +28,62 @@ export default function BlogDetailPage() {
 		},
 	);
 
-	if (isLoading) return <div className="animate-pulse text-zinc-400">Loading...</div>;
-	if (error) return <div className="text-red-500">Error: {error.message}</div>;
+	if (isLoading)
+		return (
+			<div className="mx-auto max-w-5xl p-6">
+				<div className="animate-pulse text-zinc-400">Loading...</div>
+			</div>
+		);
+	if (error)
+		return (
+			<div className="mx-auto max-w-5xl p-6">
+				<div className="text-red-500">Error: {error.message}</div>
+			</div>
+		);
 	if (!data) return null;
 
 	return (
-		<div className="space-y-4">
-			<div className="flex items-center justify-between">
-				<Link
-					to="/blog"
-					className="text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-				>
-					&larr; Blog
-				</Link>
-				<EditToggle
-					isEditing={isEditing}
-					onToggle={() => setIsEditing(!isEditing)}
-					onSave={save}
-					isSaving={isSaving}
-					isDirty={isDirty}
-					saveSuccess={saveSuccess}
-				/>
-			</div>
-
-			<div>
-				<h2 className="text-2xl font-bold">{data.meta.title}</h2>
-				<div className="mt-2 flex items-center gap-2">
-					<DateBadge date={data.meta.date} />
-					<span
-						className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-							data.meta.postType === "weekly"
-								? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-								: "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
-						}`}
+		<div className="mx-auto max-w-5xl p-6">
+			<div className="space-y-4">
+				<div className="flex items-center justify-between">
+					<Link
+						to="/blog"
+						className="text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
 					>
-						{data.meta.postType}
-					</span>
+						&larr; Blog
+					</Link>
+					<EditToggle
+						isEditing={isEditing}
+						onToggle={() => setIsEditing(!isEditing)}
+						onSave={save}
+						isSaving={isSaving}
+						isDirty={isDirty}
+						saveSuccess={saveSuccess}
+					/>
 				</div>
-			</div>
 
-			{isEditing ? (
-				<MarkdownEditor value={editedContent} onChange={setEditedContent} onSave={save} />
-			) : (
-				<MarkdownRenderer content={data.content} />
-			)}
+				<div>
+					<h2 className="text-2xl font-bold">{data.meta.title}</h2>
+					<div className="mt-2 flex items-center gap-2">
+						<DateBadge date={data.meta.date} />
+						<span
+							className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+								data.meta.postType === "weekly"
+									? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+									: "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
+							}`}
+						>
+							{data.meta.postType}
+						</span>
+					</div>
+				</div>
+
+				{isEditing ? (
+					<MarkdownEditor value={editedContent} onChange={setEditedContent} onSave={save} />
+				) : (
+					<MarkdownRenderer content={data.content} />
+				)}
+			</div>
 		</div>
 	);
 }

@@ -45,8 +45,18 @@ export default function ReadingDetailPage() {
 		},
 	);
 
-	if (isLoading) return <div className="animate-pulse text-zinc-400">Loading...</div>;
-	if (error) return <div className="text-red-500">Error: {error.message}</div>;
+	if (isLoading)
+		return (
+			<div className="mx-auto max-w-5xl p-6">
+				<div className="animate-pulse text-zinc-400">Loading...</div>
+			</div>
+		);
+	if (error)
+		return (
+			<div className="mx-auto max-w-5xl p-6">
+				<div className="text-red-500">Error: {error.message}</div>
+			</div>
+		);
 	if (!data) return null;
 
 	const items = itemsData?.items ?? [];
@@ -59,90 +69,92 @@ export default function ReadingDetailPage() {
 	const rangeEnd = rangeStart === 0 ? 0 : rangeStart + items.length - 1;
 
 	return (
-		<div className="space-y-4">
-			<div className="flex items-center justify-between">
-				<Link
-					to="/reading"
-					className="text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-				>
-					&larr; Reading
-				</Link>
-				<EditToggle
-					isEditing={isEditing}
-					onToggle={() => setIsEditing(!isEditing)}
-					onSave={save}
-					isSaving={isSaving}
-					isDirty={isDirty}
-					saveSuccess={saveSuccess}
-				/>
-			</div>
+		<div className="mx-auto max-w-5xl p-6">
+			<div className="space-y-4">
+				<div className="flex items-center justify-between">
+					<Link
+						to="/reading"
+						className="text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+					>
+						&larr; Reading
+					</Link>
+					<EditToggle
+						isEditing={isEditing}
+						onToggle={() => setIsEditing(!isEditing)}
+						onSave={save}
+						isSaving={isSaving}
+						isDirty={isDirty}
+						saveSuccess={saveSuccess}
+					/>
+				</div>
 
-			<div className="flex items-center gap-3">
-				<DateBadge date={data.meta.date} />
-				<span className="text-sm text-zinc-500">
-					{data.meta.itemCount} items from {data.meta.sources.length} sources
-				</span>
-			</div>
+				<div className="flex items-center gap-3">
+					<DateBadge date={data.meta.date} />
+					<span className="text-sm text-zinc-500">
+						{data.meta.itemCount} items from {data.meta.sources.length} sources
+					</span>
+				</div>
 
-			{isEditing ? (
-				<MarkdownEditor value={editedContent} onChange={setEditedContent} onSave={save} />
-			) : (
-				<MarkdownRenderer content={data.content} />
-			)}
-
-			{/* Content Items section */}
-			<div className="border-t border-zinc-200 pt-6 dark:border-zinc-800">
-				<h3 className="mb-3 text-lg font-semibold">Content Items ({totalItems})</h3>
-				<SourceFilterPills
-					sources={availableSources}
-					filterSource={filterSource}
-					onFilterChange={(s) => {
-						setFilterSource(s);
-						setPage(1);
-					}}
-				/>
-				{itemsLoading ? (
-					<div className="mt-4 animate-pulse text-zinc-400">Loading items...</div>
-				) : items.length === 0 ? (
-					<p className="mt-4 text-sm text-zinc-500">No content items for this date.</p>
+				{isEditing ? (
+					<MarkdownEditor value={editedContent} onChange={setEditedContent} onSave={save} />
 				) : (
-					<>
-						<div className="mt-4 space-y-3">
-							{items.map((item) => (
-								<ContentItemCard key={item.id} item={item} />
-							))}
-						</div>
-						{/* Pagination controls */}
-						{totalPages > 1 && (
-							<div className="mt-4 flex items-center justify-between text-sm">
-								<span className="text-zinc-500">
-									Showing {rangeStart}–{rangeEnd} of {totalItems} items
-								</span>
-								<div className="flex gap-2">
-									<button
-										type="button"
-										disabled={currentPage <= 1}
-										onClick={() => setPage((p) => Math.max(1, p - 1))}
-										className="rounded border border-zinc-300 px-3 py-1 text-sm transition-colors hover:bg-zinc-100 disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800"
-									>
-										Prev
-									</button>
-									<span className="flex items-center px-2 text-zinc-500">
-										{currentPage} / {totalPages}
-									</span>
-									<button
-										type="button"
-										disabled={currentPage >= totalPages}
-										onClick={() => setPage((p) => p + 1)}
-										className="rounded border border-zinc-300 px-3 py-1 text-sm transition-colors hover:bg-zinc-100 disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800"
-									>
-										Next
-									</button>
-								</div>
-							</div>
-						)}
-					</>
+					<MarkdownRenderer content={data.content} />
 				)}
+
+				{/* Content Items section */}
+				<div className="border-t border-zinc-200 pt-6 dark:border-zinc-800">
+					<h3 className="mb-3 text-lg font-semibold">Content Items ({totalItems})</h3>
+					<SourceFilterPills
+						sources={availableSources}
+						filterSource={filterSource}
+						onFilterChange={(s) => {
+							setFilterSource(s);
+							setPage(1);
+						}}
+					/>
+					{itemsLoading ? (
+						<div className="mt-4 animate-pulse text-zinc-400">Loading items...</div>
+					) : items.length === 0 ? (
+						<p className="mt-4 text-sm text-zinc-500">No content items for this date.</p>
+					) : (
+						<>
+							<div className="mt-4 space-y-3">
+								{items.map((item) => (
+									<ContentItemCard key={item.id} item={item} />
+								))}
+							</div>
+							{/* Pagination controls */}
+							{totalPages > 1 && (
+								<div className="mt-4 flex items-center justify-between text-sm">
+									<span className="text-zinc-500">
+										Showing {rangeStart}–{rangeEnd} of {totalItems} items
+									</span>
+									<div className="flex gap-2">
+										<button
+											type="button"
+											disabled={currentPage <= 1}
+											onClick={() => setPage((p) => Math.max(1, p - 1))}
+											className="rounded border border-zinc-300 px-3 py-1 text-sm transition-colors hover:bg-zinc-100 disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800"
+										>
+											Prev
+										</button>
+										<span className="flex items-center px-2 text-zinc-500">
+											{currentPage} / {totalPages}
+										</span>
+										<button
+											type="button"
+											disabled={currentPage >= totalPages}
+											onClick={() => setPage((p) => p + 1)}
+											className="rounded border border-zinc-300 px-3 py-1 text-sm transition-colors hover:bg-zinc-100 disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800"
+										>
+											Next
+										</button>
+									</div>
+								</div>
+							)}
+						</>
+					)}
+				</div>
 			</div>
 		</div>
 	);

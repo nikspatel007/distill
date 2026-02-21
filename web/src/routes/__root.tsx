@@ -53,12 +53,10 @@ export function RootLayout() {
 	return (
 		<div className="flex h-screen">
 			<Sidebar />
-			<main className="flex-1 overflow-y-auto p-6">
-				<div className="mx-auto max-w-5xl">
-					<ErrorBoundary>
-						<Outlet />
-					</ErrorBoundary>
-				</div>
+			<main className="flex-1 overflow-y-auto">
+				<ErrorBoundary>
+					<Outlet />
+				</ErrorBoundary>
 			</main>
 		</div>
 	);

@@ -83,23 +83,34 @@ export default function Publish() {
 		onError: () => setPublishing(null),
 	});
 
-	if (isLoading) return <div className="animate-pulse text-zinc-400">Loading publish queue...</div>;
+	if (isLoading)
+		return (
+			<div className="mx-auto max-w-5xl p-6">
+				<div className="animate-pulse text-zinc-400">Loading publish queue...</div>
+			</div>
+		);
 
 	const queue = data?.queue ?? [];
 	const postizConfigured = data?.postizConfigured ?? false;
 
 	if (postizConfigured) {
 		return (
-			<PostizQueueView
-				queue={queue}
-				publishing={publishing}
-				setPublishing={setPublishing}
-				publishMutation={publishMutation}
-			/>
+			<div className="mx-auto max-w-5xl p-6">
+				<PostizQueueView
+					queue={queue}
+					publishing={publishing}
+					setPublishing={setPublishing}
+					publishMutation={publishMutation}
+				/>
+			</div>
 		);
 	}
 
-	return <CardView queue={queue} postizConfigured={postizConfigured} />;
+	return (
+		<div className="mx-auto max-w-5xl p-6">
+			<CardView queue={queue} postizConfigured={postizConfigured} />
+		</div>
+	);
 }
 
 function CardView({

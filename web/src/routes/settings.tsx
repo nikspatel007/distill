@@ -41,28 +41,30 @@ export default function Settings() {
 	const [activeTab, setActiveTab] = useState<Tab>("Sources");
 
 	return (
-		<div className="space-y-6">
-			<h2 className="text-2xl font-bold">Settings</h2>
+		<div className="mx-auto max-w-5xl p-6">
+			<div className="space-y-6">
+				<h2 className="text-2xl font-bold">Settings</h2>
 
-			{/* Tab bar */}
-			<div className="flex border-b border-zinc-200 dark:border-zinc-700">
-				{TABS.map((tab) => (
-					<button
-						key={tab}
-						type="button"
-						onClick={() => setActiveTab(tab)}
-						className={`px-4 py-2 text-sm font-medium ${activeTab === tab ? "border-b-2 border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400" : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"}`}
-					>
-						{tab}
-					</button>
-				))}
+				{/* Tab bar */}
+				<div className="flex border-b border-zinc-200 dark:border-zinc-700">
+					{TABS.map((tab) => (
+						<button
+							key={tab}
+							type="button"
+							onClick={() => setActiveTab(tab)}
+							className={`px-4 py-2 text-sm font-medium ${activeTab === tab ? "border-b-2 border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400" : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"}`}
+						>
+							{tab}
+						</button>
+					))}
+				</div>
+
+				{/* Tab content */}
+				{activeTab === "Sources" && <SourcesTab />}
+				{activeTab === "Publishing" && <PublishingTab />}
+				{activeTab === "Pipeline" && <PipelineTab />}
+				{activeTab === "Editorial" && <EditorialTab />}
 			</div>
-
-			{/* Tab content */}
-			{activeTab === "Sources" && <SourcesTab />}
-			{activeTab === "Publishing" && <PublishingTab />}
-			{activeTab === "Pipeline" && <PipelineTab />}
-			{activeTab === "Editorial" && <EditorialTab />}
 		</div>
 	);
 }

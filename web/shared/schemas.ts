@@ -595,14 +595,11 @@ export const StudioPublishRequestSchema = z.object({
 	scheduled_at: z.string().optional(),
 });
 
-/** Schema for the AI SDK chat request body sent by TextStreamChatTransport. */
+/** Schema for the AI SDK chat request body sent by TextStreamChatTransport.
+ *  Messages use the AI SDK wire format (parts-based), so we passthrough and
+ *  only validate the fields we extract in the endpoint. */
 export const StudioChatRequestSchema = z.object({
-	messages: z.array(
-		z.object({
-			role: z.enum(["user", "assistant"]),
-			content: z.union([z.string(), z.array(z.unknown())]),
-		}),
-	),
+	messages: z.array(z.record(z.unknown())),
 	content: z.string(),
 	platform: z.string().min(1),
 	slug: z.string().optional(),

@@ -17,7 +17,12 @@ export default function JournalList() {
 		},
 	});
 
-	if (isLoading) return <div className="animate-pulse text-zinc-400">Loading journal...</div>;
+	if (isLoading)
+		return (
+			<div className="mx-auto max-w-5xl p-6">
+				<div className="animate-pulse text-zinc-400">Loading journal...</div>
+			</div>
+		);
 
 	const allEntries = data?.entries ?? [];
 
@@ -29,66 +34,68 @@ export default function JournalList() {
 		: allEntries;
 
 	return (
-		<div className="space-y-6">
-			<h2 className="text-2xl font-bold">Journal</h2>
+		<div className="mx-auto max-w-5xl p-6">
+			<div className="space-y-6">
+				<h2 className="text-2xl font-bold">Journal</h2>
 
-			<ProjectFilterPills
-				projectNames={projectNames}
-				filterProject={filterProject}
-				onFilterChange={setFilterProject}
-			/>
+				<ProjectFilterPills
+					projectNames={projectNames}
+					filterProject={filterProject}
+					onFilterChange={setFilterProject}
+				/>
 
-			{entries.length === 0 ? (
-				<p className="text-zinc-500">
-					{filterProject
-						? `No journal entries for project "${filterProject}".`
-						: "No journal entries yet. Run `distill journal` to generate some."}
-				</p>
-			) : (
-				<div className="space-y-2">
-					{entries.map((entry) => (
-						<Link
-							key={entry.filename}
-							to="/journal/$date"
-							params={{ date: entry.date }}
-							className="block rounded-lg border border-zinc-200 p-4 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
-						>
-							<div className="flex items-center justify-between">
-								<div className="flex items-center gap-2">
-									<DateBadge date={entry.date} />
-									<span className="text-sm text-zinc-500">{entry.style}</span>
-								</div>
-								<span className="text-xs text-zinc-500">
-									{entry.sessionsCount} sessions, {entry.durationMinutes}m
-								</span>
-							</div>
-							{(() => {
-								const allTags = [
-									...entry.projects.map((p) => formatProjectName(p)),
-									...entry.tags.filter((t) => t !== "journal"),
-								];
-								const shown = allTags.slice(0, 3);
-								const overflow = allTags.length - shown.length;
-								return (
-									<div className="mt-2 flex flex-wrap gap-1">
-										{shown.map((t) => (
-											<span
-												key={t}
-												className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs dark:bg-zinc-800"
-											>
-												{t}
-											</span>
-										))}
-										{overflow > 0 && (
-											<span className="px-1 py-0.5 text-xs text-zinc-400">+{overflow} more</span>
-										)}
+				{entries.length === 0 ? (
+					<p className="text-zinc-500">
+						{filterProject
+							? `No journal entries for project "${filterProject}".`
+							: "No journal entries yet. Run `distill journal` to generate some."}
+					</p>
+				) : (
+					<div className="space-y-2">
+						{entries.map((entry) => (
+							<Link
+								key={entry.filename}
+								to="/journal/$date"
+								params={{ date: entry.date }}
+								className="block rounded-lg border border-zinc-200 p-4 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+							>
+								<div className="flex items-center justify-between">
+									<div className="flex items-center gap-2">
+										<DateBadge date={entry.date} />
+										<span className="text-sm text-zinc-500">{entry.style}</span>
 									</div>
-								);
-							})()}
-						</Link>
-					))}
-				</div>
-			)}
+									<span className="text-xs text-zinc-500">
+										{entry.sessionsCount} sessions, {entry.durationMinutes}m
+									</span>
+								</div>
+								{(() => {
+									const allTags = [
+										...entry.projects.map((p) => formatProjectName(p)),
+										...entry.tags.filter((t) => t !== "journal"),
+									];
+									const shown = allTags.slice(0, 3);
+									const overflow = allTags.length - shown.length;
+									return (
+										<div className="mt-2 flex flex-wrap gap-1">
+											{shown.map((t) => (
+												<span
+													key={t}
+													className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs dark:bg-zinc-800"
+												>
+													{t}
+												</span>
+											))}
+											{overflow > 0 && (
+												<span className="px-1 py-0.5 text-xs text-zinc-400">+{overflow} more</span>
+											)}
+										</div>
+									);
+								})()}
+							</Link>
+						))}
+					</div>
+				)}
+			</div>
 		</div>
 	);
 }

@@ -33,83 +33,89 @@ export default function Studio() {
 	const items = data?.items ?? [];
 
 	if (isLoading) {
-		return <div className="animate-pulse text-zinc-400">Loading content...</div>;
+		return (
+			<div className="mx-auto max-w-5xl p-6">
+				<div className="animate-pulse text-zinc-400">Loading content...</div>
+			</div>
+		);
 	}
 
 	return (
-		<div className="space-y-6">
-			<div className="flex items-center justify-between">
-				<div>
-					<h2 className="text-2xl font-bold">Content Studio</h2>
-					<p className="mt-1 text-sm text-zinc-500">
-						Craft posts from your journals, refine with Claude, and publish.
-					</p>
+		<div className="mx-auto max-w-5xl p-6">
+			<div className="space-y-6">
+				<div className="flex items-center justify-between">
+					<div>
+						<h2 className="text-2xl font-bold">Content Studio</h2>
+						<p className="mt-1 text-sm text-zinc-500">
+							Craft posts from your journals, refine with Claude, and publish.
+						</p>
+					</div>
+					<button
+						type="button"
+						onClick={() => setShowJournalPicker(true)}
+						className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+					>
+						<PenLine className="h-4 w-4" />
+						New Post
+					</button>
 				</div>
-				<button
-					type="button"
-					onClick={() => setShowJournalPicker(true)}
-					className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-				>
-					<PenLine className="h-4 w-4" />
-					New Post
-				</button>
-			</div>
 
-			{items.length === 0 ? (
-				<div className="rounded-lg border border-zinc-200 p-8 text-center dark:border-zinc-800">
-					<p className="text-zinc-500">
-						No content yet. Click <strong>New Post</strong> to start writing from a journal entry.
-					</p>
-				</div>
-			) : (
-				<div className="space-y-2">
-					{items.map((item) => (
-						<Link
-							key={item.slug}
-							to="/studio/$slug"
-							params={{ slug: item.slug }}
-							className="flex items-center justify-between rounded-lg border border-zinc-200 p-4 transition-colors hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-zinc-800 dark:hover:border-indigo-800 dark:hover:bg-indigo-950/30"
-						>
-							<div className="flex items-center gap-3">
-								<div>
-									<div className="flex items-center gap-2">
-										<span className="font-medium">{item.title}</span>
-										<span
-											className={`rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_STYLES[item.type] ?? DEFAULT_TYPE_STYLE}`}
-										>
-											{item.type.replace("_", " ")}
-										</span>
-									</div>
-									<div className="mt-1 flex items-center gap-3 text-xs text-zinc-500">
-										<DateBadge date={item.generated_at} />
-										{item.platforms_ready > 0 && (
-											<span>
-												{item.platforms_ready} platform
-												{item.platforms_ready !== 1 ? "s" : ""} ready
+				{items.length === 0 ? (
+					<div className="rounded-lg border border-zinc-200 p-8 text-center dark:border-zinc-800">
+						<p className="text-zinc-500">
+							No content yet. Click <strong>New Post</strong> to start writing from a journal entry.
+						</p>
+					</div>
+				) : (
+					<div className="space-y-2">
+						{items.map((item) => (
+							<Link
+								key={item.slug}
+								to="/studio/$slug"
+								params={{ slug: item.slug }}
+								className="flex items-center justify-between rounded-lg border border-zinc-200 p-4 transition-colors hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-zinc-800 dark:hover:border-indigo-800 dark:hover:bg-indigo-950/30"
+							>
+								<div className="flex items-center gap-3">
+									<div>
+										<div className="flex items-center gap-2">
+											<span className="font-medium">{item.title}</span>
+											<span
+												className={`rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_STYLES[item.type] ?? DEFAULT_TYPE_STYLE}`}
+											>
+												{item.type.replace("_", " ")}
 											</span>
-										)}
-										{item.platforms_published > 0 && (
-											<span className="text-green-600">{item.platforms_published} published</span>
-										)}
+										</div>
+										<div className="mt-1 flex items-center gap-3 text-xs text-zinc-500">
+											<DateBadge date={item.generated_at} />
+											{item.platforms_ready > 0 && (
+												<span>
+													{item.platforms_ready} platform
+													{item.platforms_ready !== 1 ? "s" : ""} ready
+												</span>
+											)}
+											{item.platforms_published > 0 && (
+												<span className="text-green-600">{item.platforms_published} published</span>
+											)}
+										</div>
 									</div>
 								</div>
-							</div>
-							<StatusBadge status={item.status} />
-						</Link>
-					))}
-				</div>
-			)}
+								<StatusBadge status={item.status} />
+							</Link>
+						))}
+					</div>
+				)}
 
-			{showJournalPicker && (
-				<JournalPickerModal
-					onClose={() => setShowJournalPicker(false)}
-					onCreated={(slug) => {
-						setShowJournalPicker(false);
-						queryClient.invalidateQueries({ queryKey: ["studio-items"] });
-						navigate({ to: "/studio/$slug", params: { slug } });
-					}}
-				/>
-			)}
+				{showJournalPicker && (
+					<JournalPickerModal
+						onClose={() => setShowJournalPicker(false)}
+						onCreated={(slug) => {
+							setShowJournalPicker(false);
+							queryClient.invalidateQueries({ queryKey: ["studio-items"] });
+							navigate({ to: "/studio/$slug", params: { slug } });
+						}}
+					/>
+				)}
+			</div>
 		</div>
 	);
 }

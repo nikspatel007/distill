@@ -145,7 +145,7 @@ export default function StudioDetail() {
 	const images = data.images ?? [];
 
 	return (
-		<div className="-mx-6 -mt-6 flex h-[calc(100vh-3rem)] flex-col">
+		<div className="flex h-screen flex-col">
 			{/* Header */}
 			<div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-800">
 				<div className="flex items-center gap-3">
