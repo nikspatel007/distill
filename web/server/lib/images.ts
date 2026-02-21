@@ -58,19 +58,13 @@ export async function generateImage(
 		outputDir: string;
 		mood?: string;
 		slug?: string;
-		aspectRatio?: string;
 	},
 ): Promise<ImageResult | null> {
 	if (!isImageConfigured()) {
 		return null;
 	}
 
-	const {
-		outputDir,
-		mood = "reflective",
-		slug = "image",
-		aspectRatio: _aspectRatio = "16:9",
-	} = options;
+	const { outputDir, mood = "reflective", slug = "image" } = options;
 	const style = STYLE_PREFIXES[mood] ?? DEFAULT_STYLE;
 	const fullPrompt = style + prompt;
 

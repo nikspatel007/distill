@@ -36,7 +36,7 @@ export function SourceFilterPills({ sources, filterSource, onFilterChange }: Pro
 	if (sources.length === 0) return null;
 
 	return (
-		<div className="flex flex-wrap gap-2" role="group" aria-label="Filter by source">
+		<fieldset className="flex flex-wrap gap-2 border-none p-0 m-0" aria-label="Filter by source">
 			<button
 				type="button"
 				aria-pressed={filterSource === null}
@@ -65,6 +65,6 @@ export function SourceFilterPills({ sources, filterSource, onFilterChange }: Pro
 					{SOURCE_LABELS[s] ?? s}
 				</button>
 			))}
-		</div>
+		</fieldset>
 	);
 }

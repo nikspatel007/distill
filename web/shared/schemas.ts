@@ -595,6 +595,20 @@ export const StudioPublishRequestSchema = z.object({
 	scheduled_at: z.string().optional(),
 });
 
+/** Schema for the AI SDK chat request body sent by TextStreamChatTransport. */
+export const StudioChatRequestSchema = z.object({
+	messages: z.array(
+		z.object({
+			role: z.enum(["user", "assistant"]),
+			content: z.union([z.string(), z.array(z.unknown())]),
+		}),
+	),
+	content: z.string(),
+	platform: z.string().min(1),
+	slug: z.string().optional(),
+});
+
+export type StudioChatRequest = z.infer<typeof StudioChatRequestSchema>;
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export type PlatformContent = z.infer<typeof PlatformContentSchema>;
 export type ReviewItem = z.infer<typeof ReviewItemSchema>;

@@ -1,4 +1,4 @@
-import { basename, join } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { zValidator } from "@hono/zod-validator";
 import { stepCountIs, streamText, tool } from "ai";
 import { Hono } from "hono";
@@ -9,6 +9,7 @@ import {
 	CreateStudioItemSchema,
 	type PlatformContent,
 	type ReviewItem,
+	StudioChatRequestSchema,
 	StudioPublishRequestSchema,
 } from "../../shared/schemas.js";
 import { getModel, isAgentConfigured } from "../lib/agent.js";
@@ -23,6 +24,7 @@ import { listFiles, readMarkdown } from "../lib/files.js";
 import { parseFrontmatter } from "../lib/frontmatter.js";
 import { generateImage, isImageConfigured } from "../lib/images.js";
 import { createPost, isPostizConfigured, listIntegrations } from "../lib/postiz.js";
+import { PLATFORM_PROMPTS } from "../lib/prompts.js";
 import { getReviewItem, loadReviewQueue, upsertReviewItem } from "../lib/review-queue.js";
 
 const app = new Hono();
@@ -321,6 +323,51 @@ const PLATFORM_PROVIDER_MAP: Record<string, string> = {
 	slack: "slack",
 };
 
+/** Shared publish-to-platform logic for both ContentStore and review queue entries. */
+async function publishPlatforms(
+	platforms: string[],
+	getPlatformEntry: (
+		platform: string,
+	) => { content?: string | null; published?: boolean; published_at?: string | null } | undefined,
+	integrations: Awaited<ReturnType<typeof listIntegrations>>,
+	postOptions: { postType?: string; scheduledAt?: string },
+): Promise<Array<{ platform: string; success: boolean; error?: string }>> {
+	const results: Array<{ platform: string; success: boolean; error?: string }> = [];
+
+	for (const platform of platforms) {
+		const entry = getPlatformEntry(platform);
+		if (!entry?.content) {
+			results.push({ platform, success: false, error: "No adapted content" });
+			continue;
+		}
+		if (entry.published) {
+			results.push({ platform, success: false, error: "Already published" });
+			continue;
+		}
+
+		const provider = PLATFORM_PROVIDER_MAP[platform] ?? platform;
+		const integration = integrations.find((i) => i.provider.includes(provider));
+		if (!integration) {
+			results.push({ platform, success: false, error: `No integration for ${platform}` });
+			continue;
+		}
+
+		try {
+			await createPost(entry.content, [integration.id], postOptions);
+			entry.published = true;
+			if ("published_at" in entry) {
+				entry.published_at = new Date().toISOString();
+			}
+			results.push({ platform, success: true });
+		} catch (err) {
+			const message = err instanceof Error ? err.message : "Unknown error";
+			results.push({ platform, success: false, error: message });
+		}
+	}
+
+	return results;
+}
+
 // ---------------------------------------------------------------------------
 // POST /api/studio/publish/:slug — publish to Postiz
 // Prefers ContentStore; falls back to review queue.
@@ -348,7 +395,7 @@ app.post("/api/studio/publish/:slug", zValidator("json", StudioPublishRequestSch
 		return c.json({ error: "Failed to fetch integrations" }, 502);
 	}
 
-	const results: Array<{ platform: string; success: boolean; error?: string }> = [];
+	const postOptions = { postType: body.mode, scheduledAt: body.scheduled_at };
 
 	if (storeRecord) {
 		// Publish from ContentStore
@@ -358,37 +405,12 @@ app.post("/api/studio/publish/:slug", zValidator("json", StudioPublishRequestSch
 			return c.json({ error: "Record not found in store" }, 404);
 		}
 
-		for (const platform of body.platforms) {
-			const platformEntry = liveRecord.platforms[platform];
-			if (!platformEntry?.content) {
-				results.push({ platform, success: false, error: "No adapted content" });
-				continue;
-			}
-			if (platformEntry.published) {
-				results.push({ platform, success: false, error: "Already published" });
-				continue;
-			}
-
-			const provider = PLATFORM_PROVIDER_MAP[platform] ?? platform;
-			const integration = integrations.find((i) => i.provider.includes(provider));
-			if (!integration) {
-				results.push({ platform, success: false, error: `No integration for ${platform}` });
-				continue;
-			}
-
-			try {
-				await createPost(platformEntry.content, [integration.id], {
-					postType: body.mode,
-					scheduledAt: body.scheduled_at,
-				});
-				platformEntry.published = true;
-				platformEntry.published_at = new Date().toISOString();
-				results.push({ platform, success: true });
-			} catch (err) {
-				const message = err instanceof Error ? err.message : "Unknown error";
-				results.push({ platform, success: false, error: message });
-			}
-		}
+		const results = await publishPlatforms(
+			body.platforms,
+			(p) => liveRecord.platforms[p],
+			integrations,
+			postOptions,
+		);
 
 		const allPublished = Object.values(liveRecord.platforms).every((p) => p.published);
 		if (allPublished && Object.keys(liveRecord.platforms).length > 0) {
@@ -400,39 +422,14 @@ app.post("/api/studio/publish/:slug", zValidator("json", StudioPublishRequestSch
 	}
 
 	// Publish from review queue (backward compat)
-	// reviewItem is guaranteed non-null here (we returned 404 above if both are null)
 	const item = reviewItem as NonNullable<typeof reviewItem>;
 
-	for (const platform of body.platforms) {
-		const platformEntry = item.platforms[platform];
-		if (!platformEntry?.content) {
-			results.push({ platform, success: false, error: "No adapted content" });
-			continue;
-		}
-		if (platformEntry.published) {
-			results.push({ platform, success: false, error: "Already published" });
-			continue;
-		}
-
-		const provider = PLATFORM_PROVIDER_MAP[platform] ?? platform;
-		const integration = integrations.find((i) => i.provider.includes(provider));
-		if (!integration) {
-			results.push({ platform, success: false, error: `No integration for ${platform}` });
-			continue;
-		}
-
-		try {
-			await createPost(platformEntry.content, [integration.id], {
-				postType: body.mode,
-				scheduledAt: body.scheduled_at,
-			});
-			platformEntry.published = true;
-			results.push({ platform, success: true });
-		} catch (err) {
-			const message = err instanceof Error ? err.message : "Unknown error";
-			results.push({ platform, success: false, error: message });
-		}
-	}
+	const results = await publishPlatforms(
+		body.platforms,
+		(p) => item.platforms[p],
+		integrations,
+		postOptions,
+	);
 
 	const allPublished = Object.values(item.platforms).every((p) => p.published);
 	if (allPublished && Object.keys(item.platforms).length > 0) {
@@ -570,65 +567,18 @@ app.put("/api/studio/items/:slug/chat", zValidator("json", ChatHistoryBodySchema
 // POST /api/studio/chat — AI SDK streaming chat with tools
 // ---------------------------------------------------------------------------
 
-const PLATFORM_PROMPTS: Record<string, string> = {
-	x: `You are helping craft content for X/Twitter. Create a thread of 3-8 tweets.
-Rules:
-- Each tweet MUST be under 280 characters
-- Separate tweets with "---" on its own line
-- First tweet hooks the reader with a bold insight or question
-- Last tweet has a call to action
-- Use conversational, punchy tone — write like a person, not a brand
-- No hashtags in tweets
-- The source material is journal notes — extract the most interesting insight and build around it
-
-After writing the thread, ALWAYS call the savePlatformContent tool with the full thread content.`,
-
-	linkedin: `You are helping craft a LinkedIn post from the author's notes. Write a single post of 1200-1800 characters.
-Rules:
-- Open with a hook (question, bold claim, or surprising insight from the journal)
-- Write in first person, conversational but professional
-- Use short paragraphs (1-2 sentences)
-- Add line breaks between paragraphs for readability
-- End with a question or call to action
-- No emojis in the first line
-- The source material is journal notes — find the compelling narrative and shape it for a professional audience
-
-After writing the post, ALWAYS call the savePlatformContent tool with the full post content.`,
-
-	slack: `You are helping craft a Slack message from the author's notes. Write 800-1400 characters.
-Rules:
-- Use Slack mrkdwn: *bold*, _italic_, \`code\`, > quote
-- Start with a one-line summary
-- Break into bullet points for key insights
-- Keep it scannable
-- End with a discussion question
-- The source material is journal notes — distill the key learnings
-
-After writing the message, ALWAYS call the savePlatformContent tool with the full message content.`,
-
-	ghost: `You are helping shape a blog post or newsletter from the author's journal notes.
-Rules:
-- Help the author find the narrative arc in their notes
-- Suggest a structure: hook, story, insight, takeaway
-- The content should work as a standalone newsletter or blog post
-- Keep the author's voice — don't over-polish
-- Ask clarifying questions if the direction isn't clear
-- Focus on what makes this interesting to someone who wasn't there
-
-After writing the post, ALWAYS call the savePlatformContent tool with the full post content.`,
-};
-
-app.post("/api/studio/chat", async (c) => {
+app.post("/api/studio/chat", zValidator("json", StudioChatRequestSchema), async (c) => {
 	if (!isAgentConfigured()) {
 		return c.json({ error: "ANTHROPIC_API_KEY not configured" }, 503);
 	}
 
-	const body = await c.req.json();
-	const { messages, content, platform, slug } = body;
+	const { messages: rawMessages, content, platform, slug } = c.req.valid("json");
 
-	if (!messages || !content || !platform) {
-		return c.json({ error: "Missing required fields: messages, content, platform" }, 400);
-	}
+	// Map validated messages to CoreMessage format expected by streamText
+	const messages = rawMessages.map((m) => ({
+		role: m.role as "user" | "assistant",
+		content: typeof m.content === "string" ? m.content : JSON.stringify(m.content),
+	}));
 
 	const platformPrompt =
 		PLATFORM_PROMPTS[platform] ??
@@ -746,7 +696,12 @@ Be a thoughtful collaborator. Ask questions, suggest angles, explain your choice
 app.get("/api/studio/images/*", async (c) => {
 	const { OUTPUT_DIR } = getConfig();
 	const imagePath = c.req.path.replace("/api/studio/images/", "");
-	const fullPath = join(OUTPUT_DIR, imagePath);
+	const fullPath = resolve(join(OUTPUT_DIR, imagePath));
+
+	// Prevent path traversal outside OUTPUT_DIR
+	if (!fullPath.startsWith(resolve(OUTPUT_DIR))) {
+		return c.json({ error: "Forbidden" }, 403);
+	}
 
 	try {
 		const file = Bun.file(fullPath);

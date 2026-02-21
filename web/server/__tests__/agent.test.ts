@@ -1,20 +1,32 @@
 import { describe, expect, test } from "bun:test";
 import { getModel, isAgentConfigured } from "../lib/agent.js";
 
+const ENV_KEY = "ANTHROPIC_API_KEY";
+
+function getKey(): string | undefined {
+	return process.env[ENV_KEY];
+}
+function setKey(value: string | undefined): void {
+	process.env[ENV_KEY] = value as string;
+}
+function clearKey(): void {
+	process.env[ENV_KEY] = "";
+}
+
 describe("isAgentConfigured", () => {
 	test("returns false when no API key", () => {
-		const orig = process.env["ANTHROPIC_API_KEY"];
-		delete process.env["ANTHROPIC_API_KEY"];
+		const orig = getKey();
+		clearKey();
 		expect(isAgentConfigured()).toBe(false);
-		if (orig) process.env["ANTHROPIC_API_KEY"] = orig;
+		setKey(orig as string);
 	});
 
 	test("returns true when API key is set", () => {
-		const orig = process.env["ANTHROPIC_API_KEY"];
-		process.env["ANTHROPIC_API_KEY"] = "sk-test";
+		const orig = getKey();
+		setKey("sk-test");
 		expect(isAgentConfigured()).toBe(true);
-		if (orig) process.env["ANTHROPIC_API_KEY"] = orig;
-		else delete process.env["ANTHROPIC_API_KEY"];
+		if (orig) setKey(orig);
+		else clearKey();
 	});
 });
 

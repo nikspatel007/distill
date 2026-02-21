@@ -10,7 +10,7 @@ export function ProjectFilterPills({ projectNames, filterProject, onFilterChange
 	if (projectNames.length === 0) return null;
 
 	return (
-		<div className="flex flex-wrap gap-2" role="group" aria-label="Filter by project">
+		<fieldset className="flex flex-wrap gap-2 border-none p-0 m-0" aria-label="Filter by project">
 			<button
 				type="button"
 				aria-pressed={filterProject === null}
@@ -38,6 +38,6 @@ export function ProjectFilterPills({ projectNames, filterProject, onFilterChange
 					{formatProjectName(p)}
 				</button>
 			))}
-		</div>
+		</fieldset>
 	);
 }

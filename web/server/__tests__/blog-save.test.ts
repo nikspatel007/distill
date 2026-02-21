@@ -1,12 +1,32 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { app } from "../index.js";
 import { resetConfig, setConfig } from "../lib/config.js";
 
 const FIXTURES = join(import.meta.dir, "fixtures");
-const BLOG_FILE = join(FIXTURES, "blog", "weekly", "weekly-2026-W06.md");
-let originalContent: string;
+const BLOG_DIR = join(FIXTURES, "blog", "weekly");
+const BLOG_FILE = join(BLOG_DIR, "weekly-2026-W06.md");
+
+const FIXTURE_CONTENT = `---
+title: "Week 6: Building the Pipeline"
+slug: weekly-2026-W06
+post_type: weekly
+generated_at: 2026-02-07T10:00:00Z
+source_dates:
+  - 2026-02-03
+  - 2026-02-04
+  - 2026-02-05
+  - 2026-02-06
+  - 2026-02-07
+tags:
+  - pipeline
+  - architecture
+---
+
+# Week 6: Building the Pipeline
+
+This week was all about getting the core content pipeline working end to end.`;
 
 describe("PUT /api/blog/posts/:slug", () => {
 	beforeAll(async () => {
@@ -17,15 +37,21 @@ describe("PUT /api/blog/posts/:slug", () => {
 			POSTIZ_URL: "",
 			POSTIZ_API_KEY: "",
 		});
-		originalContent = await readFile(BLOG_FILE, "utf-8");
+		// Ensure the fixture directory and file exist (may have been cleaned by other tests)
+		await mkdir(BLOG_DIR, { recursive: true });
+		await Bun.write(BLOG_FILE, FIXTURE_CONTENT);
 	});
 
 	afterEach(async () => {
-		await Bun.write(BLOG_FILE, originalContent);
+		// Restore the fixture after each test modifies it
+		await mkdir(BLOG_DIR, { recursive: true });
+		await Bun.write(BLOG_FILE, FIXTURE_CONTENT);
 	});
 
-	afterAll(() => {
+	afterAll(async () => {
 		resetConfig();
+		// Clean up the directory we created
+		await rm(BLOG_DIR, { recursive: true, force: true });
 	});
 
 	test("saves updated blog content", async () => {

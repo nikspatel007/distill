@@ -53,7 +53,7 @@ export function AgentChat({
 }: AgentChatProps) {
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
-	const lastProcessedRef = useRef<string>("");
+	const processedToolCallsRef = useRef<Set<string>>(new Set());
 
 	const initialMessages = useMemo(() => toInitialMessages(chatHistory), [chatHistory]);
 
@@ -96,13 +96,13 @@ export function AgentChat({
 					if (toolPart.state !== "output-available") continue;
 
 					const partKey = `${msg.id}-${toolPart.toolCallId}`;
-					if (lastProcessedRef.current === partKey) continue;
+					if (processedToolCallsRef.current.has(partKey)) continue;
 
 					if (
 						toolPart.type === "tool-savePlatformContent" ||
 						(toolPart.type === "dynamic-tool" && toolPart.toolName === "savePlatformContent")
 					) {
-						lastProcessedRef.current = partKey;
+						processedToolCallsRef.current.add(partKey);
 						if (toolPart.input?.content) {
 							onPlatformContent(toolPart.input.content);
 						}
@@ -120,14 +120,14 @@ export function AgentChat({
 					if (toolPart.state !== "output-available") continue;
 
 					const partKey = `${msg.id}-${toolPart.toolCallId}`;
-					if (lastProcessedRef.current === partKey) continue;
+					if (processedToolCallsRef.current.has(partKey)) continue;
 
 					if (
 						toolPart.type === "tool-generateImage" ||
 						(toolPart.type === "dynamic-tool" && toolPart.toolName === "generateImage")
 					) {
 						if (toolPart.output?.url && !toolPart.output.error) {
-							lastProcessedRef.current = partKey;
+							processedToolCallsRef.current.add(partKey);
 							onImageGenerated(toolPart.output.url, toolPart.output.alt ?? "");
 						}
 					}
@@ -155,7 +155,7 @@ export function AgentChat({
 				});
 			}, 50);
 		}
-	});
+	}, [messages.length]);
 
 	const handleSend = useCallback(() => {
 		const textarea = inputRef.current;
