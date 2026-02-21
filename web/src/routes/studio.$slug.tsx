@@ -83,7 +83,7 @@ export default function StudioDetail() {
 		},
 	});
 
-	const savePlatformMutation = useMutation({
+	const _savePlatformMutation = useMutation({
 		mutationFn: async ({ platform, content }: { platform: string; content: string }) => {
 			const res = await fetch(`/api/studio/items/${slug}/platform/${platform}`, {
 				method: "PUT",
@@ -116,32 +116,39 @@ export default function StudioDetail() {
 
 	const currentStatus = data?.store_status ?? data?.review.status ?? "draft";
 
-	const handleChatResponse = useCallback(
-		(_response: string, adaptedContent: string, newHistory: ChatMessage[]) => {
+	const handlePlatformContent = useCallback(
+		(adaptedContent: string) => {
+			setPlatforms((prev) => ({
+				...prev,
+				[selectedPlatform]: {
+					enabled: true,
+					content: adaptedContent,
+					published: false,
+					postiz_id: null,
+					...((prev[selectedPlatform]?.published ? { published: true } : {}) as Record<
+						string,
+						never
+					>),
+				},
+			}));
+			// Tool already saved to content store on the server side
+		},
+		[selectedPlatform],
+	);
+
+	const handleImageGenerated = useCallback(
+		(_url: string, _alt: string) => {
+			queryClient.invalidateQueries({ queryKey: ["studio-item", slug] });
+		},
+		[queryClient, slug],
+	);
+
+	const handleHistoryChange = useCallback(
+		(newHistory: ChatMessage[]) => {
 			setChatHistory(newHistory);
 			saveChatMutation.mutate(newHistory);
-
-			if (adaptedContent) {
-				setPlatforms((prev) => ({
-					...prev,
-					[selectedPlatform]: {
-						enabled: true,
-						content: adaptedContent,
-						published: false,
-						postiz_id: null,
-						...((prev[selectedPlatform]?.published ? { published: true } : {}) as Record<
-							string,
-							never
-						>),
-					},
-				}));
-				savePlatformMutation.mutate({
-					platform: selectedPlatform,
-					content: adaptedContent,
-				});
-			}
 		},
-		[selectedPlatform, saveChatMutation, savePlatformMutation],
+		[saveChatMutation],
 	);
 
 	if (isLoading) {
@@ -268,12 +275,15 @@ export default function StudioDetail() {
 									</div>
 								</div>
 							) : (
-								<div className="border-b border-zinc-100 px-4 py-8 text-center dark:border-zinc-800">
-									<p className="text-sm text-zinc-400">
+								<div className="border-b border-zinc-100 px-4 py-6 text-center dark:border-zinc-800">
+									<p className="text-sm text-zinc-500">
 										No <span className="font-medium capitalize">{selectedPlatform}</span> content
 										yet.
 									</p>
-									<p className="mt-1 text-xs text-zinc-400">Use the chat below to generate it.</p>
+									<p className="mt-2 text-xs text-zinc-400">
+										Try: &quot;Write a {selectedPlatform === "x" ? "thread" : "post"} about the most
+										interesting thing from these notes&quot;
+									</p>
 								</div>
 							)}
 
@@ -281,8 +291,11 @@ export default function StudioDetail() {
 							<AgentChat
 								content={data.content}
 								platform={selectedPlatform}
+								slug={slug ?? ""}
 								chatHistory={chatHistory}
-								onResponse={handleChatResponse}
+								onPlatformContent={handlePlatformContent}
+								onImageGenerated={handleImageGenerated}
+								onHistoryChange={handleHistoryChange}
 							/>
 						</div>
 					</div>

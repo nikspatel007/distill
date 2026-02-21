@@ -1,200 +1,286 @@
-import { useMutation } from "@tanstack/react-query";
+import { useChat } from "@ai-sdk/react";
+import { TextStreamChatTransport } from "ai";
+import type { UIMessage } from "ai";
 import { Send } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { ChatMessage } from "../../../shared/schemas.js";
-
-/** Inline type for legacy SSE stream events (schemas removed in AI SDK migration). */
-type StudioStreamEvent =
-	| { type: "text_delta"; text: string }
-	| { type: "done"; response: string; adapted_content: string }
-	| { type: "error"; error: string };
 
 interface AgentChatProps {
 	content: string;
 	platform: string;
+	slug: string;
 	chatHistory: ChatMessage[];
-	onResponse: (response: string, adaptedContent: string, newHistory: ChatMessage[]) => void;
+	onPlatformContent: (content: string) => void;
+	onImageGenerated: (url: string, alt: string) => void;
+	onHistoryChange: (messages: ChatMessage[]) => void;
 }
 
-/**
- * Stream chat via SSE endpoint. Falls back to blocking endpoint on failure.
- */
-async function streamChat(
-	body: { content: string; platform: string; message: string; history: ChatMessage[] },
-	onDelta: (text: string) => void,
-): Promise<{ response: string; adapted_content: string }> {
-	const res = await fetch("/api/studio/chat/stream", {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify(body),
-	});
+/** Convert our store ChatMessage[] to AI SDK UIMessage[] for initialMessages. */
+function toInitialMessages(history: ChatMessage[]): UIMessage[] {
+	return history.map((msg, i) => ({
+		id: `hist-${i}`,
+		role: msg.role as "user" | "assistant",
+		parts: [{ type: "text" as const, text: msg.content }],
+	}));
+}
 
-	// If streaming endpoint fails (e.g. 503), fall back to blocking
-	if (!res.ok) {
-		const fallbackRes = await fetch("/api/studio/chat", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify(body),
+/** Convert AI SDK UIMessage[] back to our store ChatMessage[] for persistence. */
+function toStoreChatMessages(messages: UIMessage[]): ChatMessage[] {
+	const now = new Date().toISOString();
+	return messages
+		.filter((m) => m.role === "user" || m.role === "assistant")
+		.map((m) => {
+			// Extract text from parts
+			const textParts = m.parts
+				.filter((p): p is { type: "text"; text: string } => p.type === "text")
+				.map((p) => p.text);
+			return {
+				role: m.role as "user" | "assistant",
+				content: textParts.join("") || "",
+				timestamp: now,
+			};
 		});
-		if (!fallbackRes.ok) {
-			const err = await fallbackRes.json().catch(() => ({ error: "Unknown error" }));
-			throw new Error(err.error || "Chat failed");
-		}
-		return fallbackRes.json();
-	}
-
-	// Read SSE stream
-	const reader = res.body?.getReader();
-	if (!reader) {
-		throw new Error("No response body");
-	}
-
-	const decoder = new TextDecoder();
-	let buffer = "";
-	let result: { response: string; adapted_content: string } | null = null;
-
-	while (true) {
-		const { done, value } = await reader.read();
-		if (done) break;
-
-		buffer += decoder.decode(value, { stream: true });
-
-		// Parse SSE lines
-		const lines = buffer.split("\n");
-		// Keep incomplete last line in buffer
-		buffer = lines.pop() ?? "";
-
-		for (const line of lines) {
-			if (!line.startsWith("data: ")) continue;
-			const json = line.slice(6).trim();
-			if (!json) continue;
-
-			try {
-				const event = JSON.parse(json) as StudioStreamEvent;
-
-				if (event.type === "text_delta") {
-					onDelta(event.text);
-				} else if (event.type === "done") {
-					result = {
-						response: event.response,
-						adapted_content: event.adapted_content,
-					};
-				} else if (event.type === "error") {
-					throw new Error(event.error);
-				}
-			} catch (e) {
-				if (e instanceof SyntaxError) continue;
-				throw e;
-			}
-		}
-	}
-
-	if (!result) {
-		throw new Error("Stream ended without done event");
-	}
-	return result;
 }
 
-export function AgentChat({ content, platform, chatHistory, onResponse }: AgentChatProps) {
-	const [input, setInput] = useState("");
-	const [error, setError] = useState<string | null>(null);
-	const [streamingText, setStreamingText] = useState("");
+export function AgentChat({
+	content,
+	platform,
+	slug,
+	chatHistory,
+	onPlatformContent,
+	onImageGenerated,
+	onHistoryChange,
+}: AgentChatProps) {
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
+	const lastProcessedRef = useRef<string>("");
 
-	const onDelta = useCallback((text: string) => {
-		setStreamingText((prev) => prev + text);
-	}, []);
+	const initialMessages = useMemo(() => toInitialMessages(chatHistory), [chatHistory]);
 
-	const chatMutation = useMutation({
-		mutationFn: async (message: string) => {
-			setStreamingText("");
-			return streamChat({ content, platform, message, history: chatHistory }, onDelta);
-		},
-		onSuccess: (data, message) => {
-			setError(null);
-			setStreamingText("");
-			const now = new Date().toISOString();
-			const userMsg: ChatMessage = {
-				role: "user",
-				content: message,
-				timestamp: now,
-			};
-			const assistantMsg: ChatMessage = {
-				role: "assistant",
-				content: data.response,
-				timestamp: now,
-			};
-			const newHistory = [...chatHistory, userMsg, assistantMsg];
-			onResponse(data.response, data.adapted_content, newHistory);
+	const transport = useMemo(
+		() =>
+			new TextStreamChatTransport({
+				api: "/api/studio/chat",
+				body: { content, platform, slug },
+			}),
+		[content, platform, slug],
+	);
+
+	const { messages, sendMessage, status, error, setMessages } = useChat({
+		transport,
+		messages: initialMessages,
+		onFinish: useCallback(
+			({ messages: finishedMessages }: { messages: UIMessage[] }) => {
+				onHistoryChange(toStoreChatMessages(finishedMessages));
+			},
+			[onHistoryChange],
+		),
+	});
+
+	// Scan messages for tool results to trigger callbacks
+	useEffect(() => {
+		for (const msg of messages) {
+			if (msg.role !== "assistant") continue;
+			for (const part of msg.parts) {
+				if (part.type === "tool-savePlatformContent" || part.type === "dynamic-tool") {
+					const toolPart = part as {
+						type: string;
+						toolCallId: string;
+						state: string;
+						input?: { content?: string };
+						output?: { saved?: boolean; platform?: string };
+						toolName?: string;
+					};
+
+					// Only process completed tool calls
+					if (toolPart.state !== "output-available") continue;
+
+					const partKey = `${msg.id}-${toolPart.toolCallId}`;
+					if (lastProcessedRef.current === partKey) continue;
+
+					if (
+						toolPart.type === "tool-savePlatformContent" ||
+						(toolPart.type === "dynamic-tool" && toolPart.toolName === "savePlatformContent")
+					) {
+						lastProcessedRef.current = partKey;
+						if (toolPart.input?.content) {
+							onPlatformContent(toolPart.input.content);
+						}
+					}
+				}
+				if (part.type === "tool-generateImage" || part.type === "dynamic-tool") {
+					const toolPart = part as {
+						type: string;
+						toolCallId: string;
+						state: string;
+						output?: { url?: string; alt?: string; error?: string };
+						toolName?: string;
+					};
+
+					if (toolPart.state !== "output-available") continue;
+
+					const partKey = `${msg.id}-${toolPart.toolCallId}`;
+					if (lastProcessedRef.current === partKey) continue;
+
+					if (
+						toolPart.type === "tool-generateImage" ||
+						(toolPart.type === "dynamic-tool" && toolPart.toolName === "generateImage")
+					) {
+						if (toolPart.output?.url && !toolPart.output.error) {
+							lastProcessedRef.current = partKey;
+							onImageGenerated(toolPart.output.url, toolPart.output.alt ?? "");
+						}
+					}
+				}
+			}
+		}
+	}, [messages, onPlatformContent, onImageGenerated]);
+
+	// Sync external chatHistory changes (e.g., platform switch reloads)
+	useEffect(() => {
+		if (chatHistory.length > 0 && messages.length === 0) {
+			setMessages(toInitialMessages(chatHistory));
+		}
+	}, [chatHistory, messages.length, setMessages]);
+
+	// Auto-scroll to bottom on new messages
+	const prevMsgCountRef = useRef(messages.length);
+	useEffect(() => {
+		if (messages.length !== prevMsgCountRef.current) {
+			prevMsgCountRef.current = messages.length;
 			setTimeout(() => {
 				scrollRef.current?.scrollTo({
 					top: scrollRef.current.scrollHeight,
 					behavior: "smooth",
 				});
 			}, 50);
-		},
-		onError: (err: Error) => {
-			setStreamingText("");
-			setError(err.message);
-		},
+		}
 	});
 
-	const handleSend = () => {
-		const trimmed = input.trim();
-		if (!trimmed || chatMutation.isPending) return;
-		setInput("");
-		chatMutation.mutate(trimmed);
-	};
+	const handleSend = useCallback(() => {
+		const textarea = inputRef.current;
+		if (!textarea) return;
+		const trimmed = textarea.value.trim();
+		if (!trimmed || status !== "ready") return;
+		textarea.value = "";
+		textarea.style.height = "auto";
+		sendMessage({ text: trimmed });
+	}, [sendMessage, status]);
 
-	const handleKeyDown = (e: React.KeyboardEvent) => {
-		if (e.key === "Enter" && !e.shiftKey) {
-			e.preventDefault();
-			handleSend();
-		}
-	};
+	const handleKeyDown = useCallback(
+		(e: React.KeyboardEvent) => {
+			if (e.key === "Enter" && !e.shiftKey) {
+				e.preventDefault();
+				handleSend();
+			}
+		},
+		[handleSend],
+	);
 
-	const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-		setInput(e.target.value);
+	const handleInput = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
 		e.target.style.height = "auto";
 		e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
-	};
+	}, []);
+
+	const isBusy = status === "submitted" || status === "streaming";
 
 	return (
 		<div ref={scrollRef} className="flex flex-col">
 			{/* Messages */}
-			{chatHistory.length > 0 && (
+			{messages.length > 0 && (
 				<div className="space-y-3 px-4 pb-3">
-					{chatHistory.map((msg, i) => (
+					{messages.map((msg) => (
 						<div
-							key={`${msg.timestamp}-${i}`}
+							key={msg.id}
 							className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
 						>
-							<div
-								className={`max-w-[90%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed ${
-									msg.role === "user"
-										? "bg-indigo-600 text-white"
-										: "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
-								}`}
-							>
-								<p className="whitespace-pre-wrap">{msg.content}</p>
+							<div className="max-w-[90%] space-y-2">
+								{msg.parts.map((part, pi) => {
+									if (part.type === "text" && part.text) {
+										return (
+											<div
+												key={`${msg.id}-text-${pi}`}
+												className={`rounded-xl px-3.5 py-2.5 text-sm leading-relaxed ${
+													msg.role === "user"
+														? "bg-indigo-600 text-white"
+														: "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
+												}`}
+											>
+												<p className="whitespace-pre-wrap">{part.text}</p>
+											</div>
+										);
+									}
+
+									// Tool: savePlatformContent result
+									if (
+										part.type === "tool-savePlatformContent" ||
+										(part.type === "dynamic-tool" &&
+											"toolName" in part &&
+											part.toolName === "savePlatformContent")
+									) {
+										const toolPart = part as { state: string };
+										if (toolPart.state === "output-available") {
+											return (
+												<div
+													key={`${msg.id}-tool-${pi}`}
+													className="flex items-center gap-1.5 rounded-lg bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 dark:bg-green-950 dark:text-green-300"
+												>
+													<span className="text-green-500">&#10003;</span>
+													Content saved to {platform}
+												</div>
+											);
+										}
+										return null;
+									}
+
+									// Tool: generateImage result
+									if (
+										part.type === "tool-generateImage" ||
+										(part.type === "dynamic-tool" &&
+											"toolName" in part &&
+											part.toolName === "generateImage")
+									) {
+										const toolPart = part as {
+											state: string;
+											output?: { url?: string; alt?: string; error?: string };
+										};
+										if (toolPart.state === "output-available" && toolPart.output?.url) {
+											return (
+												<div
+													key={`${msg.id}-img-${pi}`}
+													className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700"
+												>
+													<img
+														src={toolPart.output.url}
+														alt={toolPart.output.alt ?? "Generated image"}
+														className="max-h-64 w-full object-cover"
+													/>
+												</div>
+											);
+										}
+										if (toolPart.state === "output-available" && toolPart.output?.error) {
+											return (
+												<div
+													key={`${msg.id}-imgerr-${pi}`}
+													className="rounded-lg bg-red-50 px-3 py-1.5 text-xs text-red-600 dark:bg-red-950 dark:text-red-400"
+												>
+													Image generation failed: {toolPart.output.error}
+												</div>
+											);
+										}
+										return null;
+									}
+
+									return null;
+								})}
 							</div>
 						</div>
 					))}
 				</div>
 			)}
 
-			{/* Streaming response */}
-			{chatMutation.isPending && streamingText && (
-				<div className="flex justify-start px-4 pb-3">
-					<div className="max-w-[90%] rounded-xl bg-zinc-100 px-3.5 py-2.5 text-sm leading-relaxed text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200">
-						<p className="whitespace-pre-wrap">{streamingText}</p>
-					</div>
-				</div>
-			)}
-
-			{/* Thinking indicator (no streaming text yet) */}
-			{chatMutation.isPending && !streamingText && (
+			{/* Thinking indicator */}
+			{status === "submitted" && (
 				<div className="flex justify-start px-4 pb-3">
 					<div className="flex items-center gap-2 rounded-xl bg-zinc-100 px-3.5 py-2.5 text-sm text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
 						<span className="inline-flex gap-1">
@@ -209,7 +295,7 @@ export function AgentChat({ content, platform, chatHistory, onResponse }: AgentC
 
 			{error && (
 				<div className="mx-4 mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600 dark:bg-red-950 dark:text-red-400">
-					{error}
+					{error.message}
 				</div>
 			)}
 
@@ -218,10 +304,9 @@ export function AgentChat({ content, platform, chatHistory, onResponse }: AgentC
 				<div className="flex items-end gap-2">
 					<textarea
 						ref={inputRef}
-						value={input}
 						onChange={handleInput}
 						onKeyDown={handleKeyDown}
-						disabled={chatMutation.isPending}
+						disabled={isBusy}
 						placeholder={`Write or refine ${platform} content...`}
 						rows={1}
 						className="flex-1 resize-none rounded-xl border border-zinc-300 bg-white px-3.5 py-2.5 text-sm leading-relaxed placeholder-zinc-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:placeholder-zinc-500"
@@ -229,7 +314,7 @@ export function AgentChat({ content, platform, chatHistory, onResponse }: AgentC
 					<button
 						type="button"
 						onClick={handleSend}
-						disabled={chatMutation.isPending || !input.trim()}
+						disabled={isBusy}
 						className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-30"
 					>
 						<Send className="h-4 w-4" />
