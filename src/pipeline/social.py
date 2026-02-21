@@ -396,11 +396,12 @@ def generate_daily_social(
                     continue
                 # Attach image to LinkedIn and X posts (not Slack)
                 imgs = [image_url] if image_url and platform != "slack" else None
+                resolved_type = postiz_config.resolve_post_type()
                 client.create_post(
                     content,
                     ids,
-                    post_type="schedule",
-                    scheduled_at=scheduled_at,
+                    post_type=resolved_type,
+                    scheduled_at=scheduled_at if resolved_type == "schedule" else None,
                     images=imgs,
                 )
                 logger.info(
