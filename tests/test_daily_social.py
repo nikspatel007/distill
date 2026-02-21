@@ -179,39 +179,25 @@ class TestGenerateDailySocial:
         full_prompt = f"{system_prompt}\n{user_prompt}"
         assert "Day 42/100" in full_prompt
 
-    @patch("distill.integrations.postiz.urllib.request.urlopen")
     @patch("distill.llm.call_claude")
-    def test_pushes_to_postiz(self, mock_run, mock_urlopen, tmp_path):
+    def test_saves_to_content_store(self, mock_run, tmp_path):
+        """Verify daily social saves content to ContentStore (Postiz push is gated)."""
         config = self._make_config()
         self._setup_journal(tmp_path)
         mock_run.return_value = "LinkedIn post content"
-
-        # Mock urlopen for both list_integrations and create_post calls
-        # First call: list_integrations, second+: create_post
-        responses = [
-            # list_integrations (called by resolve_integration_ids, then again by create_post)
-            json.dumps([
-                {"id": "int-1", "name": "LinkedIn", "providerIdentifier": "linkedin"},
-            ]).encode(),
-            # list_integrations again (called inside create_post)
-            json.dumps([
-                {"id": "int-1", "name": "LinkedIn", "providerIdentifier": "linkedin"},
-            ]).encode(),
-            # create_post response
-            json.dumps({"id": "post-1"}).encode(),
-        ]
-        mock_resp = MagicMock()
-        mock_resp.__enter__ = lambda s: s
-        mock_resp.__exit__ = MagicMock(return_value=False)
-        mock_resp.read = MagicMock(side_effect=responses)
-        mock_urlopen.return_value = mock_resp
 
         generate_daily_social(
             tmp_path, postiz_config=config, target_date=date(2026, 2, 15)
         )
 
-        # Verify at least 2 urlopen calls (list_integrations + create_post)
-        assert mock_urlopen.call_count >= 2
+        # Verify content saved to ContentStore
+        from distill.content import ContentStore
+
+        store = ContentStore(tmp_path)
+        record = store.get("daily-social-2026-02-15")
+        assert record is not None
+        assert record.status.value == "draft"
+        assert "LinkedIn post content" in record.body
 
     @patch("distill.llm.call_claude")
     def test_force_regenerates(self, mock_run, tmp_path):

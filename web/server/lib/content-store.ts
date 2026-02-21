@@ -34,7 +34,7 @@ export interface ContentStoreChatMessage {
 
 export interface ContentStoreRecord {
 	slug: string;
-	content_type: "weekly" | "thematic" | "digest" | "daily_social" | "seed";
+	content_type: "weekly" | "thematic" | "reading_list" | "digest" | "daily_social" | "seed";
 	title: string;
 	body: string;
 	status: "draft" | "review" | "ready" | "published" | "archived";
@@ -59,7 +59,18 @@ export function loadContentStore(): ContentStoreData {
 	const path = storePath();
 	if (!existsSync(path)) return {};
 	try {
-		return JSON.parse(readFileSync(path, "utf-8")) as ContentStoreData;
+		const raw = JSON.parse(readFileSync(path, "utf-8"));
+		// Python ContentStore writes {"records": [...]} format.
+		// Convert to slug-keyed dict for TS consumption.
+		if (raw.records && Array.isArray(raw.records)) {
+			const data: ContentStoreData = {};
+			for (const record of raw.records) {
+				if (record.slug) data[record.slug] = record;
+			}
+			return data;
+		}
+		// Already in slug-keyed dict format
+		return raw as ContentStoreData;
 	} catch {
 		return {};
 	}
@@ -67,7 +78,9 @@ export function loadContentStore(): ContentStoreData {
 
 export function saveContentStore(data: ContentStoreData): void {
 	const path = storePath();
-	writeFileSync(path, JSON.stringify(data, null, 2));
+	// Write in Python-compatible {"records": [...]} format
+	const records = Object.values(data);
+	writeFileSync(path, JSON.stringify({ records }, null, 2));
 }
 
 export function getContentRecord(slug: string): ContentStoreRecord | null {

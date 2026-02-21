@@ -13,6 +13,7 @@ def create_publisher(
     synthesizer: BlogSynthesizer | None = None,
     ghost_config: GhostConfig | None = None,
     postiz_config: object | None = None,
+    skip_api: bool = False,
 ) -> BlogPublisher:
     """Create a publisher for the given platform.
 
@@ -21,6 +22,9 @@ def create_publisher(
         synthesizer: Required for social publishers that need LLM re-synthesis.
         ghost_config: Optional Ghost CMS configuration for live publishing.
         postiz_config: Optional PostizConfig for scheduling and API settings.
+        skip_api: If True, publishers format content but skip external API calls.
+            Content is saved locally and to ContentStore for later publishing
+            via the Studio UI.
 
     Returns:
         A BlogPublisher instance for the platform.
@@ -38,9 +42,11 @@ def create_publisher(
 
     publishers: dict[Platform, BlogPublisher] = {
         Platform.OBSIDIAN: ObsidianPublisher(),
-        Platform.GHOST: GhostPublisher(ghost_config=ghost_config),
+        Platform.GHOST: GhostPublisher(ghost_config=ghost_config, skip_api=skip_api),
         Platform.MARKDOWN: MarkdownPublisher(),
-        Platform.POSTIZ: PostizBlogPublisher(synthesizer=synthesizer, postiz_config=postiz_config),
+        Platform.POSTIZ: PostizBlogPublisher(
+            synthesizer=synthesizer, postiz_config=postiz_config, skip_api=skip_api
+        ),
     }
 
     if platform in publishers:

@@ -375,44 +375,12 @@ def generate_daily_social(
         postiz_config,
     )
 
-    # Push to Postiz per platform (separate calls so each gets its own content)
-    if postiz_config.is_configured and postiz_config.schedule_enabled:
-        try:
-            from distill.integrations.mapping import resolve_integration_ids
-            from distill.integrations.postiz import PostizClient
-            from distill.integrations.scheduling import next_daily_social_slot
-
-            client = PostizClient(postiz_config)
-            integration_map = resolve_integration_ids(client, platforms)
-            scheduled_at = next_daily_social_slot(postiz_config)
-
-            for platform in platforms:
-                ids = integration_map.get(platform, [])
-                if not ids:
-                    logger.warning("No Postiz integration for %s, skipping", platform)
-                    continue
-                content = platform_content.get(platform, "")
-                if not content:
-                    continue
-                # Attach image to LinkedIn and X posts (not Slack)
-                imgs = [image_url] if image_url and platform != "slack" else None
-                resolved_type = postiz_config.resolve_post_type()
-                client.create_post(
-                    content,
-                    ids,
-                    post_type=resolved_type,
-                    scheduled_at=scheduled_at if resolved_type == "schedule" else None,
-                    images=imgs,
-                )
-                logger.info(
-                    "Daily social Day %d (%s) scheduled for %s%s",
-                    day_number,
-                    platform,
-                    scheduled_at,
-                    " (with image)" if imgs else "",
-                )
-        except Exception:
-            logger.warning("Failed to push daily social to Postiz", exc_info=True)
+    # Postiz push is gated by ContentStore workflow.
+    # Content is saved to ContentStore below; publish via Studio when ready.
+    logger.info(
+        "Daily social Day %d content generated (publish via Studio when ready)",
+        day_number,
+    )
 
     # Upsert to ContentStore (additive, non-blocking)
     if written:

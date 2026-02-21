@@ -28,12 +28,15 @@ class GhostPublisher(BlogPublisher):
     directly to the Ghost Admin API.
     """
 
-    def __init__(self, ghost_config: GhostConfig | None = None) -> None:
+    def __init__(
+        self, ghost_config: GhostConfig | None = None, *, skip_api: bool = False
+    ) -> None:
         self._config = ghost_config
         self._api: GhostAPIClient | None = None
+        self._skip_api = skip_api
         self.last_post_url: str | None = None
         self.last_feature_image_url: str | None = None
-        if ghost_config and ghost_config.is_configured:
+        if ghost_config and ghost_config.is_configured and not skip_api:
             self._api = GhostAPIClient(ghost_config)
 
     def format_weekly(

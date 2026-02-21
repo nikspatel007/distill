@@ -26,10 +26,12 @@ class PostizBlogPublisher(BlogPublisher):
         synthesizer: Any = None,
         postiz_config: Any = None,
         target_platforms: list[str] | None = None,
+        skip_api: bool = False,
     ) -> None:
         self._synthesizer = synthesizer
         self._postiz_config = postiz_config
         self._target_platforms = target_platforms  # None = auto-detect from Postiz
+        self._skip_api = skip_api
         self._used_thematic_dates: set[str] = set()
 
     def format_weekly(
@@ -87,6 +89,15 @@ class PostizBlogPublisher(BlogPublisher):
         """Return Postiz post IDs from the most recent _adapt_and_push call."""
         return list(self._last_post_ids)
 
+    @property
+    def last_platform_content(self) -> dict[str, str]:
+        """Return per-platform adapted content from the most recent call.
+
+        Keyed by platform name (e.g. "linkedin", "x", "slack").
+        Useful for saving to ContentStore when skip_api=True.
+        """
+        return dict(self._last_platform_content)
+
     def _adapt_and_push(
         self,
         prose: str,
@@ -101,6 +112,7 @@ class PostizBlogPublisher(BlogPublisher):
         from distill.integrations.postiz import PostizClient, PostizConfig
 
         self._last_post_ids: list[str] = []
+        self._last_platform_content: dict[str, str] = {}
         config = self._postiz_config or PostizConfig.from_env()
 
         if not config.is_configured:
@@ -145,39 +157,51 @@ class PostizBlogPublisher(BlogPublisher):
             # Append blog link for social posts
             adapted = self._append_blog_link(adapted, platform, blog_url)
 
+            # Store per-platform adapted content for ContentStore
+            self._last_platform_content[platform] = adapted
+
             # Build image list for the API call
             images = [feature_image_url] if feature_image_url else []
 
-            # Push post to Postiz
-            try:
-                response = client.create_post(
-                    adapted,
-                    integration_ids,
-                    post_type=post_type,
-                    scheduled_at=scheduled_at,
-                    images=images,
-                )
-                # Capture post ID from API response
-                post_id = response.get("id", "") if isinstance(response, dict) else ""
-                if post_id:
-                    self._last_post_ids.append(str(post_id))
+            # Push post to Postiz (unless skip_api is set — content goes to ContentStore only)
+            if self._skip_api:
                 results.append(f"## {platform}")
-                if scheduled_at:
-                    results.append(
-                        f"Scheduled for {scheduled_at} (IDs: {', '.join(integration_ids)})"
-                    )
-                else:
-                    results.append(f"Draft created (IDs: {', '.join(integration_ids)})")
+                results.append("Adapted (publish gated by ContentStore status)")
                 if blog_url:
                     results.append(f"Blog link: {blog_url}")
                 results.append("")
                 results.append(adapted)
                 results.append("")
-            except Exception:
-                logger.warning("Failed to push to Postiz for %s", platform, exc_info=True)
-                results.append(f"## {platform} (FAILED)")
-                results.append(adapted)
-                results.append("")
+            else:
+                try:
+                    response = client.create_post(
+                        adapted,
+                        integration_ids,
+                        post_type=post_type,
+                        scheduled_at=scheduled_at,
+                        images=images,
+                    )
+                    # Capture post ID from API response
+                    post_id = response.get("id", "") if isinstance(response, dict) else ""
+                    if post_id:
+                        self._last_post_ids.append(str(post_id))
+                    results.append(f"## {platform}")
+                    if scheduled_at:
+                        results.append(
+                            f"Scheduled for {scheduled_at} (IDs: {', '.join(integration_ids)})"
+                        )
+                    else:
+                        results.append(f"Draft created (IDs: {', '.join(integration_ids)})")
+                    if blog_url:
+                        results.append(f"Blog link: {blog_url}")
+                    results.append("")
+                    results.append(adapted)
+                    results.append("")
+                except Exception:
+                    logger.warning("Failed to push to Postiz for %s", platform, exc_info=True)
+                    results.append(f"## {platform} (FAILED)")
+                    results.append(adapted)
+                    results.append("")
 
         return "\n".join(results)
 

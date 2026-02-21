@@ -72,6 +72,7 @@ def generate_blog_posts(
     ghost_config: Any | None = None,
     report: PipelineReport | None = None,
     postiz_limit: int | None = None,
+    auto_publish: bool = False,
 ) -> list[Path]:
     """Generate blog posts from existing journal entries.
 
@@ -91,6 +92,9 @@ def generate_blog_posts(
         platforms: List of platform names to publish to. Defaults to ["obsidian"].
         ghost_config: Optional GhostConfig for live Ghost CMS publishing.
         postiz_limit: Max number of posts to push to Postiz per run. None = unlimited.
+        auto_publish: If True, publish to Ghost/Postiz during generation (legacy).
+            If False (default), skip external API calls — content is saved to
+            ContentStore for review and manual publishing via Studio.
 
     Returns:
         List of written blog post file paths.
@@ -116,6 +120,9 @@ def generate_blog_posts(
 
     if platforms is None:
         platforms = ["obsidian"]
+
+    # skip_api gates external publishing — content goes to ContentStore instead
+    skip_api = not auto_publish
 
     # Load project context and editorial store
     distill_config = load_config()
@@ -220,6 +227,7 @@ def generate_blog_posts(
                 postiz_counter=postiz_counter,
                 graph_context=graph_context,
                 content_store=content_store,
+                skip_api=skip_api,
             )
         )
 
@@ -247,6 +255,7 @@ def generate_blog_posts(
                 postiz_counter=postiz_counter,
                 graph_context=graph_context,
                 content_store=content_store,
+                skip_api=skip_api,
             )
         )
 
@@ -269,6 +278,7 @@ def generate_blog_posts(
                 postiz_limit=postiz_limit,
                 postiz_counter=postiz_counter,
                 content_store=content_store,
+                skip_api=skip_api,
             )
         )
 
@@ -286,6 +296,7 @@ def generate_blog_posts(
                     synthesizer=synthesizer,
                     ghost_config=ghost_config,
                     postiz_config=postiz_config,
+                    skip_api=skip_api,
                 )
                 if not publisher.requires_llm:
                     idx_content = publisher.format_index(output_dir, state)
@@ -368,6 +379,7 @@ def _generate_weekly_posts(
     postiz_counter: list[int] | None = None,
     graph_context: str = "",
     content_store: Any | None = None,
+    skip_api: bool = False,
 ) -> list[Path]:
     """Generate weekly synthesis blog posts."""
     from distill.blog import BlogPostRecord, Platform, clean_diagrams, prepare_weekly_context
@@ -452,6 +464,7 @@ def _generate_weekly_posts(
                     synthesizer=synthesizer,
                     ghost_config=ghost_config,
                     postiz_config=postiz_config,
+                    skip_api=skip_api,
                 )
                 kwargs: dict = {}
                 if platform_name == "ghost" and feature_image_path:
@@ -469,6 +482,7 @@ def _generate_weekly_posts(
                 logger.warning("Failed to publish %s to %s", slug, platform_name, exc_info=True)
 
         # Phase 2: Social publishers (Postiz) — with blog URL + image
+        postiz_publisher = None
         if "postiz" in platforms:
             if not force and blog_memory.is_published_to(slug, "postiz"):
                 logger.debug("Already published %s to postiz, skipping", slug)
@@ -476,18 +490,19 @@ def _generate_weekly_posts(
                 logger.info("Postiz limit reached (%d), skipping %s", postiz_limit, slug)
             else:
                 try:
-                    publisher = create_publisher(
+                    postiz_publisher = create_publisher(
                         Platform("postiz"),
                         synthesizer=synthesizer,
                         postiz_config=postiz_config,
+                        skip_api=skip_api,
                     )
-                    content = publisher.format_weekly(
+                    content = postiz_publisher.format_weekly(
                         context,
                         prose,
                         blog_url=ghost_post_url,
                         feature_image_url=ghost_feature_image_url,
                     )
-                    out_path = publisher.weekly_output_path(output_dir, year, week)
+                    out_path = postiz_publisher.weekly_output_path(output_dir, year, week)
                     _atomic_write(out_path, content)
                     written.append(out_path)
                     blog_memory.mark_published(slug, "postiz")
@@ -539,6 +554,19 @@ def _generate_weekly_posts(
                             relative_path=str(feature_image_path.relative_to(output_dir)),
                         ),
                     )
+                # Save per-platform adapted content from Postiz publisher
+                if postiz_publisher is not None:
+                    from distill.content import PlatformContent
+
+                    for plat, adapted in getattr(
+                        postiz_publisher, "last_platform_content", {}
+                    ).items():
+                        with contextlib.suppress(Exception):
+                            content_store.save_platform_content(
+                                slug,
+                                plat,
+                                PlatformContent(platform=plat, content=adapted, published=False),
+                            )
             except Exception:
                 logger.debug("ContentStore upsert failed for %s", slug, exc_info=True)
 
@@ -567,6 +595,7 @@ def _generate_thematic_posts(
     postiz_counter: list[int] | None = None,
     graph_context: str = "",
     content_store: Any | None = None,
+    skip_api: bool = False,
 ) -> list[Path]:
     """Generate thematic deep-dive blog posts."""
     from distill.blog import (
@@ -693,6 +722,7 @@ def _generate_thematic_posts(
                     synthesizer=synthesizer,
                     ghost_config=ghost_config,
                     postiz_config=postiz_config,
+                    skip_api=skip_api,
                 )
                 kwargs_t: dict = {}
                 if platform_name == "ghost" and feature_image_path:
@@ -711,6 +741,7 @@ def _generate_thematic_posts(
                 )
 
         # Phase 2: Social publishers (Postiz) — with blog URL + image
+        postiz_publisher = None
         if "postiz" in platforms:
             if not force and blog_memory.is_published_to(theme.slug, "postiz"):
                 logger.debug("Already published %s to postiz, skipping", theme.slug)
@@ -718,18 +749,19 @@ def _generate_thematic_posts(
                 logger.info("Postiz limit reached (%d), skipping %s", postiz_limit, theme.slug)
             else:
                 try:
-                    publisher = create_publisher(
+                    postiz_publisher = create_publisher(
                         Platform("postiz"),
                         synthesizer=synthesizer,
                         postiz_config=postiz_config,
+                        skip_api=skip_api,
                     )
-                    content = publisher.format_thematic(
+                    content = postiz_publisher.format_thematic(
                         context,
                         prose,
                         blog_url=ghost_post_url,
                         feature_image_url=ghost_feature_image_url,
                     )
-                    out_path = publisher.thematic_output_path(output_dir, theme.slug)
+                    out_path = postiz_publisher.thematic_output_path(output_dir, theme.slug)
                     _atomic_write(out_path, content)
                     written.append(out_path)
                     blog_memory.mark_published(theme.slug, "postiz")
@@ -781,6 +813,19 @@ def _generate_thematic_posts(
                             relative_path=str(feature_image_path.relative_to(output_dir)),
                         ),
                     )
+                # Save per-platform adapted content from Postiz publisher
+                if postiz_publisher is not None:
+                    from distill.content import PlatformContent
+
+                    for plat, adapted in getattr(
+                        postiz_publisher, "last_platform_content", {}
+                    ).items():
+                        with contextlib.suppress(Exception):
+                            content_store.save_platform_content(
+                                theme.slug,
+                                plat,
+                                PlatformContent(platform=plat, content=adapted, published=False),
+                            )
             except Exception:
                 logger.debug("ContentStore upsert failed for %s", theme.slug, exc_info=True)
 
@@ -809,6 +854,7 @@ def _generate_reading_list_posts(
     postiz_limit: int | None = None,
     postiz_counter: list[int] | None = None,
     content_store: Any | None = None,
+    skip_api: bool = False,
 ) -> list[Path]:
     """Generate reading list posts from intake content store."""
     from distill.blog import (
@@ -877,6 +923,7 @@ def _generate_reading_list_posts(
                     synthesizer=synthesizer,
                     ghost_config=ghost_config,
                     postiz_config=postiz_config,
+                    skip_api=skip_api,
                 )
                 out_path = publisher.weekly_output_path(output_dir, year, week)
                 # Use reading-list subdirectory
