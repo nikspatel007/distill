@@ -42,6 +42,8 @@ export default function BlogDetailPage() {
 		);
 	if (!data) return null;
 
+	const heroImage = data.images.find((img) => img.role === "hero");
+
 	return (
 		<div className="mx-auto max-w-5xl p-6">
 			<div className="space-y-4">
@@ -61,6 +63,15 @@ export default function BlogDetailPage() {
 						saveSuccess={saveSuccess}
 					/>
 				</div>
+
+				{heroImage && (
+					<img
+						src={`/api/studio/images/${heroImage.relative_path}`}
+						alt={heroImage.prompt || data.meta.title}
+						className="w-full rounded-xl object-cover"
+						style={{ maxHeight: 400 }}
+					/>
+				)}
 
 				<div>
 					<h2 className="text-2xl font-bold">{data.meta.title}</h2>

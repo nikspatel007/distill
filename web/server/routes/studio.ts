@@ -1,6 +1,6 @@
 import { basename, join, resolve } from "node:path";
 import { zValidator } from "@hono/zod-validator";
-import { stepCountIs, streamText, tool } from "ai";
+import { convertToModelMessages, stepCountIs, streamText, tool } from "ai";
 import { Hono } from "hono";
 import { z } from "zod";
 import {
@@ -15,6 +15,7 @@ import {
 import { getModel, isAgentConfigured } from "../lib/agent.js";
 import { getConfig } from "../lib/config.js";
 import {
+	deleteContentRecord,
 	getContentRecord,
 	loadContentStore,
 	saveContentStore,
@@ -22,10 +23,28 @@ import {
 } from "../lib/content-store.js";
 import { listFiles, readMarkdown } from "../lib/files.js";
 import { parseFrontmatter } from "../lib/frontmatter.js";
-import { generateImage, isImageConfigured } from "../lib/images.js";
 import { createPost, isPostizConfigured, listIntegrations } from "../lib/postiz.js";
 import { PLATFORM_PROMPTS } from "../lib/prompts.js";
 import { getReviewItem, loadReviewQueue, upsertReviewItem } from "../lib/review-queue.js";
+import {
+	createContent,
+	getContent,
+	listContent,
+	savePlatform,
+	updateSource,
+	updateStatus as updateStatusTool,
+} from "../tools/content.js";
+import { generateImage as generateImageTool, isImageConfigured } from "../tools/images.js";
+import {
+	addNote,
+	addSeed,
+	runBlog,
+	runIntake,
+	runJournal,
+	runPipeline,
+} from "../tools/pipeline.js";
+import { listPostizIntegrations, listPostizPosts, publishContent } from "../tools/publishing.js";
+import { fetchUrl, saveToIntake } from "../tools/research.js";
 
 const app = new Hono();
 
@@ -37,6 +56,38 @@ function mapContentType(contentType: string): string {
 	if (contentType === "daily_social") return "daily-social";
 	if (contentType === "reading_list") return "reading-list";
 	return contentType;
+}
+
+/**
+ * Scan disk for images matching a slug.
+ * Looks in blog/images/ and studio/images/ for files named slug-*.png.
+ * Returns image records, merging with any existing records (deduped by filename).
+ */
+async function discoverImages(
+	outputDir: string,
+	slug: string,
+	existing: Array<{ filename: string; role: string; prompt: string; relative_path: string }>,
+): Promise<Array<{ filename: string; role: string; prompt: string; relative_path: string }>> {
+	const known = new Set(existing.map((img) => img.filename));
+	const result = [...existing];
+
+	for (const subdir of ["blog/images", "studio/images"]) {
+		const files = await listFiles(join(outputDir, subdir), /\.png$/);
+		for (const filePath of files) {
+			const fname = basename(filePath);
+			if (!fname.startsWith(`${slug}-`) || known.has(fname)) continue;
+			known.add(fname);
+			const role = fname.includes("hero") ? "hero" : "inline";
+			result.push({
+				filename: fname,
+				role,
+				prompt: "",
+				relative_path: `${subdir}/${fname}`,
+			});
+		}
+	}
+
+	return result;
 }
 
 /**
@@ -145,6 +196,7 @@ app.get("/api/studio/items", async (c) => {
  */
 app.get("/api/studio/items/:slug", async (c) => {
 	const slug = c.req.param("slug");
+	const { OUTPUT_DIR } = getConfig();
 
 	// 1. Try ContentStore first
 	const storeRecord = getContentRecord(slug);
@@ -157,6 +209,18 @@ app.get("/api/studio/items/:slug", async (c) => {
 				content: plat.content || null,
 				published: plat.published,
 				postiz_id: plat.external_id || null,
+			};
+		}
+
+		// Default ghost content to the source body (the body IS the newsletter)
+		// biome-ignore lint/complexity/useLiteralKeys: TS noPropertyAccessFromIndexSignature
+		if (!reviewPlatforms["ghost"] && storeRecord.body) {
+			// biome-ignore lint/complexity/useLiteralKeys: TS noPropertyAccessFromIndexSignature
+			reviewPlatforms["ghost"] = {
+				enabled: true,
+				content: storeRecord.body,
+				published: false,
+				postiz_id: null,
 			};
 		}
 
@@ -178,6 +242,9 @@ app.get("/api/studio/items/:slug", async (c) => {
 			})),
 		};
 
+		// Discover images from disk (supplements ContentStore metadata)
+		const images = await discoverImages(OUTPUT_DIR, slug, storeRecord.images ?? []);
+
 		return c.json({
 			slug: storeRecord.slug,
 			title: storeRecord.title,
@@ -195,12 +262,11 @@ app.get("/api/studio/items/:slug", async (c) => {
 			review,
 			content_store: true,
 			store_status: storeRecord.status,
-			images: storeRecord.images,
+			images,
 		});
 	}
 
 	// 2. Fallback: file-system + review queue
-	const { OUTPUT_DIR } = getConfig();
 	const files = await collectStudioFiles(OUTPUT_DIR);
 	const match = files.find((f) => basename(f, ".md") === slug || f.includes(slug));
 
@@ -231,11 +297,28 @@ app.get("/api/studio/items/:slug", async (c) => {
 			status: "draft",
 			generated_at: parsed.frontmatter.date ?? new Date().toISOString(),
 			source_content: parsed.content,
-			platforms: {},
+			platforms: {
+				ghost: { enabled: true, content: parsed.content, published: false, postiz_id: null },
+			},
 			chat_history: [],
 		};
 		await upsertReviewItem(review);
 	}
+
+	// Default ghost content to the source body
+	// biome-ignore lint/complexity/useLiteralKeys: TS noPropertyAccessFromIndexSignature
+	if (!review.platforms["ghost"] && parsed.content) {
+		// biome-ignore lint/complexity/useLiteralKeys: TS noPropertyAccessFromIndexSignature
+		review.platforms["ghost"] = {
+			enabled: true,
+			content: parsed.content,
+			published: false,
+			postiz_id: null,
+		};
+	}
+
+	// Discover images from disk
+	const images = await discoverImages(OUTPUT_DIR, slug, []);
 
 	return c.json({
 		slug,
@@ -245,6 +328,7 @@ app.get("/api/studio/items/:slug", async (c) => {
 		frontmatter: parsed.frontmatter,
 		review,
 		content_store: false,
+		images,
 	});
 });
 
@@ -527,6 +611,46 @@ app.put("/api/studio/items/:slug/status", zValidator("json", StatusBodySchema), 
 });
 
 // ---------------------------------------------------------------------------
+// DELETE /api/studio/items/:slug — permanently delete a content item
+// ---------------------------------------------------------------------------
+app.delete("/api/studio/items/:slug", async (c) => {
+	const slug = c.req.param("slug");
+	const deleted = deleteContentRecord(slug);
+	if (!deleted) return c.json({ error: "Content not found" }, 404);
+	return c.json({ success: true });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/studio/items/:slug/image — generate an image for a content item
+// ---------------------------------------------------------------------------
+const GenerateImageSchema = z.object({
+	prompt: z.string().min(1),
+	mood: z.enum([
+		"reflective",
+		"energetic",
+		"cautionary",
+		"triumphant",
+		"intimate",
+		"technical",
+		"playful",
+		"somber",
+	]),
+});
+
+app.post("/api/studio/items/:slug/image", zValidator("json", GenerateImageSchema), async (c) => {
+	const slug = c.req.param("slug");
+	if (!isImageConfigured()) {
+		return c.json({ error: "Image generation not configured (GOOGLE_AI_API_KEY)" }, 503);
+	}
+	const { prompt, mood } = c.req.valid("json");
+	const result = await generateImageTool({ prompt, mood, slug });
+	if (result.error) {
+		return c.json({ error: result.error }, 500);
+	}
+	return c.json(result);
+});
+
+// ---------------------------------------------------------------------------
 // PUT /api/studio/items/:slug/chat — save chat history
 // Prefers ContentStore; falls back to review queue.
 // ---------------------------------------------------------------------------
@@ -588,102 +712,215 @@ Here are the author's source notes to work with:
 ${content}
 ---
 
-Be a thoughtful collaborator. Ask questions, suggest angles, explain your choices. When you write content for the platform, call the savePlatformContent tool with it.${isImageConfigured() ? "\n\nYou can generate images to accompany the content using the generateImage tool. Generate a hero image when you write the first draft, or when the author asks for one." : ""}`;
+Be a thoughtful collaborator. Ask questions, suggest angles, explain your choices.
 
-	// Messages arrive in AI SDK wire format (parts-based) — cast to satisfy streamText types
+When you write or revise content for the platform, call the savePlatformContent tool with the full content.
+When the author asks you to edit, rewrite, or improve the source post itself, call the updateSourceContent tool with the complete updated post. Always send the FULL updated content, not just the changed section.${isImageConfigured() ? "\nYou can generate images to accompany the content using the generateImage tool. Generate a hero image when you write the first draft, or when the author asks for one." : ""}
+
+You also have access to tools for:
+- Content management: listContent, getContent, updateStatus, createContent
+- Pipeline: runPipeline, runJournal, runBlog, runIntake, addSeed, addNote
+- Research: fetchUrl (read any URL), saveToIntake (save URL content for future synthesis)
+- Publishing: listIntegrations (connected platforms), publish (post to social), listPosts (recent/upcoming)
+
+Use these when the author asks about the broader content pipeline, wants to research a topic, or manage other content.`;
+
+	// Convert UI wire format (parts-based) to model messages (role + content).
+	// Messages arrive as opaque wire format from TextStreamChatTransport.
+	const modelMessages = await convertToModelMessages(
+		messages as Parameters<typeof convertToModelMessages>[0],
+	);
+
 	const result = streamText({
 		model: getModel(),
 		system: systemPrompt,
-		// biome-ignore lint/suspicious/noExplicitAny: AI SDK wire format is opaque
-		messages: messages as any,
+		messages: modelMessages,
 		tools: {
+			// --- Content ---
+			updateSourceContent: tool({
+				description:
+					"Update the original source post. Call when the author asks to edit/rewrite the source notes.",
+				inputSchema: z.object({
+					content: z.string().describe("Full updated source content (markdown)"),
+					title: z.string().optional().describe("Updated title, if changed"),
+				}),
+				execute: async (params) => updateSource({ slug: slug ?? "", ...params }),
+			}),
 			savePlatformContent: tool({
 				description:
-					"Save the adapted content for the target platform. Call this every time you write or revise content for the platform.",
+					"Save adapted content for the target platform. Call every time you write or revise platform content.",
 				inputSchema: z.object({
-					content: z.string().describe("The full adapted content for the platform"),
+					content: z.string().describe("Full adapted content for the platform"),
 				}),
-				execute: async ({ content: adaptedContent }) => {
-					if (slug) {
-						const storeRecord = getContentRecord(slug);
-						if (storeRecord) {
-							const store = loadContentStore();
-							const record = store[slug];
-							if (record) {
-								const existing = record.platforms[platform] ?? {
-									platform,
-									content: "",
-									published: false,
-									published_at: null,
-									external_id: "",
-								};
-								existing.content = adaptedContent;
-								record.platforms[platform] = existing;
-								saveContentStore(store);
-							}
-						}
-					}
-					return { saved: true, platform, length: adaptedContent.length };
-				},
+				execute: async ({ content: c }) => savePlatform({ slug: slug ?? "", platform, content: c }),
 			}),
-			generateImage: tool({
-				description:
-					"Generate an image to accompany the content. Use for hero images or when the author asks.",
+			listContent: tool({
+				description: "List all content items in the studio. Use to browse available posts.",
 				inputSchema: z.object({
-					prompt: z
+					type: z.string().optional().describe("Filter by type: weekly, thematic, journal, etc."),
+					status: z
 						.string()
-						.describe("Visual metaphor description — describe the scene, not the article topic"),
-					mood: z
-						.enum([
-							"reflective",
-							"energetic",
-							"cautionary",
-							"triumphant",
-							"intimate",
-							"technical",
-							"playful",
-							"somber",
-						])
-						.describe("Visual mood matching the content tone"),
+						.optional()
+						.describe("Filter by status: draft, review, ready, published"),
 				}),
-				execute: async ({ prompt: imagePrompt, mood }) => {
-					const config = getConfig();
-					const imageResult = await generateImage(imagePrompt, {
-						outputDir: config.OUTPUT_DIR,
-						mood,
-						slug: slug ?? "studio",
-					});
-
-					if (!imageResult) {
-						return { error: "Image generation not available or failed" };
-					}
-
-					if (slug) {
-						const store = loadContentStore();
-						const record = store[slug];
-						if (record) {
-							record.images.push({
-								filename: imageResult.filename,
-								role: "hero",
-								prompt: imagePrompt,
-								relative_path: imageResult.relativePath,
-							});
-							saveContentStore(store);
-						}
-					}
-
-					return {
-						url: `/api/studio/images/${imageResult.relativePath}`,
-						alt: imagePrompt,
-						mood,
-					};
-				},
+				execute: async (params) => listContent(params),
 			}),
+			getContent: tool({
+				description: "Get full content record by slug.",
+				inputSchema: z.object({ slug: z.string() }),
+				execute: async (params) => getContent(params),
+			}),
+			updateStatus: tool({
+				description: "Change content status (draft, review, ready, published, archived).",
+				inputSchema: z.object({
+					slug: z.string(),
+					status: z.enum(["draft", "review", "ready", "published", "archived"]),
+				}),
+				execute: async (params) => updateStatusTool(params),
+			}),
+			createContent: tool({
+				description: "Create a new content item in the studio.",
+				inputSchema: z.object({
+					title: z.string(),
+					body: z.string(),
+					content_type: z.enum(["weekly", "thematic", "journal", "digest", "seed"]),
+					tags: z.array(z.string()).optional(),
+				}),
+				execute: async (params) => createContent(params),
+			}),
+
+			// --- Pipeline ---
+			runPipeline: tool({
+				description:
+					"Run the full distill pipeline: sessions -> journal -> intake -> blog. Takes a few minutes.",
+				inputSchema: z.object({
+					project: z.string().optional().describe("Project name from .distill.toml"),
+					skip_journal: z.boolean().optional(),
+					skip_intake: z.boolean().optional(),
+					skip_blog: z.boolean().optional(),
+				}),
+				execute: async (params) => runPipeline(params),
+			}),
+			runJournal: tool({
+				description: "Generate journal entries from coding sessions.",
+				inputSchema: z.object({
+					project: z.string().optional(),
+					date: z.string().optional().describe("Specific date (YYYY-MM-DD)"),
+					since: z.string().optional().describe("Generate since this date"),
+					force: z.boolean().optional(),
+				}),
+				execute: async (params) => runJournal(params),
+			}),
+			runBlog: tool({
+				description: "Generate blog posts from journal entries.",
+				inputSchema: z.object({
+					project: z.string().optional(),
+					type: z.enum(["weekly", "thematic", "all"]).optional(),
+					week: z.string().optional().describe("Specific week (e.g., 2026-W08)"),
+					force: z.boolean().optional(),
+				}),
+				execute: async (params) => runBlog(params),
+			}),
+			runIntake: tool({
+				description: "Run content ingestion from RSS feeds, browser history, etc.",
+				inputSchema: z.object({
+					project: z.string().optional(),
+					sources: z.string().optional().describe("Comma-separated source names"),
+					use_defaults: z.boolean().optional(),
+				}),
+				execute: async (params) => runIntake(params),
+			}),
+			addSeed: tool({
+				description: "Add a seed idea to the pipeline for future blog posts.",
+				inputSchema: z.object({
+					text: z.string().describe("The seed idea"),
+					tags: z.string().optional().describe("Comma-separated tags"),
+				}),
+				execute: async (params) => addSeed(params),
+			}),
+			addNote: tool({
+				description: "Add an editorial note to steer content direction.",
+				inputSchema: z.object({
+					text: z.string().describe("The editorial note"),
+					target: z.string().optional().describe("Target (e.g., 'week:2026-W08')"),
+				}),
+				execute: async (params) => addNote(params),
+			}),
+
+			// --- Research ---
+			fetchUrl: tool({
+				description:
+					"Fetch a URL and extract readable text. Use to read articles, papers, or documentation.",
+				inputSchema: z.object({
+					url: z.string().url().describe("URL to fetch"),
+				}),
+				execute: async (params) => fetchUrl(params),
+			}),
+			saveToIntake: tool({
+				description:
+					"Fetch a URL and save the content to the intake pipeline for future synthesis.",
+				inputSchema: z.object({
+					url: z.string().url().describe("URL to fetch and save"),
+					tags: z.array(z.string()).optional(),
+					notes: z.string().optional().describe("Your notes about why this is interesting"),
+				}),
+				execute: async (params) => saveToIntake(params),
+			}),
+
+			// --- Publishing ---
+			listIntegrations: tool({
+				description: "List connected Postiz platform integrations.",
+				inputSchema: z.object({}),
+				execute: async () => listPostizIntegrations(),
+			}),
+			publish: tool({
+				description: "Publish content to social platforms via Postiz.",
+				inputSchema: z.object({
+					slug: z.string(),
+					platforms: z.array(z.string()).describe("Platform names: x, linkedin, slack, ghost"),
+					mode: z.enum(["draft", "schedule", "now"]),
+					scheduled_at: z.string().optional().describe("ISO datetime for scheduled posts"),
+				}),
+				execute: async (params) => publishContent(params),
+			}),
+			listPosts: tool({
+				description: "List recent and upcoming posts from Postiz.",
+				inputSchema: z.object({
+					status: z.string().optional(),
+					limit: z.number().optional(),
+				}),
+				execute: async (params) => listPostizPosts(params),
+			}),
+
+			// --- Images ---
+			...(isImageConfigured()
+				? {
+						generateImage: tool({
+							description: "Generate a hero image for content.",
+							inputSchema: z.object({
+								prompt: z
+									.string()
+									.describe("Visual metaphor — describe the scene, not the article topic"),
+								mood: z.enum([
+									"reflective",
+									"energetic",
+									"cautionary",
+									"triumphant",
+									"intimate",
+									"technical",
+									"playful",
+									"somber",
+								]),
+							}),
+							execute: async (params) => generateImageTool({ ...params, slug: slug ?? undefined }),
+						}),
+					}
+				: {}),
 		},
 		stopWhen: stepCountIs(3),
 	});
 
-	return result.toTextStreamResponse();
+	return result.toUIMessageStreamResponse();
 });
 
 // ---------------------------------------------------------------------------

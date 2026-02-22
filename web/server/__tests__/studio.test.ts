@@ -301,6 +301,38 @@ describe("POST /api/studio/items", () => {
 	});
 });
 
+describe("DELETE /api/studio/items/:slug", () => {
+	test("deletes a content store item", async () => {
+		// Create item first
+		const createRes = await app.request("/api/studio/items", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				title: "To Delete",
+				body: "Will be deleted",
+				content_type: "journal",
+				tags: [],
+			}),
+		});
+		const { slug } = await createRes.json();
+
+		// Delete it
+		const deleteRes = await app.request(`/api/studio/items/${slug}`, { method: "DELETE" });
+		expect(deleteRes.status).toBe(200);
+		const data = await deleteRes.json();
+		expect(data.success).toBe(true);
+
+		// Verify it's gone
+		const getRes = await app.request(`/api/studio/items/${slug}`);
+		expect(getRes.status).toBe(404);
+	});
+
+	test("returns 404 for nonexistent slug", async () => {
+		const res = await app.request("/api/studio/items/nonexistent", { method: "DELETE" });
+		expect(res.status).toBe(404);
+	});
+});
+
 describe("PUT /api/studio/items/:slug/chat", () => {
 	test("saves chat history", async () => {
 		await setupBlogFiles(tempDir);

@@ -1,11 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useParams } from "@tanstack/react-router";
-import { ArrowLeft, Image, PanelRightClose, PanelRightOpen } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { Link, useNavigate, useParams } from "@tanstack/react-router";
+import { ArrowLeft, ImagePlus, Loader2, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage, PlatformContent, ReviewItem } from "../../shared/schemas.js";
 import { MarkdownRenderer } from "../components/shared/MarkdownRenderer.js";
 import { AgentChat } from "../components/studio/AgentChat.js";
-import { PlatformBar } from "../components/studio/PlatformBar.js";
 import { DEFAULT_TYPE_STYLE, STATUS_STYLES, TYPE_STYLES } from "../components/studio/styles.js";
 
 interface ContentStoreImage {
@@ -27,14 +26,40 @@ interface StudioItemResponse {
 	images?: ContentStoreImage[];
 }
 
+const MOODS = [
+	"reflective",
+	"energetic",
+	"cautionary",
+	"triumphant",
+	"intimate",
+	"technical",
+	"playful",
+	"somber",
+] as const;
+
+const PLATFORM_TABS = [
+	{ key: "ghost", label: "Ghost" },
+	{ key: "x", label: "X" },
+	{ key: "linkedin", label: "LinkedIn" },
+	{ key: "slack", label: "Slack" },
+];
+
 export default function StudioDetail() {
 	const { slug } = useParams({ strict: false });
 	const queryClient = useQueryClient();
+	const navigate = useNavigate();
 
 	const [rightPanelOpen, setRightPanelOpen] = useState(true);
 	const [selectedPlatform, setSelectedPlatform] = useState("ghost");
+	const [showPreview, setShowPreview] = useState(false);
 	const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
 	const [platforms, setPlatforms] = useState<Record<string, PlatformContent>>({});
+
+	// Image generation
+	const [showImageForm, setShowImageForm] = useState(false);
+	const [imagePrompt, setImagePrompt] = useState("");
+	const [imageMood, setImageMood] = useState<(typeof MOODS)[number]>("reflective");
+	const promptRef = useRef<HTMLInputElement>(null);
 
 	const { data, isLoading, error } = useQuery<StudioItemResponse>({
 		queryKey: ["studio-item", slug],
@@ -96,6 +121,38 @@ export default function StudioDetail() {
 		},
 	});
 
+	const deleteMutation = useMutation({
+		mutationFn: async () => {
+			const res = await fetch(`/api/studio/items/${slug}`, { method: "DELETE" });
+			if (!res.ok) throw new Error("Failed to delete");
+			return res.json();
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["studio-items"] });
+			navigate({ to: "/studio" });
+		},
+	});
+
+	const imageMutation = useMutation({
+		mutationFn: async ({ prompt, mood }: { prompt: string; mood: string }) => {
+			const res = await fetch(`/api/studio/items/${slug}/image`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ prompt, mood }),
+			});
+			if (!res.ok) {
+				const body = await res.json().catch(() => ({ error: "Generation failed" }));
+				throw new Error(body.error ?? "Generation failed");
+			}
+			return res.json();
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["studio-item", slug] });
+			setImagePrompt("");
+			setShowImageForm(false);
+		},
+	});
+
 	const currentStatus = data?.store_status ?? data?.review.status ?? "draft";
 
 	const handlePlatformContent = useCallback(
@@ -113,7 +170,6 @@ export default function StudioDetail() {
 					>),
 				},
 			}));
-			// Tool already saved to content store on the server side
 		},
 		[selectedPlatform],
 	);
@@ -125,6 +181,10 @@ export default function StudioDetail() {
 		[queryClient, slug],
 	);
 
+	const handleSourceUpdated = useCallback(() => {
+		queryClient.invalidateQueries({ queryKey: ["studio-item", slug] });
+	}, [queryClient, slug]);
+
 	const handleHistoryChange = useCallback(
 		(newHistory: ChatMessage[]) => {
 			setChatHistory(newHistory);
@@ -132,6 +192,10 @@ export default function StudioDetail() {
 		},
 		[saveChatMutation],
 	);
+
+	useEffect(() => {
+		if (showImageForm) promptRef.current?.focus();
+	}, [showImageForm]);
 
 	if (isLoading) {
 		return <div className="animate-pulse text-zinc-400">Loading...</div>;
@@ -143,6 +207,7 @@ export default function StudioDetail() {
 
 	const selectedContent = platforms[selectedPlatform]?.content ?? null;
 	const images = data.images ?? [];
+	const heroImage = images.find((img) => img.role === "hero");
 
 	return (
 		<div className="flex h-screen flex-col">
@@ -189,6 +254,17 @@ export default function StudioDetail() {
 					)}
 					<button
 						type="button"
+						onClick={() => {
+							if (window.confirm("Delete this content? This cannot be undone."))
+								deleteMutation.mutate();
+						}}
+						disabled={deleteMutation.isPending}
+						className="rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950/30"
+					>
+						Delete
+					</button>
+					<button
+						type="button"
 						onClick={() => setRightPanelOpen(!rightPanelOpen)}
 						className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
 					>
@@ -203,73 +279,184 @@ export default function StudioDetail() {
 
 			{/* Main area */}
 			<div className="flex min-h-0 flex-1">
-				{/* Left: Source content */}
+				{/* Left: Source content + platforms */}
 				<div
-					className={`overflow-y-auto border-r border-zinc-200 dark:border-zinc-800 ${rightPanelOpen ? "w-1/2" : "w-full"}`}
+					className={`flex flex-col overflow-hidden border-r border-zinc-200 dark:border-zinc-800 ${rightPanelOpen ? "w-1/2" : "w-full"}`}
 				>
-					{/* Images strip */}
-					{images.length > 0 && (
-						<div className="border-b border-zinc-100 bg-zinc-50 px-6 py-3 dark:border-zinc-800 dark:bg-zinc-900/50">
-							<div className="flex items-center gap-2 overflow-x-auto">
-								<Image className="h-4 w-4 shrink-0 text-zinc-400" />
-								{images.map((img) => (
-									<div key={img.filename} className="group relative shrink-0">
-										<img
-											src={`/api/studio/images/${img.relative_path}`}
-											alt={img.role}
-											className="h-16 w-auto rounded-md border border-zinc-200 object-cover dark:border-zinc-700"
-											onError={(e) => {
-												(e.target as HTMLImageElement).style.display = "none";
-											}}
-										/>
-										<span className="absolute bottom-0 left-0 right-0 rounded-b-md bg-black/50 px-1 py-0.5 text-center text-[10px] text-white">
-											{img.role}
-										</span>
-									</div>
-								))}
+					<div className="flex-1 overflow-y-auto">
+						{/* Hero image */}
+						{heroImage && (
+							<div className="border-b border-zinc-100 dark:border-zinc-800">
+								<img
+									src={`/api/studio/images/${heroImage.relative_path}`}
+									alt={heroImage.prompt || data.title}
+									className="w-full object-cover"
+									style={{ maxHeight: 280 }}
+									onError={(e) => {
+										(e.target as HTMLImageElement).style.display = "none";
+									}}
+								/>
 							</div>
-						</div>
-					)}
+						)}
 
-					<div className="p-6">
-						<MarkdownRenderer content={data.content} />
+						{/* Image thumbnails + generate button */}
+						{(images.length > 0 || true) && (
+							<div className="flex items-center gap-2 border-b border-zinc-100 bg-zinc-50 px-6 py-2 dark:border-zinc-800 dark:bg-zinc-900/50">
+								{images
+									.filter((img) => img !== heroImage)
+									.map((img) => (
+										<div key={img.filename} className="group relative shrink-0">
+											<img
+												src={`/api/studio/images/${img.relative_path}`}
+												alt={img.role}
+												className="h-10 w-auto rounded border border-zinc-200 object-cover dark:border-zinc-700"
+												onError={(e) => {
+													(e.target as HTMLImageElement).style.display = "none";
+												}}
+											/>
+											<span className="absolute bottom-0 left-0 right-0 rounded-b bg-black/50 px-0.5 text-center text-[9px] text-white">
+												{img.role}
+											</span>
+										</div>
+									))}
+								<button
+									type="button"
+									onClick={() => setShowImageForm((v) => !v)}
+									className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+								>
+									<ImagePlus className="h-3.5 w-3.5" />
+									Generate Image
+								</button>
+							</div>
+						)}
+
+						{/* Image generation form */}
+						{showImageForm && (
+							<div className="border-b border-zinc-100 bg-zinc-50 px-6 py-3 dark:border-zinc-800 dark:bg-zinc-900/50">
+								<form
+									onSubmit={(e) => {
+										e.preventDefault();
+										const trimmed = imagePrompt.trim();
+										if (!trimmed || imageMutation.isPending) return;
+										imageMutation.mutate({ prompt: trimmed, mood: imageMood });
+									}}
+									className="flex flex-col gap-2"
+								>
+									<input
+										ref={promptRef}
+										type="text"
+										value={imagePrompt}
+										onChange={(e) => setImagePrompt(e.target.value)}
+										placeholder="Describe the visual — a scene, not the article topic"
+										disabled={imageMutation.isPending}
+										className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm placeholder-zinc-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:placeholder-zinc-500"
+									/>
+									<div className="flex items-center gap-2">
+										<select
+											value={imageMood}
+											onChange={(e) => setImageMood(e.target.value as (typeof MOODS)[number])}
+											disabled={imageMutation.isPending}
+											className="rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-xs disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900"
+										>
+											{MOODS.map((m) => (
+												<option key={m} value={m}>
+													{m}
+												</option>
+											))}
+										</select>
+										<button
+											type="submit"
+											disabled={!imagePrompt.trim() || imageMutation.isPending}
+											className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-40"
+										>
+											{imageMutation.isPending ? (
+												<>
+													<Loader2 className="h-3 w-3 animate-spin" />
+													Generating...
+												</>
+											) : (
+												"Generate"
+											)}
+										</button>
+										<button
+											type="button"
+											onClick={() => setShowImageForm(false)}
+											className="px-2 py-1.5 text-xs text-zinc-400 hover:text-zinc-600"
+										>
+											Cancel
+										</button>
+									</div>
+									{imageMutation.isError && (
+										<p className="text-xs text-red-500">{imageMutation.error.message}</p>
+									)}
+								</form>
+							</div>
+						)}
+
+						{/* Platform chips */}
+						<div className="flex items-center gap-1.5 border-b border-zinc-100 px-6 py-2 dark:border-zinc-800">
+							{PLATFORM_TABS.map((p) => {
+								const hasContent = !!platforms[p.key]?.content;
+								const isSelected = selectedPlatform === p.key;
+								return (
+									<button
+										key={p.key}
+										type="button"
+										onClick={() => {
+											if (isSelected) {
+												setShowPreview(!showPreview);
+											} else {
+												setSelectedPlatform(p.key);
+												setShowPreview(true);
+											}
+										}}
+										className={`relative rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+											isSelected
+												? "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900"
+												: hasContent
+													? "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
+													: "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+										}`}
+									>
+										{p.label}
+										{hasContent && !isSelected && (
+											<span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-500" />
+										)}
+									</button>
+								);
+							})}
+						</div>
+
+						{/* Collapsible platform preview */}
+						{showPreview && (
+							<div className="border-b border-zinc-200 dark:border-zinc-800">
+								{selectedContent ? (
+									<div className="p-4">
+										<div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+											<PlatformPreview platform={selectedPlatform} content={selectedContent} />
+										</div>
+									</div>
+								) : (
+									<div className="px-6 py-4 text-center">
+										<p className="text-xs text-zinc-400">
+											No {selectedPlatform} content yet — ask the agent to write it.
+										</p>
+									</div>
+								)}
+							</div>
+						)}
+
+						{/* Source content */}
+						<div className="p-6">
+							<MarkdownRenderer content={data.content} />
+						</div>
 					</div>
 				</div>
 
-				{/* Right: Platform content + Chat (continuous) */}
+				{/* Right: Chat only */}
 				{rightPanelOpen && (
 					<div className="flex w-1/2 min-w-[360px] flex-col">
-						{/* Platform tabs */}
-						<PlatformBar
-							slug={slug ?? ""}
-							selectedPlatform={selectedPlatform}
-							onSelectPlatform={setSelectedPlatform}
-							platforms={platforms}
-						/>
-
-						{/* Scrollable: platform preview + chat */}
-						<div className="flex-1 overflow-y-auto">
-							{/* Platform content preview */}
-							{selectedContent ? (
-								<div className="border-b border-zinc-100 px-4 py-4 dark:border-zinc-800">
-									<div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-										<PlatformPreview platform={selectedPlatform} content={selectedContent} />
-									</div>
-								</div>
-							) : (
-								<div className="border-b border-zinc-100 px-4 py-6 text-center dark:border-zinc-800">
-									<p className="text-sm text-zinc-500">
-										No <span className="font-medium capitalize">{selectedPlatform}</span> content
-										yet.
-									</p>
-									<p className="mt-2 text-xs text-zinc-400">
-										Try: &quot;Write a {selectedPlatform === "x" ? "thread" : "post"} about the most
-										interesting thing from these notes&quot;
-									</p>
-								</div>
-							)}
-
-							{/* Chat (continuous below content) */}
+						<div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
 							<AgentChat
 								content={data.content}
 								platform={selectedPlatform}
@@ -277,6 +464,7 @@ export default function StudioDetail() {
 								chatHistory={chatHistory}
 								onPlatformContent={handlePlatformContent}
 								onImageGenerated={handleImageGenerated}
+								onSourceUpdated={handleSourceUpdated}
 								onHistoryChange={handleHistoryChange}
 							/>
 						</div>

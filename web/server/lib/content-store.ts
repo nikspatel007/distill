@@ -34,7 +34,14 @@ export interface ContentStoreChatMessage {
 
 export interface ContentStoreRecord {
 	slug: string;
-	content_type: "weekly" | "thematic" | "reading_list" | "digest" | "daily_social" | "seed";
+	content_type:
+		| "weekly"
+		| "thematic"
+		| "reading_list"
+		| "digest"
+		| "daily_social"
+		| "seed"
+		| "journal";
 	title: string;
 	body: string;
 	status: "draft" | "review" | "ready" | "published" | "archived";
@@ -98,4 +105,12 @@ export function updateContentRecord(
 	Object.assign(record, updates);
 	saveContentStore(store);
 	return record;
+}
+
+export function deleteContentRecord(slug: string): boolean {
+	const store = loadContentStore();
+	if (!store[slug]) return false;
+	delete store[slug];
+	saveContentStore(store);
+	return true;
 }

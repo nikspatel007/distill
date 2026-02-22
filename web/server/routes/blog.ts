@@ -6,7 +6,8 @@ import {
 	SaveMarkdownSchema,
 } from "../../shared/schemas.js";
 import { getConfig } from "../lib/config.js";
-import { readJson, readMarkdown, writeMarkdown } from "../lib/files.js";
+import { getContentRecord } from "../lib/content-store.js";
+import { listFiles, readJson, readMarkdown, writeMarkdown } from "../lib/files.js";
 import { parseFrontmatter, reconstructMarkdown } from "../lib/frontmatter.js";
 import { collectBlogFiles, loadBlogPosts } from "../lib/loaders.js";
 
@@ -39,6 +40,27 @@ app.get("/api/blog/posts/:slug", async (c) => {
 	);
 	const memoryPost = blogMemory?.posts.find((p) => p.slug === slug);
 
+	// Pull images: ContentStore metadata + disk scan for untracked images
+	const storeRecord = getContentRecord(slug);
+	const storeImages = storeRecord?.images ?? [];
+	const knownFiles = new Set(storeImages.map((img) => img.filename));
+	const images = [...storeImages];
+
+	for (const subdir of ["blog/images", "studio/images"]) {
+		const diskFiles = await listFiles(join(OUTPUT_DIR, subdir), /\.png$/);
+		for (const filePath of diskFiles) {
+			const fname = basename(filePath);
+			if (!fname.startsWith(`${slug}-`) || knownFiles.has(fname)) continue;
+			knownFiles.add(fname);
+			images.push({
+				filename: fname,
+				role: fname.includes("hero") ? "hero" : "inline",
+				prompt: "",
+				relative_path: `${subdir}/${fname}`,
+			});
+		}
+	}
+
 	return c.json({
 		meta: {
 			slug,
@@ -52,6 +74,7 @@ app.get("/api/blog/posts/:slug", async (c) => {
 			platformsPublished: memoryPost?.platforms_published ?? [],
 		},
 		content: parsed.content,
+		images,
 	});
 });
 

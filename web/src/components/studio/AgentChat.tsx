@@ -1,9 +1,10 @@
 import { useChat } from "@ai-sdk/react";
-import { TextStreamChatTransport } from "ai";
+import { DefaultChatTransport } from "ai";
 import type { UIMessage } from "ai";
 import { Send } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { ChatMessage } from "../../../shared/schemas.js";
+import { MarkdownRenderer } from "../shared/MarkdownRenderer.js";
 
 interface AgentChatProps {
 	content: string;
@@ -12,6 +13,7 @@ interface AgentChatProps {
 	chatHistory: ChatMessage[];
 	onPlatformContent: (content: string) => void;
 	onImageGenerated: (url: string, alt: string) => void;
+	onSourceUpdated: () => void;
 	onHistoryChange: (messages: ChatMessage[]) => void;
 }
 
@@ -42,6 +44,37 @@ function toStoreChatMessages(messages: UIMessage[]): ChatMessage[] {
 		});
 }
 
+/** Labels and colors for tool result chips. */
+const TOOL_CHIPS: Record<string, { label: string; color: string }> = {
+	runPipeline: { label: "Pipeline completed", color: "indigo" },
+	runJournal: { label: "Journal generated", color: "indigo" },
+	runBlog: { label: "Blog generated", color: "indigo" },
+	runIntake: { label: "Intake completed", color: "indigo" },
+	addSeed: { label: "Seed idea saved", color: "amber" },
+	addNote: { label: "Editorial note saved", color: "amber" },
+	fetchUrl: { label: "URL fetched", color: "sky" },
+	saveToIntake: { label: "Saved to intake", color: "sky" },
+	publishContent: { label: "Content published", color: "green" },
+	listPostizIntegrations: { label: "Integrations loaded", color: "zinc" },
+	listPostizPosts: { label: "Posts loaded", color: "zinc" },
+	listContent: { label: "Content listed", color: "zinc" },
+	getContent: { label: "Content loaded", color: "zinc" },
+	createContent: { label: "Content created", color: "green" },
+	updateContentStatus: { label: "Status updated", color: "blue" },
+	deleteContent: { label: "Content deleted", color: "red" },
+};
+
+const CHIP_COLORS: Record<string, string> = {
+	indigo:
+		"bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 [&>span]:text-indigo-500",
+	amber: "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 [&>span]:text-amber-500",
+	sky: "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300 [&>span]:text-sky-500",
+	green: "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300 [&>span]:text-green-500",
+	blue: "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 [&>span]:text-blue-500",
+	zinc: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 [&>span]:text-zinc-400",
+	red: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300 [&>span]:text-red-500",
+};
+
 export function AgentChat({
 	content,
 	platform,
@@ -49,6 +82,7 @@ export function AgentChat({
 	chatHistory,
 	onPlatformContent,
 	onImageGenerated,
+	onSourceUpdated,
 	onHistoryChange,
 }: AgentChatProps) {
 	const scrollRef = useRef<HTMLDivElement>(null);
@@ -59,7 +93,7 @@ export function AgentChat({
 
 	const transport = useMemo(
 		() =>
-			new TextStreamChatTransport({
+			new DefaultChatTransport({
 				api: "/api/studio/chat",
 				body: { content, platform, slug },
 			}),
@@ -82,59 +116,44 @@ export function AgentChat({
 		for (const msg of messages) {
 			if (msg.role !== "assistant") continue;
 			for (const part of msg.parts) {
-				if (part.type === "tool-savePlatformContent" || part.type === "dynamic-tool") {
-					const toolPart = part as {
-						type: string;
-						toolCallId: string;
-						state: string;
-						input?: { content?: string };
-						output?: { saved?: boolean; platform?: string };
-						toolName?: string;
-					};
+				const toolPart = part as {
+					type: string;
+					toolCallId?: string;
+					state?: string;
+					toolName?: string;
+					input?: { content?: string };
+					output?: Record<string, unknown>;
+				};
 
-					// Only process completed tool calls
-					if (toolPart.state !== "output-available") continue;
+				// Only handle tool parts with completed state
+				if (!toolPart.toolCallId || toolPart.state !== "output-available") continue;
 
-					const partKey = `${msg.id}-${toolPart.toolCallId}`;
-					if (processedToolCallsRef.current.has(partKey)) continue;
+				const partKey = `${msg.id}-${toolPart.toolCallId}`;
+				if (processedToolCallsRef.current.has(partKey)) continue;
 
-					if (
-						toolPart.type === "tool-savePlatformContent" ||
-						(toolPart.type === "dynamic-tool" && toolPart.toolName === "savePlatformContent")
-					) {
+				const isToolType = (name: string) =>
+					toolPart.type === `tool-${name}` ||
+					(toolPart.type === "dynamic-tool" && toolPart.toolName === name);
+
+				if (isToolType("savePlatformContent") && toolPart.input?.content) {
+					processedToolCallsRef.current.add(partKey);
+					onPlatformContent(toolPart.input.content);
+					// biome-ignore lint/complexity/useLiteralKeys: tsc noPropertyAccessFromIndexSignature
+				} else if (isToolType("updateSourceContent") && toolPart.output?.["saved"]) {
+					processedToolCallsRef.current.add(partKey);
+					onSourceUpdated();
+				} else if (isToolType("generateImage")) {
+					const output = toolPart.output as
+						| { url?: string; alt?: string; error?: string }
+						| undefined;
+					if (output?.url && !output.error) {
 						processedToolCallsRef.current.add(partKey);
-						if (toolPart.input?.content) {
-							onPlatformContent(toolPart.input.content);
-						}
-					}
-				}
-				if (part.type === "tool-generateImage" || part.type === "dynamic-tool") {
-					const toolPart = part as {
-						type: string;
-						toolCallId: string;
-						state: string;
-						output?: { url?: string; alt?: string; error?: string };
-						toolName?: string;
-					};
-
-					if (toolPart.state !== "output-available") continue;
-
-					const partKey = `${msg.id}-${toolPart.toolCallId}`;
-					if (processedToolCallsRef.current.has(partKey)) continue;
-
-					if (
-						toolPart.type === "tool-generateImage" ||
-						(toolPart.type === "dynamic-tool" && toolPart.toolName === "generateImage")
-					) {
-						if (toolPart.output?.url && !toolPart.output.error) {
-							processedToolCallsRef.current.add(partKey);
-							onImageGenerated(toolPart.output.url, toolPart.output.alt ?? "");
-						}
+						onImageGenerated(output.url, output.alt ?? "");
 					}
 				}
 			}
 		}
-	}, [messages, onPlatformContent, onImageGenerated]);
+	}, [messages, onPlatformContent, onImageGenerated, onSourceUpdated]);
 
 	// Sync external chatHistory changes (e.g., platform switch reloads)
 	useEffect(() => {
@@ -197,16 +216,22 @@ export function AgentChat({
 							<div className="max-w-[90%] space-y-2">
 								{msg.parts.map((part, pi) => {
 									if (part.type === "text" && part.text) {
-										return (
+										return msg.role === "user" ? (
 											<div
 												key={`${msg.id}-text-${pi}`}
-												className={`rounded-xl px-3.5 py-2.5 text-sm leading-relaxed ${
-													msg.role === "user"
-														? "bg-indigo-600 text-white"
-														: "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
-												}`}
+												className="rounded-xl bg-indigo-600 px-3.5 py-2.5 text-sm leading-relaxed text-white"
 											>
 												<p className="whitespace-pre-wrap">{part.text}</p>
+											</div>
+										) : (
+											<div
+												key={`${msg.id}-text-${pi}`}
+												className="chat-markdown rounded-xl bg-zinc-100 px-3.5 py-2.5 text-sm leading-relaxed text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
+											>
+												<MarkdownRenderer
+													content={part.text}
+													className="prose prose-sm prose-zinc dark:prose-invert max-w-none"
+												/>
 											</div>
 										);
 									}
@@ -227,6 +252,28 @@ export function AgentChat({
 												>
 													<span className="text-green-500">&#10003;</span>
 													Content saved to {platform}
+												</div>
+											);
+										}
+										return null;
+									}
+
+									// Tool: updateSourceContent result
+									if (
+										part.type === "tool-updateSourceContent" ||
+										(part.type === "dynamic-tool" &&
+											"toolName" in part &&
+											part.toolName === "updateSourceContent")
+									) {
+										const toolPart = part as { state: string };
+										if (toolPart.state === "output-available") {
+											return (
+												<div
+													key={`${msg.id}-source-${pi}`}
+													className="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+												>
+													<span className="text-blue-500">&#10003;</span>
+													Source post updated
 												</div>
 											);
 										}
@@ -269,6 +316,53 @@ export function AgentChat({
 											);
 										}
 										return null;
+									}
+
+									// Generic tool chips for pipeline/research/publish tools
+									{
+										const toolPart = part as {
+											type: string;
+											state?: string;
+											toolName?: string;
+											output?: Record<string, unknown>;
+										};
+										if (toolPart.state === "output-available") {
+											// Determine tool name from part type
+											let toolName = "";
+											if (toolPart.type.startsWith("tool-")) {
+												toolName = toolPart.type.slice(5);
+											} else if (toolPart.type === "dynamic-tool" && toolPart.toolName) {
+												toolName = toolPart.toolName;
+											}
+											const chip = TOOL_CHIPS[toolName];
+											if (chip) {
+												// biome-ignore lint/complexity/useLiteralKeys: tsc noPropertyAccessFromIndexSignature
+												const hasError = toolPart.output?.["error"];
+												if (hasError) {
+													return (
+														<div
+															key={`${msg.id}-tool-${pi}`}
+															className="rounded-lg bg-red-50 px-3 py-1.5 text-xs text-red-600 dark:bg-red-950 dark:text-red-400"
+														>
+															{/* biome-ignore lint/complexity/useLiteralKeys: tsc noPropertyAccessFromIndexSignature */}
+															{chip.label} failed: {String(toolPart.output?.["error"])}
+														</div>
+													);
+												}
+												const colorCls =
+													CHIP_COLORS[chip.color] ??
+													"bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 [&>span]:text-zinc-400";
+												return (
+													<div
+														key={`${msg.id}-tool-${pi}`}
+														className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${colorCls}`}
+													>
+														<span>&#10003;</span>
+														{chip.label}
+													</div>
+												);
+											}
+										}
 									}
 
 									return null;
