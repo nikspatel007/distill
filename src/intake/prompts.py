@@ -82,6 +82,19 @@ Bad: `# What I Read Today`
 
 First person. Markdown. Link to sources inline. H2 headers for sections.
 {memory_section}
+## Highlights
+
+IMPORTANT: Start your response with a HIGHLIGHTS block — 3 to 5 \
+bullet points capturing the key takeaways or insights from today's \
+reading and building. Format:
+
+HIGHLIGHTS:
+- First key insight or finding
+- Second key insight or finding
+- Third key insight or finding
+
+Then write the full essay as before.
+
 ## Content
 
 The articles and content follow below. Write your essay.
@@ -193,6 +206,19 @@ Bad: `# What I Did Today`
 
 First person. Markdown. Link to sources inline. H2 headers for sections.
 {guidance_block}{memory_section}
+## Highlights
+
+IMPORTANT: Start your response with a HIGHLIGHTS block — 3 to 5 \
+bullet points capturing the key takeaways or insights from today's \
+reading and building. Format:
+
+HIGHLIGHTS:
+- First key insight or finding
+- Second key insight or finding
+- Third key insight or finding
+
+Then write the full essay as before.
+
 ## Content
 
 The content follows below, organized by type. Your job is to
