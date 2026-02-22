@@ -10,6 +10,7 @@ import blog from "./routes/blog.js";
 import calendar from "./routes/calendar.js";
 import config from "./routes/config.js";
 import dashboard from "./routes/dashboard.js";
+import home from "./routes/home.js";
 import journal from "./routes/journal.js";
 import memory from "./routes/memory.js";
 import notes from "./routes/notes.js";
@@ -30,6 +31,7 @@ app.use("/api/*", cors());
 app.route("/", config);
 app.route("/", pipeline);
 app.route("/", dashboard);
+app.route("/", home);
 app.route("/", journal);
 app.route("/", blog);
 app.route("/", calendar);
@@ -44,10 +46,14 @@ app.route("/", memory);
 // Health check
 app.get("/api/health", (c) => c.json({ status: "ok" }));
 
-// Static files (production)
-if (process.env.NODE_ENV === "production") {
+// Static files + SPA fallback (serve built frontend when dist/ exists)
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+
+const distDir = resolve(import.meta.dir, "../dist");
+if (existsSync(distDir)) {
 	app.use("/*", serveStatic({ root: "./dist" }));
-	// SPA fallback
+	// SPA fallback — serve index.html for non-API routes
 	app.get("*", serveStatic({ path: "./dist/index.html" }));
 }
 
@@ -58,11 +64,28 @@ export { app };
 // Start server when run directly
 if (import.meta.main) {
 	const config = getConfig();
-	console.log(`Distill web server starting on port ${config.PORT}`);
+	const hasTLS = config.TLS_CERT && config.TLS_KEY;
+
 	console.log(`Reading data from: ${config.OUTPUT_DIR}`);
 
+	// Always start HTTP server
 	Bun.serve({
 		fetch: app.fetch,
 		port: config.PORT,
 	});
+	console.log(`Distill web server (HTTP) on port ${config.PORT}`);
+
+	// Also start HTTPS if TLS certs are configured
+	if (hasTLS) {
+		const tlsPort = config.TLS_PORT;
+		Bun.serve({
+			fetch: app.fetch,
+			port: tlsPort,
+			tls: {
+				certFile: config.TLS_CERT,
+				keyFile: config.TLS_KEY,
+			},
+		});
+		console.log(`Distill web server (HTTPS) on port ${tlsPort}`);
+	}
 }
