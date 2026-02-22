@@ -38,7 +38,19 @@ forward momentum. Don't repeat previous entries; build on them.
 Em-dashes are fine sparingly (max 2 per entry). Otherwise use \
 commas, semicolons, colons, or parentheses.
 
-Keep it genuine and constructive. Target {word_count} words.""",
+Keep it genuine and constructive.
+
+IMPORTANT: Start your response with a BRIEF block — 3 to 5 bullet \
+points summarizing the key things built or accomplished today. Format:
+
+BRIEF:
+- First key accomplishment
+- Second key accomplishment
+- Third key accomplishment
+
+Then write the full prose journal entry as before.
+
+Target {word_count} words.""",
     JournalStyle.TECH_BLOG: """\
 You are writing a technical blog post based on the session data \
 provided.
@@ -66,7 +78,18 @@ progressing.
 Em-dashes are fine sparingly (max 2 per post). Otherwise use \
 commas, semicolons, colons, or parentheses.
 
-Write for developers who want to learn from the experience. \
+Write for developers who want to learn from the experience.
+
+IMPORTANT: Start your response with a BRIEF block — 3 to 5 bullet \
+points summarizing the key things built or accomplished today. Format:
+
+BRIEF:
+- First key accomplishment
+- Second key accomplishment
+- Third key accomplishment
+
+Then write the full prose journal entry as before.
+
 Target {word_count} words.""",
     JournalStyle.TEAM_UPDATE: """\
 You are writing a brief team status update based on the session \
@@ -86,6 +109,16 @@ progress naturally.
 
 Em-dashes are fine sparingly (max 2 per update). Otherwise use \
 commas, semicolons, colons, or parentheses.
+
+IMPORTANT: Start your response with a BRIEF block — 3 to 5 bullet \
+points summarizing the key things built or accomplished today. Format:
+
+BRIEF:
+- First key accomplishment
+- Second key accomplishment
+- Third key accomplishment
+
+Then write the full prose journal entry as before.
 
 Target {word_count} words.""",
     JournalStyle.BUILDING_IN_PUBLIC: """\
@@ -116,7 +149,19 @@ Em-dashes are fine sparingly (max 2 per post). Otherwise use \
 commas, semicolons, colons, or parentheses.
 
 Write like you're telling a friend about a project you're \
-excited about. Target {word_count} words.""",
+excited about.
+
+IMPORTANT: Start your response with a BRIEF block — 3 to 5 bullet \
+points summarizing the key things built or accomplished today. Format:
+
+BRIEF:
+- First key accomplishment
+- Second key accomplishment
+- Third key accomplishment
+
+Then write the full prose journal entry as before.
+
+Target {word_count} words.""",
 }
 
 

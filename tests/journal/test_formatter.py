@@ -127,3 +127,90 @@ class TestJournalFormatter:
 
         # Should still have the journal tag
         assert "  - journal" in result
+
+
+class TestExtractBrief:
+    """Tests for _extract_brief helper."""
+
+    def test_extract_brief_parses_bullets(self):
+        from distill.journal.services import _extract_brief
+
+        text = (
+            "BRIEF:\n"
+            "- Shipped TLS support\n"
+            "- Fixed mobile nav\n"
+            "- Added PWA manifest\n"
+            "\n"
+            "Today was productive..."
+        )
+        brief, prose = _extract_brief(text)
+        assert brief == ["Shipped TLS support", "Fixed mobile nav", "Added PWA manifest"]
+        assert prose.startswith("Today was productive")
+
+    def test_extract_brief_no_block(self):
+        from distill.journal.services import _extract_brief
+
+        text = "Today I worked on several things..."
+        brief, prose = _extract_brief(text)
+        assert brief == []
+        assert prose == text
+
+    def test_extract_brief_with_leading_whitespace(self):
+        from distill.journal.services import _extract_brief
+
+        text = "\n  BRIEF:\n- Item one\n- Item two\n\nProse here."
+        brief, prose = _extract_brief(text)
+        assert brief == ["Item one", "Item two"]
+        assert prose == "Prose here."
+
+    def test_extract_brief_five_bullets(self):
+        from distill.journal.services import _extract_brief
+
+        text = (
+            "BRIEF:\n"
+            "- One\n"
+            "- Two\n"
+            "- Three\n"
+            "- Four\n"
+            "- Five\n"
+            "\n"
+            "The rest."
+        )
+        brief, prose = _extract_brief(text)
+        assert len(brief) == 5
+        assert brief[4] == "Five"
+
+
+class TestBriefInFrontmatter:
+    """Tests for brief: field in frontmatter."""
+
+    def test_frontmatter_includes_brief(self):
+        config = JournalConfig()
+        formatter = JournalFormatter(config)
+        prose = "BRIEF:\n- Built feature A\n- Fixed bug B\n\nToday I worked..."
+        result = formatter.format_entry(_make_context(), prose)
+
+        assert "brief:" in result
+        assert '  - "Built feature A"' in result
+        assert '  - "Fixed bug B"' in result
+        # Prose should NOT contain the BRIEF block
+        body_after_frontmatter = result.split("---", 2)[2]
+        assert "BRIEF:" not in body_after_frontmatter
+
+    def test_frontmatter_no_brief_when_empty(self):
+        config = JournalConfig()
+        formatter = JournalFormatter(config)
+        result = formatter.format_entry(_make_context(), "Just prose, no brief.")
+        # brief: should not appear in frontmatter
+        frontmatter = result.split("---")[1]
+        assert "brief:" not in frontmatter
+
+    def test_brief_appears_before_created(self):
+        config = JournalConfig()
+        formatter = JournalFormatter(config)
+        prose = "BRIEF:\n- Did something\n\nProse."
+        result = formatter.format_entry(_make_context(), prose)
+        frontmatter = result.split("---")[1]
+        brief_pos = frontmatter.index("brief:")
+        created_pos = frontmatter.index("created:")
+        assert brief_pos < created_pos

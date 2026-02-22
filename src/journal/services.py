@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import date, datetime
 from pathlib import Path
 
@@ -291,6 +292,47 @@ describes something clearly ongoing or recently resolved."""
 
 
 # ---------------------------------------------------------------------------
+# Brief extraction (BRIEF: block -> bullet list)
+# ---------------------------------------------------------------------------
+
+
+def _extract_brief(text: str) -> tuple[list[str], str]:
+    """Extract a BRIEF: block from the start of LLM output.
+
+    The LLM is instructed to begin its response with::
+
+        BRIEF:
+        - First key accomplishment
+        - Second key accomplishment
+
+    This function parses that block and returns the bullet items plus
+    the remaining prose with the BRIEF block stripped.
+
+    Returns:
+        ``(brief_bullets, remaining_prose)``.  If no BRIEF block is
+        found, returns ``([], original_text)``.
+    """
+    # Match optional leading whitespace, then BRIEF: header, then bullet lines.
+    pattern = re.compile(
+        r"^\s*BRIEF:\s*\n((?:\s*-\s+.+\n?)+)",
+        re.MULTILINE,
+    )
+    m = pattern.match(text)
+    if not m:
+        return [], text
+
+    bullet_block = m.group(1)
+    bullets: list[str] = []
+    for line in bullet_block.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- "):
+            bullets.append(stripped[2:].strip())
+
+    remaining = text[m.end() :].lstrip("\n")
+    return bullets, remaining
+
+
+# ---------------------------------------------------------------------------
 # Formatter (Obsidian-compatible markdown)
 # ---------------------------------------------------------------------------
 
@@ -311,8 +353,9 @@ class JournalFormatter:
         Returns:
             Complete Obsidian markdown note.
         """
-        frontmatter = self._build_frontmatter(context)
-        body = self._build_body(context, prose)
+        brief, clean_prose = _extract_brief(prose)
+        frontmatter = self._build_frontmatter(context, brief=brief)
+        body = self._build_body(context, clean_prose)
         return frontmatter + body
 
     def output_path(self, output_dir: Path, context: DailyContext) -> Path:
@@ -321,7 +364,9 @@ class JournalFormatter:
         filename = f"journal-{context.date.isoformat()}-{self._config.style.value}.md"
         return journal_dir / filename
 
-    def _build_frontmatter(self, context: DailyContext) -> str:
+    def _build_frontmatter(
+        self, context: DailyContext, brief: list[str] | None = None
+    ) -> str:
         lines: list[str] = ["---"]
         lines.append(f"date: {context.date.isoformat()}")
         lines.append("type: journal")
@@ -342,6 +387,11 @@ class JournalFormatter:
             lines.append("projects:")
             for project in context.projects_worked:
                 lines.append(f"  - {project}")
+
+        if brief:
+            lines.append("brief:")
+            for item in brief:
+                lines.append(f'  - "{item}"')
 
         lines.append(f"created: {datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}")
         lines.append("---")
