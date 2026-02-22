@@ -85,7 +85,7 @@ export default function Publish() {
 
 	if (isLoading)
 		return (
-			<div className="mx-auto max-w-5xl p-6">
+			<div className="mx-auto max-w-5xl p-4 md:p-6">
 				<div className="animate-pulse text-zinc-400">Loading publish queue...</div>
 			</div>
 		);
@@ -95,7 +95,7 @@ export default function Publish() {
 
 	if (postizConfigured) {
 		return (
-			<div className="mx-auto max-w-5xl p-6">
+			<div className="mx-auto max-w-5xl p-4 md:p-6">
 				<PostizQueueView
 					queue={queue}
 					publishing={publishing}
@@ -107,7 +107,7 @@ export default function Publish() {
 	}
 
 	return (
-		<div className="mx-auto max-w-5xl p-6">
+		<div className="mx-auto max-w-5xl p-4 md:p-6">
 			<CardView queue={queue} postizConfigured={postizConfigured} />
 		</div>
 	);
@@ -144,12 +144,12 @@ function CardView({
 								key={post.slug}
 								className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
 							>
-								<div className="flex items-center justify-between">
-									<div className="flex items-center gap-2">
+								<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+									<div className="flex min-w-0 items-center gap-2">
 										<Link
 											to="/blog/$slug"
 											params={{ slug: post.slug }}
-											className="font-medium hover:text-indigo-600 dark:hover:text-indigo-400"
+											className="truncate font-medium hover:text-indigo-600 dark:hover:text-indigo-400"
 										>
 											{post.title}
 										</Link>
@@ -231,7 +231,7 @@ function PostizQueueView({
 					<p className="text-sm text-zinc-500">All posts published!</p>
 				) : (
 					<div className="overflow-x-auto">
-						<table className="w-full text-left text-sm">
+						<table className="w-full min-w-[500px] text-left text-sm">
 							<thead className="border-b border-zinc-200 dark:border-zinc-800">
 								<tr>
 									<th className="pb-2 font-medium">Post</th>
@@ -272,7 +272,7 @@ function PostizQueueView({
 														});
 													}}
 													disabled={publishing === key}
-													className="rounded bg-indigo-600 px-3 py-1 text-xs text-white hover:bg-indigo-700 disabled:opacity-50"
+													className="rounded bg-indigo-600 px-3 py-2 text-xs text-white hover:bg-indigo-700 disabled:opacity-50"
 												>
 													{publishing === key ? "Publishing..." : "Draft"}
 												</button>

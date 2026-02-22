@@ -30,7 +30,7 @@ function statusColor(status: string): string {
 function IdeaCard({ idea }: { idea: ContentIdea }) {
 	return (
 		<div className="rounded-lg border border-zinc-200 p-4 transition-colors hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-600">
-			<div className="flex items-start justify-between gap-3">
+			<div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
 				<h3 className="font-semibold text-zinc-900 dark:text-zinc-100">{idea.title}</h3>
 				<div className="flex shrink-0 gap-1.5">
 					<span
@@ -108,7 +108,7 @@ export default function Calendar() {
 	const ideas = calendarData?.ideas ?? [];
 
 	return (
-		<div className="mx-auto max-w-5xl p-6">
+		<div className="mx-auto max-w-5xl p-4 md:p-6">
 			<div className="space-y-6">
 				<h2 className="text-2xl font-bold">Content Calendar</h2>
 
@@ -127,7 +127,7 @@ export default function Calendar() {
 									key={d}
 									type="button"
 									onClick={() => setSelectedDate(d)}
-									className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${
+									className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
 										d === activeDate
 											? "border-indigo-600 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-950 dark:text-indigo-300"
 											: "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-500"

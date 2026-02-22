@@ -30,13 +30,13 @@ export default function BlogDetailPage() {
 
 	if (isLoading)
 		return (
-			<div className="mx-auto max-w-5xl p-6">
+			<div className="mx-auto max-w-5xl p-4 md:p-6">
 				<div className="animate-pulse text-zinc-400">Loading...</div>
 			</div>
 		);
 	if (error)
 		return (
-			<div className="mx-auto max-w-5xl p-6">
+			<div className="mx-auto max-w-5xl p-4 md:p-6">
 				<div className="text-red-500">Error: {error.message}</div>
 			</div>
 		);
@@ -45,7 +45,7 @@ export default function BlogDetailPage() {
 	const heroImage = data.images.find((img) => img.role === "hero");
 
 	return (
-		<div className="mx-auto max-w-5xl p-6">
+		<div className="mx-auto max-w-5xl p-4 md:p-6">
 			<div className="space-y-4">
 				<div className="flex items-center justify-between">
 					<Link
@@ -68,13 +68,12 @@ export default function BlogDetailPage() {
 					<img
 						src={`/api/studio/images/${heroImage.relative_path}`}
 						alt={heroImage.prompt || data.meta.title}
-						className="w-full rounded-xl object-cover"
-						style={{ maxHeight: 400 }}
+						className="w-full max-h-48 rounded-xl object-cover sm:max-h-64 md:max-h-[400px]"
 					/>
 				)}
 
 				<div>
-					<h2 className="text-2xl font-bold">{data.meta.title}</h2>
+					<h2 className="text-xl font-bold md:text-2xl">{data.meta.title}</h2>
 					<div className="mt-2 flex items-center gap-2">
 						<DateBadge date={data.meta.date} />
 						<span

@@ -409,7 +409,7 @@ export function AgentChat({
 						type="button"
 						onClick={handleSend}
 						disabled={isBusy}
-						className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-30"
+						className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-30"
 					>
 						<Send className="h-4 w-4" />
 					</button>

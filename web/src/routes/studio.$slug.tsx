@@ -54,6 +54,7 @@ export default function StudioDetail() {
 	const [showPreview, setShowPreview] = useState(false);
 	const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
 	const [platforms, setPlatforms] = useState<Record<string, PlatformContent>>({});
+	const [mobileView, setMobileView] = useState<"content" | "chat">("content");
 
 	// Image generation
 	const [showImageForm, setShowImageForm] = useState(false);
@@ -210,9 +211,9 @@ export default function StudioDetail() {
 	const heroImage = images.find((img) => img.role === "hero");
 
 	return (
-		<div className="flex h-screen flex-col">
+		<div className="flex h-full flex-col">
 			{/* Header */}
-			<div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-800">
+			<div className="flex flex-col gap-2 border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-800 md:flex-row md:items-center md:justify-between">
 				<div className="flex items-center gap-3">
 					<Link to="/studio" className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200">
 						<ArrowLeft className="h-5 w-5" />
@@ -266,7 +267,7 @@ export default function StudioDetail() {
 					<button
 						type="button"
 						onClick={() => setRightPanelOpen(!rightPanelOpen)}
-						className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+						className="hidden rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 md:inline-flex"
 					>
 						{rightPanelOpen ? (
 							<PanelRightClose className="h-5 w-5" />
@@ -277,11 +278,29 @@ export default function StudioDetail() {
 				</div>
 			</div>
 
+			{/* Mobile content/chat toggle */}
+			<div className="flex border-b border-zinc-200 dark:border-zinc-800 md:hidden">
+				<button
+					type="button"
+					onClick={() => setMobileView("content")}
+					className={`flex-1 py-2.5 text-center text-sm font-medium ${mobileView === "content" ? "border-b-2 border-indigo-600 text-indigo-600" : "text-zinc-500"}`}
+				>
+					Content
+				</button>
+				<button
+					type="button"
+					onClick={() => setMobileView("chat")}
+					className={`flex-1 py-2.5 text-center text-sm font-medium ${mobileView === "chat" ? "border-b-2 border-indigo-600 text-indigo-600" : "text-zinc-500"}`}
+				>
+					Chat
+				</button>
+			</div>
+
 			{/* Main area */}
 			<div className="flex min-h-0 flex-1">
 				{/* Left: Source content + platforms */}
 				<div
-					className={`flex flex-col overflow-hidden border-r border-zinc-200 dark:border-zinc-800 ${rightPanelOpen ? "w-1/2" : "w-full"}`}
+					className={`${mobileView === "content" ? "flex" : "hidden"} md:flex flex-col overflow-hidden md:border-r border-zinc-200 dark:border-zinc-800 w-full ${rightPanelOpen ? "md:w-1/2" : "md:w-full"}`}
 				>
 					<div className="flex-1 overflow-y-auto">
 						{/* Hero image */}
@@ -290,8 +309,7 @@ export default function StudioDetail() {
 								<img
 									src={`/api/studio/images/${heroImage.relative_path}`}
 									alt={heroImage.prompt || data.title}
-									className="w-full object-cover"
-									style={{ maxHeight: 280 }}
+									className="w-full max-h-40 object-cover md:max-h-[280px]"
 									onError={(e) => {
 										(e.target as HTMLImageElement).style.display = "none";
 									}}
@@ -301,7 +319,7 @@ export default function StudioDetail() {
 
 						{/* Image thumbnails + generate button */}
 						{(images.length > 0 || true) && (
-							<div className="flex items-center gap-2 border-b border-zinc-100 bg-zinc-50 px-6 py-2 dark:border-zinc-800 dark:bg-zinc-900/50">
+							<div className="flex items-center gap-2 border-b border-zinc-100 bg-zinc-50 px-4 py-2 md:px-6 dark:border-zinc-800 dark:bg-zinc-900/50">
 								{images
 									.filter((img) => img !== heroImage)
 									.map((img) => (
@@ -332,7 +350,7 @@ export default function StudioDetail() {
 
 						{/* Image generation form */}
 						{showImageForm && (
-							<div className="border-b border-zinc-100 bg-zinc-50 px-6 py-3 dark:border-zinc-800 dark:bg-zinc-900/50">
+							<div className="border-b border-zinc-100 bg-zinc-50 px-4 py-3 md:px-6 dark:border-zinc-800 dark:bg-zinc-900/50">
 								<form
 									onSubmit={(e) => {
 										e.preventDefault();
@@ -394,7 +412,7 @@ export default function StudioDetail() {
 						)}
 
 						{/* Platform chips */}
-						<div className="flex items-center gap-1.5 border-b border-zinc-100 px-6 py-2 dark:border-zinc-800">
+						<div className="flex items-center gap-1.5 overflow-x-auto border-b border-zinc-100 px-4 py-2 dark:border-zinc-800 md:px-6">
 							{PLATFORM_TABS.map((p) => {
 								const hasContent = !!platforms[p.key]?.content;
 								const isSelected = selectedPlatform === p.key;
@@ -437,7 +455,7 @@ export default function StudioDetail() {
 										</div>
 									</div>
 								) : (
-									<div className="px-6 py-4 text-center">
+									<div className="px-4 py-4 text-center md:px-6">
 										<p className="text-xs text-zinc-400">
 											No {selectedPlatform} content yet — ask the agent to write it.
 										</p>
@@ -447,15 +465,16 @@ export default function StudioDetail() {
 						)}
 
 						{/* Source content */}
-						<div className="p-6">
+						<div className="p-4 md:p-6">
 							<MarkdownRenderer content={data.content} />
 						</div>
 					</div>
 				</div>
 
 				{/* Right: Chat only */}
-				{rightPanelOpen && (
-					<div className="flex w-1/2 min-w-[360px] flex-col">
+				<div
+					className={`${mobileView === "chat" ? "flex" : "hidden"} ${rightPanelOpen ? "md:flex" : "md:hidden"} w-full md:w-1/2 md:min-w-[360px] flex-col`}
+				>
 						<div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
 							<AgentChat
 								content={data.content}
@@ -469,7 +488,6 @@ export default function StudioDetail() {
 							/>
 						</div>
 					</div>
-				)}
 			</div>
 		</div>
 	);

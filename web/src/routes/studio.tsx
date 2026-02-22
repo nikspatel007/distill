@@ -34,16 +34,16 @@ export default function Studio() {
 
 	if (isLoading) {
 		return (
-			<div className="mx-auto max-w-5xl p-6">
+			<div className="mx-auto max-w-5xl p-4 md:p-6">
 				<div className="animate-pulse text-zinc-400">Loading content...</div>
 			</div>
 		);
 	}
 
 	return (
-		<div className="mx-auto max-w-5xl p-6">
+		<div className="mx-auto max-w-5xl p-4 md:p-6">
 			<div className="space-y-6">
-				<div className="flex items-center justify-between">
+				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<div>
 						<h2 className="text-2xl font-bold">Content Studio</h2>
 						<p className="mt-1 text-sm text-zinc-500">
@@ -77,8 +77,8 @@ export default function Studio() {
 							>
 								<div className="flex items-center gap-3">
 									<div>
-										<div className="flex items-center gap-2">
-											<span className="font-medium">{item.title}</span>
+										<div className="flex min-w-0 items-center gap-2">
+											<span className="truncate font-medium">{item.title}</span>
 											<span
 												className={`rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_STYLES[item.type] ?? DEFAULT_TYPE_STYLE}`}
 											>

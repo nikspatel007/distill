@@ -68,7 +68,7 @@ export function Sidebar() {
 					<Link
 						key={item.to}
 						to={item.to}
-						className="flex flex-1 flex-col items-center gap-0.5 py-2 text-xs text-zinc-500 transition-colors [&.active]:text-indigo-600 dark:[&.active]:text-indigo-400"
+						className="flex flex-1 flex-col items-center gap-0.5 py-2.5 text-xs text-zinc-500 transition-colors [&.active]:text-indigo-600 dark:[&.active]:text-indigo-400"
 						activeProps={{ className: "active" }}
 					>
 						<item.icon className="h-5 w-5" />

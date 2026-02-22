@@ -47,13 +47,13 @@ export default function ReadingDetailPage() {
 
 	if (isLoading)
 		return (
-			<div className="mx-auto max-w-5xl p-6">
+			<div className="mx-auto max-w-5xl p-4 md:p-6">
 				<div className="animate-pulse text-zinc-400">Loading...</div>
 			</div>
 		);
 	if (error)
 		return (
-			<div className="mx-auto max-w-5xl p-6">
+			<div className="mx-auto max-w-5xl p-4 md:p-6">
 				<div className="text-red-500">Error: {error.message}</div>
 			</div>
 		);
@@ -69,7 +69,7 @@ export default function ReadingDetailPage() {
 	const rangeEnd = rangeStart === 0 ? 0 : rangeStart + items.length - 1;
 
 	return (
-		<div className="mx-auto max-w-5xl p-6">
+		<div className="mx-auto max-w-5xl p-4 md:p-6">
 			<div className="space-y-4">
 				<div className="flex items-center justify-between">
 					<Link
@@ -125,7 +125,7 @@ export default function ReadingDetailPage() {
 							</div>
 							{/* Pagination controls */}
 							{totalPages > 1 && (
-								<div className="mt-4 flex items-center justify-between text-sm">
+								<div className="mt-4 flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between">
 									<span className="text-zinc-500">
 										Showing {rangeStart}–{rangeEnd} of {totalItems} items
 									</span>
@@ -134,7 +134,7 @@ export default function ReadingDetailPage() {
 											type="button"
 											disabled={currentPage <= 1}
 											onClick={() => setPage((p) => Math.max(1, p - 1))}
-											className="rounded border border-zinc-300 px-3 py-1 text-sm transition-colors hover:bg-zinc-100 disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800"
+											className="rounded border border-zinc-300 px-4 py-2 text-sm transition-colors hover:bg-zinc-100 disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800"
 										>
 											Prev
 										</button>
@@ -145,7 +145,7 @@ export default function ReadingDetailPage() {
 											type="button"
 											disabled={currentPage >= totalPages}
 											onClick={() => setPage((p) => p + 1)}
-											className="rounded border border-zinc-300 px-3 py-1 text-sm transition-colors hover:bg-zinc-100 disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800"
+											className="rounded border border-zinc-300 px-4 py-2 text-sm transition-colors hover:bg-zinc-100 disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800"
 										>
 											Next
 										</button>
