@@ -1,175 +1,247 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import type { DashboardResponse } from "../../shared/schemas.js";
-import RunPipelineButton from "../components/shared/RunPipelineButton.js";
-import { formatProjectName } from "../lib/format.js";
+import { ChevronLeft, ChevronRight, Sparkles, X } from "lucide-react";
+import { useState } from "react";
+import type { DailyBriefing } from "../../shared/schemas.js";
 
-export default function Dashboard() {
-	const { data, isLoading, error } = useQuery<DashboardResponse>({
-		queryKey: ["dashboard"],
+function formatDisplayDate(dateStr: string): string {
+	if (dateStr === "today") return new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+	const d = new Date(dateStr + "T12:00:00");
+	return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+}
+
+function shiftDate(dateStr: string, days: number): string {
+	const base = dateStr === "today" ? new Date() : new Date(dateStr + "T12:00:00");
+	base.setDate(base.getDate() + days);
+	return base.toISOString().slice(0, 10);
+}
+
+function isToday(dateStr: string): boolean {
+	if (dateStr === "today") return true;
+	const today = new Date().toISOString().slice(0, 10);
+	return dateStr === today;
+}
+
+const statusBadgeClass: Record<string, string> = {
+	draft: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+	approved: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+	published: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+};
+
+export default function DailyBriefing() {
+	const [date, setDate] = useState("today");
+	const queryClient = useQueryClient();
+
+	const { data, isLoading, error } = useQuery<DailyBriefing>({
+		queryKey: ["home", date],
 		queryFn: async () => {
-			const res = await fetch("/api/dashboard");
-			if (!res.ok) throw new Error("Failed to load dashboard");
+			const res = await fetch(`/api/home/${date}`);
+			if (!res.ok) throw new Error("Failed to load briefing");
 			return res.json();
+		},
+	});
+
+	const dismissSeed = useMutation({
+		mutationFn: async (seedId: string) => {
+			const res = await fetch(`/api/seeds/${seedId}`, { method: "DELETE" });
+			if (!res.ok) throw new Error("Failed to dismiss seed");
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["home", date] });
 		},
 	});
 
 	if (isLoading)
 		return (
-			<div className="mx-auto max-w-5xl p-6">
-				<div className="animate-pulse text-zinc-400">Loading dashboard...</div>
+			<div className="mx-auto max-w-2xl p-6">
+				<div className="animate-pulse text-zinc-400">Loading briefing...</div>
 			</div>
 		);
 	if (error)
 		return (
-			<div className="mx-auto max-w-5xl p-6">
+			<div className="mx-auto max-w-2xl p-6">
 				<div className="text-red-500">Error: {error.message}</div>
 			</div>
 		);
 	if (!data) return null;
 
-	const activeProjects = data.activeProjects ?? [];
-	const recentJournals = data.recentJournals ?? [];
-	const activeThreads = data.activeThreads ?? [];
+	const journal = data.journal;
+	const intake = data.intake;
+	const publishQueue = data.publishQueue ?? [];
+	const seeds = (data.seeds ?? []).filter((s) => !s.used);
 
 	return (
-		<div className="mx-auto max-w-5xl p-6">
-			<div className="space-y-6">
-				<h2 className="text-2xl font-bold">Dashboard</h2>
-
-				{/* Quick stats */}
-				<div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-					<StatCard label="Journal entries" value={data.journalCount ?? 0} to="/journal" />
-					<StatCard label="Blog posts" value={data.blogCount ?? 0} to="/blog" />
-					<StatCard label="Projects" value={data.projectCount ?? 0} to="/projects" />
-					<StatCard label="Intake digests" value={data.intakeCount ?? 0} to="/reading" />
-					<StatCard label="Ready to publish" value={data.pendingPublish ?? 0} to="/publish" />
-				</div>
-
-				{/* Active projects */}
-				{activeProjects.length > 0 && (
-					<section>
-						<h3 className="mb-3 text-lg font-semibold">Active Projects</h3>
-						<div className="flex flex-wrap gap-3">
-							{activeProjects.map((p) => (
-								<Link
-									key={p.name}
-									to="/projects/$name"
-									params={{ name: p.name }}
-									className="rounded-lg border border-zinc-200 px-4 py-3 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
-								>
-									<span className="font-medium">{formatProjectName(p.name)}</span>
-									<div className="mt-1 text-xs text-zinc-500">
-										{p.journalCount} entries, last {p.lastSeen}
-									</div>
-								</Link>
-							))}
-						</div>
-					</section>
-				)}
-
-				{/* Recent journals */}
-				{recentJournals.length > 0 && (
-					<section>
-						<h3 className="mb-3 text-lg font-semibold">Recent Journal Entries</h3>
-						<div className="space-y-2">
-							{recentJournals.map((j) => (
-								<Link
-									key={j.date}
-									to="/journal/$date"
-									params={{ date: j.date }}
-									className="block rounded-lg border border-zinc-200 p-3 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
-								>
-									<div className="flex items-center justify-between">
-										<span className="font-medium">{j.date}</span>
-										<span className="text-xs text-zinc-500">
-											{j.sessionsCount} sessions, {j.durationMinutes}m
-										</span>
-									</div>
-									{j.projects.length > 0 && (
-										<div className="mt-1 flex gap-1">
-											{j.projects.slice(0, 3).map((p) => (
-												<span
-													key={p}
-													className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs dark:bg-zinc-800"
-												>
-													{formatProjectName(p)}
-												</span>
-											))}
-											{j.projects.length > 3 && (
-												<span className="px-1 py-0.5 text-xs text-zinc-400">
-													+{j.projects.length - 3} more
-												</span>
-											)}
-										</div>
-									)}
-								</Link>
-							))}
-						</div>
-					</section>
-				)}
-
-				{/* Active threads */}
-				{activeThreads.length > 0 && (
-					<section>
-						<h3 className="mb-3 text-lg font-semibold">Active Threads</h3>
-						<div className="space-y-2">
-							{activeThreads.map((t) => (
-								<div
-									key={t.name}
-									className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800"
-								>
-									<div className="flex items-center justify-between">
-										<span className="font-medium">{t.name}</span>
-										<span className="text-xs text-zinc-500">
-											{t.mention_count}x since {t.first_seen}
-										</span>
-									</div>
-									<p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{t.summary}</p>
-								</div>
-							))}
-						</div>
-					</section>
-				)}
-
-				{/* Run pipeline */}
-				<section>
-					<h3 className="mb-3 text-lg font-semibold">Pipeline</h3>
-					<RunPipelineButton />
-				</section>
-
-				{/* Quick actions */}
-				<div className="flex gap-3">
-					{(data.seedCount ?? 0) > 0 && (
-						<Link
-							to="/reading"
-							className="rounded-lg bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+		<div className="mx-auto max-w-2xl p-6 space-y-6">
+			{/* Date navigation */}
+			<div className="flex items-center justify-between">
+				<button
+					type="button"
+					onClick={() => setDate(shiftDate(date, -1))}
+					className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+					aria-label="Previous day"
+				>
+					<ChevronLeft className="h-5 w-5" />
+				</button>
+				<div className="flex items-center gap-3">
+					<h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+						{formatDisplayDate(date)}
+					</h1>
+					{!isToday(date) && (
+						<button
+							type="button"
+							onClick={() => setDate("today")}
+							className="rounded-full bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700"
 						>
-							{data.seedCount} pending seeds
-						</Link>
-					)}
-					{(data.activeNoteCount ?? 0) > 0 && (
-						<Link
-							to="/settings"
-							className="rounded-lg bg-purple-50 px-4 py-2 text-sm text-purple-800 dark:bg-purple-950 dark:text-purple-200"
-						>
-							{data.activeNoteCount} active editorial notes
-						</Link>
+							Today
+						</button>
 					)}
 				</div>
+				<button
+					type="button"
+					onClick={() => setDate(shiftDate(date, 1))}
+					className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+					aria-label="Next day"
+				>
+					<ChevronRight className="h-5 w-5" />
+				</button>
 			</div>
-		</div>
-	);
-}
 
-function StatCard({ label, value, to }: { label: string; value: number; to: string }) {
-	return (
-		<Link
-			to={to}
-			className="rounded-lg border border-zinc-200 p-4 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
-		>
-			<div className="text-2xl font-bold">{value}</div>
-			<div className="text-sm text-zinc-500">{label}</div>
-		</Link>
+			{/* Journal card */}
+			<section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+				<h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">What you built</h2>
+				{journal.brief.length > 0 ? (
+					<>
+						<p className="mt-1 text-sm text-zinc-500">
+							{journal.sessionsCount} sessions &middot; {journal.durationMinutes}m
+						</p>
+						<ul className="mt-3 space-y-1">
+							{journal.brief.map((item) => (
+								<li key={item} className="text-sm text-zinc-700 dark:text-zinc-300">
+									&bull; {item}
+								</li>
+							))}
+						</ul>
+						{journal.hasFullEntry && (
+							<Link
+								to="/journal/$date"
+								params={{ date: journal.date }}
+								className="mt-3 inline-block text-sm font-medium text-indigo-600 hover:text-indigo-700"
+							>
+								Read more
+							</Link>
+						)}
+					</>
+				) : (
+					<p className="mt-2 text-sm text-zinc-400">No journal entry for this date</p>
+				)}
+			</section>
+
+			{/* Intake card */}
+			<section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+				<h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">What you read</h2>
+				{intake.highlights.length > 0 ? (
+					<>
+						<p className="mt-1 text-sm text-zinc-500">{intake.itemCount} items</p>
+						<ul className="mt-3 space-y-1">
+							{intake.highlights.map((item) => (
+								<li key={item} className="text-sm text-zinc-700 dark:text-zinc-300">
+									&bull; {item}
+								</li>
+							))}
+						</ul>
+						{intake.hasFullDigest && (
+							<Link
+								to="/reading/$date"
+								params={{ date: intake.date }}
+								className="mt-3 inline-block text-sm font-medium text-indigo-600 hover:text-indigo-700"
+							>
+								Read more
+							</Link>
+						)}
+					</>
+				) : (
+					<p className="mt-2 text-sm text-zinc-400">No intake digest for this date</p>
+				)}
+			</section>
+
+			{/* Publish queue card */}
+			<section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+				<h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">Ready to publish</h2>
+				{publishQueue.length > 0 ? (
+					<ul className="mt-3 space-y-3">
+						{publishQueue.map((item) => (
+							<li key={item.slug} className="flex items-center justify-between gap-2">
+								<div className="min-w-0 flex-1">
+									<span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+										{item.title}
+									</span>
+									<div className="mt-0.5 flex items-center gap-2">
+										<span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs dark:bg-zinc-800">
+											{item.type}
+										</span>
+										<span
+											className={`rounded px-1.5 py-0.5 text-xs ${statusBadgeClass[item.status] ?? ""}`}
+										>
+											{item.status}
+										</span>
+									</div>
+								</div>
+								<div className="flex items-center gap-2 shrink-0">
+									<button
+										type="button"
+										onClick={() => console.log("Approve", item.slug)}
+										className="rounded bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700"
+									>
+										Approve
+									</button>
+									<Link
+										to="/studio/$slug"
+										params={{ slug: item.slug }}
+										className="text-xs font-medium text-indigo-600 hover:text-indigo-700"
+									>
+										Edit in Studio
+									</Link>
+								</div>
+							</li>
+						))}
+					</ul>
+				) : (
+					<p className="mt-2 text-sm text-zinc-400">Nothing to publish</p>
+				)}
+			</section>
+
+			{/* Seeds card */}
+			{seeds.length > 0 && (
+				<section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+					<h2 className="flex items-center gap-2 text-base font-semibold text-zinc-900 dark:text-zinc-100">
+						<Sparkles className="h-4 w-4" />
+						Ideas
+					</h2>
+					<ul className="mt-3 space-y-3">
+						{seeds.map((seed) => (
+							<li key={seed.id} className="flex items-start justify-between gap-2">
+								<span className="text-sm text-zinc-700 dark:text-zinc-300">{seed.text}</span>
+								<div className="flex items-center gap-2 shrink-0">
+									<Link
+										to="/studio"
+										className="text-xs font-medium text-indigo-600 hover:text-indigo-700"
+									>
+										Develop
+									</Link>
+									<button
+										type="button"
+										onClick={() => dismissSeed.mutate(seed.id)}
+										className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
+										aria-label="Dismiss seed"
+									>
+										<X className="h-3.5 w-3.5" />
+									</button>
+								</div>
+							</li>
+						))}
+					</ul>
+				</section>
+			)}
+		</div>
 	);
 }

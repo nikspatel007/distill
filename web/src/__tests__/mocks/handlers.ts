@@ -269,6 +269,55 @@ export const handlers = [
 		});
 	}),
 
+	http.get("/api/home/:date", () => {
+		return HttpResponse.json({
+			date: "2026-02-09",
+			journal: {
+				brief: ["Built the content pipeline", "Added multi-platform publishing"],
+				hasFullEntry: true,
+				date: "2026-02-09",
+				sessionsCount: 3,
+				durationMinutes: 120,
+			},
+			intake: {
+				highlights: ["AI agent patterns article", "New Rust async runtime"],
+				itemCount: 12,
+				hasFullDigest: true,
+				date: "2026-02-09",
+			},
+			publishQueue: [
+				{
+					slug: "weekly-2026-W06",
+					title: "Week 6: Building the Pipeline",
+					type: "blog",
+					status: "draft",
+				},
+			],
+			seeds: [
+				{
+					id: "seed-1",
+					text: "Write about multi-agent patterns",
+					tags: ["blog"],
+					created_at: "2026-02-09T10:00:00Z",
+					used: false,
+					used_in: null,
+				},
+				{
+					id: "seed-2",
+					text: "Compare RAG vs fine-tuning",
+					tags: ["research"],
+					created_at: "2026-02-09T11:00:00Z",
+					used: false,
+					used_in: null,
+				},
+			],
+		});
+	}),
+
+	http.delete("/api/seeds/:id", () => {
+		return HttpResponse.json({ success: true });
+	}),
+
 	http.get("/api/reading/digests", () => {
 		return HttpResponse.json({
 			digests: [
