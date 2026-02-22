@@ -53,7 +53,8 @@ export function RootLayout() {
 	return (
 		<div className="flex h-screen">
 			<Sidebar />
-			<main className="flex-1 overflow-y-auto">
+			{/* pb-16 on mobile for fixed bottom tab bar */}
+			<main className="flex-1 overflow-y-auto pb-16 md:pb-0">
 				<ErrorBoundary>
 					<Outlet />
 				</ErrorBoundary>

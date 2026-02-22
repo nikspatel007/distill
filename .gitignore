@@ -26,6 +26,11 @@ htmlcov/
 .env
 .env.*
 
+# TLS certificates
+*.crt
+*.key
+*.pem
+
 # User config (runtime, not repo config)
 .distill.toml
 .distill-notes.json
@@ -52,3 +57,5 @@ insights/
 TASK.md
 AGENTS.md
 MISSION.md
+/.vermas
+/.troopx

@@ -9,9 +9,13 @@ const EnvSchema = z.object({
 	PROJECT_DIR: z.string().default(""),
 	POSTIZ_URL: z.string().default(""),
 	POSTIZ_API_KEY: z.string().default(""),
+	TLS_CERT: z.string().default(""),
+	TLS_KEY: z.string().default(""),
+	TLS_PORT: z.coerce.number().default(6117),
 });
 
 export type ServerConfig = z.infer<typeof EnvSchema>;
+export type ServerConfigInput = z.input<typeof EnvSchema>;
 
 let _config: ServerConfig | null = null;
 
@@ -21,8 +25,8 @@ export function getConfig(): ServerConfig {
 	return _config;
 }
 
-export function setConfig(config: ServerConfig): void {
-	_config = config;
+export function setConfig(config: z.input<typeof EnvSchema>): void {
+	_config = EnvSchema.parse(config);
 }
 
 export function resetConfig(): void {

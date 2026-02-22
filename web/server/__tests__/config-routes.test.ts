@@ -3,11 +3,11 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { app } from "../index.js";
 import { resetConfig, setConfig } from "../lib/config.js";
-import type { ServerConfig } from "../lib/config.js";
+import type { ServerConfigInput } from "../lib/config.js";
 
 const TMP_DIR = join(import.meta.dir, "fixtures", "_tmp_config");
 
-const baseConfig: ServerConfig = {
+const baseConfig: ServerConfigInput = {
 	OUTPUT_DIR: join(TMP_DIR, "output"),
 	PORT: 6109,
 	PROJECT_DIR: TMP_DIR,
