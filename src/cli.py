@@ -1611,18 +1611,16 @@ def run_cmd(
         gc.admin_api_key = ghost_key
     ghost_cfg = gc if gc.is_configured else None
 
-    # Resolve publish platforms: CLI flag > .distill.toml [blog] > default
+    # Resolve publish platforms: CLI flag > local-only default.
+    # External publishing (Ghost, Postiz) requires explicit --publish flag
+    # or approval through the web UI. This prevents the scheduled pipeline
+    # from auto-pushing drafts to external platforms.
     if publish:
         platform_names = [p.strip() for p in publish.split(",")]
     else:
-        platform_names = list(_cfg.blog.platforms)
-        # Auto-add ghost when Ghost is configured and not already listed
-        if ghost_cfg and "ghost" not in platform_names:
-            platform_names.append("ghost")
-        # Auto-add postiz when configured and not already listed
-        postiz_cfg = _cfg.to_postiz_config()
-        if postiz_cfg.is_configured and "postiz" not in platform_names:
-            platform_names.append("postiz")
+        # Default: local files only. External publishing (Ghost, Postiz)
+        # requires explicit --publish flag or web UI approval.
+        platform_names = ["obsidian"]
 
     all_written: list[Path] = []
     errors: list[str] = []
@@ -1770,8 +1768,9 @@ def run_cmd(
         console.print("[dim]Step 3/4: Blog → Publish (skipped)[/dim]")
 
     # Step 4: Daily social — short LinkedIn posts from journal entries
+    # Only runs when Postiz is explicitly requested via --publish.
     postiz_cfg_for_social = _cfg.to_postiz_config()
-    if getattr(postiz_cfg_for_social, "daily_social_enabled", False):
+    if getattr(postiz_cfg_for_social, "daily_social_enabled", False) and "postiz" in platform_names:
         console.print("[bold]Step 4/4: Daily Social → Postiz[/bold]")
         try:
             from distill.core import generate_daily_social
@@ -2208,6 +2207,20 @@ def serve(
             help="Run in development mode (server only, no static files).",
         ),
     ] = False,
+    tls_cert: Annotated[
+        str | None,
+        typer.Option(
+            "--tls-cert",
+            help="Path to TLS certificate file (e.g. from tailscale cert).",
+        ),
+    ] = None,
+    tls_key: Annotated[
+        str | None,
+        typer.Option(
+            "--tls-key",
+            help="Path to TLS private key file.",
+        ),
+    ] = None,
 ) -> None:
     """Start the web dashboard server."""
     import os
@@ -2233,8 +2246,15 @@ def serve(
         "PORT": str(port),
     }
 
+    if tls_cert:
+        env["TLS_CERT"] = tls_cert
+    if tls_key:
+        env["TLS_KEY"] = tls_key
+
+    protocol = "https" if tls_cert and tls_key else "http"
+
     if dev:
-        console.print(f"[green]Starting dev server on http://localhost:{port}[/green]")
+        console.print(f"[green]Starting dev server on {protocol}://localhost:{port}[/green]")
         console.print(f"Output directory: {output.resolve()}")
         subprocess.run([bun, "run", "dev:server"], cwd=web_dir, env=env)
     else:
@@ -2244,7 +2264,7 @@ def serve(
             console.print("[yellow]Building frontend...[/yellow]")
             subprocess.run([bun, "run", "build"], cwd=web_dir, env=env, check=True)
 
-        console.print(f"[green]Starting server on http://localhost:{port}[/green]")
+        console.print(f"[green]Starting server on {protocol}://localhost:{port}[/green]")
         console.print(f"Output directory: {output.resolve()}")
         subprocess.run(
             [bun, "server/index.ts"],
@@ -2632,6 +2652,70 @@ def graph_inject(
         console.print(f"[green]Context injected into {claude_md}[/green]")
         console.print()
         console.print(context_md)
+
+
+@app.command()
+def mcp(
+    output: Annotated[
+        str,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output directory.",
+        ),
+    ] = "./insights",
+    project_dir: Annotated[
+        str,
+        typer.Option(
+            "--dir",
+            "-d",
+            help="Project directory.",
+        ),
+    ] = ".",
+    port: Annotated[
+        int,
+        typer.Option(
+            "--port",
+            "-p",
+            help="API server port.",
+        ),
+    ] = 6107,
+) -> None:
+    """Start the MCP server for external agents (Claude Code, TroopX)."""
+    import os
+    import subprocess
+    import sys
+
+    # Resolve the web directory relative to this file
+    web_dir = Path(__file__).resolve().parent.parent / "web"
+    server_entry = web_dir / "server" / "mcp" / "server.ts"
+
+    if not server_entry.exists():
+        typer.echo(f"Error: MCP server not found at {server_entry}", err=True)
+        raise typer.Exit(1)
+
+    env = {
+        **dict(os.environ),
+        "DISTILL_OUTPUT_DIR": str(Path(output).resolve()),
+        "DISTILL_PROJECT_DIR": str(Path(project_dir).resolve()),
+        "PORT": str(port),
+    }
+
+    try:
+        proc = subprocess.run(
+            ["bun", "run", str(server_entry)],
+            cwd=str(web_dir),
+            env=env,
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
+        raise typer.Exit(proc.returncode)
+    except FileNotFoundError:
+        typer.echo("Error: 'bun' not found. Install Bun: https://bun.sh", err=True)
+        raise typer.Exit(1)
+    except KeyboardInterrupt:
+        pass
 
 
 if __name__ == "__main__":

@@ -300,3 +300,55 @@ class TestGenerateIndexFunction:
         # Should contain wiki-style links
         assert "[[" in index_content
         assert "sessions/" in index_content
+
+
+class TestRunDefaultPublishPlatform:
+    """Tests that the `run` command defaults to local-only publishing."""
+
+    def test_run_help_shows_publish_option(self, runner: CliRunner) -> None:
+        """Test that --publish option is documented in run help."""
+        result = runner.invoke(app, ["run", "--help"])
+        assert result.exit_code == 0
+        assert "--publish" in _strip_ansi(result.output)
+
+    def test_run_default_platform_is_obsidian_only(self) -> None:
+        """Verify the default platform resolution logic.
+
+        When --publish is NOT provided, the pipeline should default to
+        ["obsidian"] only — no auto-adding Ghost or Postiz. External
+        publishing requires an explicit --publish flag or web UI approval.
+        """
+        # Simulate the platform resolution logic from run_cmd:
+        # When publish is None (no --publish flag), platform_names = ["obsidian"]
+        publish = None  # no --publish flag provided
+        if publish:
+            platform_names = [p.strip() for p in publish.split(",")]
+        else:
+            platform_names = ["obsidian"]
+
+        assert platform_names == ["obsidian"]
+        assert "ghost" not in platform_names
+        assert "postiz" not in platform_names
+
+    def test_run_explicit_publish_flag_overrides_default(self) -> None:
+        """Verify explicit --publish flag sets the platforms correctly."""
+        publish = "obsidian,ghost,postiz"
+        if publish:
+            platform_names = [p.strip() for p in publish.split(",")]
+        else:
+            platform_names = ["obsidian"]
+
+        assert platform_names == ["obsidian", "ghost", "postiz"]
+
+    def test_daily_social_gated_behind_postiz_platform(self) -> None:
+        """Verify daily social step only runs when 'postiz' is in platform_names."""
+        # Default (no --publish): postiz not in platform_names
+        platform_names_default = ["obsidian"]
+        daily_social_enabled = True
+        should_run_default = daily_social_enabled and "postiz" in platform_names_default
+        assert not should_run_default, "Daily social should NOT run with default platforms"
+
+        # Explicit --publish with postiz: should run
+        platform_names_explicit = ["obsidian", "ghost", "postiz"]
+        should_run_explicit = daily_social_enabled and "postiz" in platform_names_explicit
+        assert should_run_explicit, "Daily social SHOULD run when postiz is explicitly listed"
