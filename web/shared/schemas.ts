@@ -122,6 +122,7 @@ export const JournalFrontmatterSchema = z.object({
 	duration_minutes: z.number().default(0),
 	tags: z.array(z.string()).default([]),
 	projects: z.array(z.string()).default([]),
+	brief: z.array(z.string()).default([]),
 	created: z.string().optional(),
 });
 
@@ -148,6 +149,8 @@ export const IntakeFrontmatterSchema = z.object({
 	sources: z.array(z.string()).default([]),
 	item_count: z.number().default(0),
 	tags: z.array(z.string()).default([]),
+	highlights: z.array(z.string()).default([]),
+	items: z.number().default(0),
 	created: z.string().optional(),
 });
 
@@ -211,6 +214,16 @@ export const BlogPostSchema = z.object({
 export const BlogDetailSchema = z.object({
 	meta: BlogPostSchema,
 	content: z.string(),
+	images: z
+		.array(
+			z.object({
+				filename: z.string(),
+				role: z.string(),
+				prompt: z.string().default(""),
+				relative_path: z.string().default(""),
+			}),
+		)
+		.default([]),
 });
 
 export const IntakeDigestSchema = z.object({
@@ -434,6 +447,38 @@ export const ContentCalendarSchema = z.object({
 	ideas: z.array(ContentIdeaSchema).default([]),
 });
 
+// --- Daily Briefing ---
+
+export const JournalBriefSchema = z.object({
+	brief: z.array(z.string()),
+	hasFullEntry: z.boolean(),
+	date: z.string(),
+	sessionsCount: z.number().default(0),
+	durationMinutes: z.number().default(0),
+});
+
+export const IntakeBriefSchema = z.object({
+	highlights: z.array(z.string()),
+	itemCount: z.number(),
+	hasFullDigest: z.boolean(),
+	date: z.string(),
+});
+
+export const BriefingPublishItemSchema = z.object({
+	slug: z.string(),
+	title: z.string(),
+	type: z.enum(["blog", "twitter", "linkedin", "reddit"]),
+	status: z.enum(["draft", "approved", "published"]),
+});
+
+export const DailyBriefingSchema = z.object({
+	date: z.string(),
+	journal: JournalBriefSchema,
+	intake: IntakeBriefSchema,
+	publishQueue: z.array(BriefingPublishItemSchema),
+	seeds: z.array(SeedIdeaSchema),
+});
+
 // --- Save (edit) ---
 
 export const SaveMarkdownSchema = z.object({
@@ -489,6 +534,10 @@ export type ProjectSummary = z.infer<typeof ProjectSummarySchema>;
 export type ProjectDetail = z.infer<typeof ProjectDetailSchema>;
 export type ContentIdea = z.infer<typeof ContentIdeaSchema>;
 export type ContentCalendar = z.infer<typeof ContentCalendarSchema>;
+export type JournalBrief = z.infer<typeof JournalBriefSchema>;
+export type IntakeBrief = z.infer<typeof IntakeBriefSchema>;
+export type BriefingPublishItem = z.infer<typeof BriefingPublishItemSchema>;
+export type DailyBriefing = z.infer<typeof DailyBriefingSchema>;
 export type ContentItem = z.infer<typeof ContentItemSchema>;
 export type ContentItemsResponse = z.infer<typeof ContentItemsResponseSchema>;
 
