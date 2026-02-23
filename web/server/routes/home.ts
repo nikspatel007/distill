@@ -1,13 +1,15 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { Hono } from "hono";
 import {
 	BlogMemorySchema,
 	BlogStateSchema,
 	type BriefingPublishItem,
+	ContentItemsResponseSchema,
 	type DailyBriefing,
 	IntakeFrontmatterSchema,
 	JournalFrontmatterSchema,
+	type ReadingItemBrief,
 	SeedIdeaSchema,
 } from "../../shared/schemas.js";
 import { getConfig } from "../lib/config.js";
@@ -31,6 +33,19 @@ async function findLatestDate(outputDir: string): Promise<string | null> {
 	return dates[0] ?? null;
 }
 
+/**
+ * Find the latest intake archive date.
+ */
+async function findLatestArchiveDate(outputDir: string): Promise<string | null> {
+	const files = await listFiles(join(outputDir, "intake", "archive"), /^\d{4}-\d{2}-\d{2}\.json$/);
+	const dates = files
+		.map((f) => basename(f, ".json"))
+		.filter((d): d is string => d !== null)
+		.sort()
+		.reverse();
+	return dates[0] ?? null;
+}
+
 app.get("/api/home/:date", async (c) => {
 	const { OUTPUT_DIR } = getConfig();
 	let date = c.req.param("date");
@@ -48,13 +63,18 @@ app.get("/api/home/:date", async (c) => {
 	}
 
 	// Load all data in parallel
-	const [journalFiles, intakeRaw, seedsRaw, blogMemory, blogState] = await Promise.all([
-		listFiles(join(OUTPUT_DIR, "journal"), new RegExp(`^journal-${date}.*\\.md$`)),
-		readMarkdown(join(OUTPUT_DIR, "intake", `intake-${date}.md`)),
-		readFile(join(OUTPUT_DIR, ".distill-seeds.json"), "utf-8").catch(() => "[]"),
-		readJson(join(OUTPUT_DIR, "blog", ".blog-memory.json"), BlogMemorySchema),
-		readJson(join(OUTPUT_DIR, "blog", ".blog-state.json"), BlogStateSchema),
-	]);
+	const [journalFiles, intakeRaw, seedsRaw, blogMemory, blogState, intakeArchive] =
+		await Promise.all([
+			listFiles(join(OUTPUT_DIR, "journal"), new RegExp(`^journal-${date}.*\\.md$`)),
+			readMarkdown(join(OUTPUT_DIR, "intake", `intake-${date}.md`)),
+			readFile(join(OUTPUT_DIR, ".distill-seeds.json"), "utf-8").catch(() => "[]"),
+			readJson(join(OUTPUT_DIR, "blog", ".blog-memory.json"), BlogMemorySchema),
+			readJson(join(OUTPUT_DIR, "blog", ".blog-state.json"), BlogStateSchema),
+			readJson(
+				join(OUTPUT_DIR, "intake", "archive", `${date}.json`),
+				ContentItemsResponseSchema,
+			),
+		]);
 
 	// --- Journal brief ---
 	let journalBrief: string[] = [];
@@ -106,32 +126,70 @@ app.get("/api/home/:date", async (c) => {
 		seeds = parsed.filter((s) => !s.used);
 	} catch {}
 
-	// --- Publish queue ---
+	// --- Reading items (from intake archive) ---
+	let readingItems: ReadingItemBrief[] = [];
+	let archiveData = intakeArchive;
+
+	// If no archive for the exact date, try the latest available
+	if (!archiveData) {
+		const latestArchiveDate = await findLatestArchiveDate(OUTPUT_DIR);
+		if (latestArchiveDate) {
+			archiveData = await readJson(
+				join(OUTPUT_DIR, "intake", "archive", `${latestArchiveDate}.json`),
+				ContentItemsResponseSchema,
+			);
+		}
+	}
+
+	if (archiveData) {
+		// Filter to actual reading content (not coding sessions)
+		const READING_SOURCES = new Set(["rss", "browser", "substack", "reddit", "gmail"]);
+		readingItems = archiveData.items
+			.filter((item) => READING_SOURCES.has(item.source) && item.url)
+			.slice(0, 10)
+			.map((item) => ({
+				id: item.id,
+				title: item.title,
+				url: item.url,
+				source: item.source,
+				excerpt: item.excerpt,
+				site_name: item.site_name,
+				word_count: item.word_count,
+			}));
+	}
+
+	// --- Publish queue (deduplicated: one entry per post) ---
 	const publishQueue: BriefingPublishItem[] = [];
 	const memoryPosts = blogMemory?.posts ?? [];
 	const statePosts = blogState?.posts ?? [];
 
 	if (memoryPosts.length > 0) {
 		for (const post of memoryPosts) {
-			for (const platform of TARGET_PLATFORMS) {
-				publishQueue.push({
-					slug: post.slug,
-					title: post.title,
-					type: platform,
-					status: post.platforms_published.includes(platform) ? "published" : "draft",
-				});
-			}
+			const publishedCount = TARGET_PLATFORMS.filter((p) =>
+				post.platforms_published.includes(p),
+			).length;
+			const total = TARGET_PLATFORMS.length;
+			publishQueue.push({
+				slug: post.slug,
+				title: post.title,
+				type: post.post_type,
+				status: publishedCount === total ? "published" : "draft",
+				platforms_published: publishedCount,
+				platforms_ready: publishedCount,
+				platforms_total: total,
+			});
 		}
 	} else {
 		for (const post of statePosts) {
-			for (const platform of TARGET_PLATFORMS) {
-				publishQueue.push({
-					slug: post.slug,
-					title: post.slug,
-					type: platform,
-					status: "draft",
-				});
-			}
+			publishQueue.push({
+				slug: post.slug,
+				title: post.slug,
+				type: post.post_type,
+				status: "draft",
+				platforms_published: 0,
+				platforms_ready: 0,
+				platforms_total: TARGET_PLATFORMS.length,
+			});
 		}
 	}
 
@@ -152,9 +210,114 @@ app.get("/api/home/:date", async (c) => {
 		},
 		publishQueue,
 		seeds,
+		readingItems,
 	};
 
 	return c.json(response);
+});
+
+/**
+ * POST /api/home/brainstorm — assemble today's context into a Studio draft for brainstorming.
+ */
+app.post("/api/home/brainstorm", async (c) => {
+	const { OUTPUT_DIR } = getConfig();
+
+	// Find latest journal date
+	const latestDate = await findLatestDate(OUTPUT_DIR);
+	const date = latestDate ?? new Date().toISOString().split("T")[0] ?? "";
+
+	// Load data in parallel
+	const [journalFiles, intakeRaw, seedsRaw, archiveData] = await Promise.all([
+		listFiles(join(OUTPUT_DIR, "journal"), new RegExp(`^journal-${date}.*\\.md$`)),
+		readMarkdown(join(OUTPUT_DIR, "intake", `intake-${date}.md`)),
+		readFile(join(OUTPUT_DIR, ".distill-seeds.json"), "utf-8").catch(() => "[]"),
+		readJson(
+			join(OUTPUT_DIR, "intake", "archive", `${date}.json`),
+			ContentItemsResponseSchema,
+		),
+	]);
+
+	const sections: string[] = [];
+	const today = new Date().toLocaleDateString("en-US", {
+		weekday: "long",
+		month: "long",
+		day: "numeric",
+		year: "numeric",
+	});
+	sections.push(`# Brainstorm — ${today}\n`);
+	sections.push(
+		"Use everything below to help me figure out what to write about today. Suggest 3-5 angles with a one-line pitch for each, then let's discuss.\n",
+	);
+
+	// Journal
+	if (journalFiles.length > 0) {
+		const journalPath = journalFiles[0] ?? "";
+		const journalRaw = await readMarkdown(journalPath);
+		if (journalRaw) {
+			const parsed = parseFrontmatter(journalRaw, JournalFrontmatterSchema);
+			if (parsed) {
+				sections.push("## What I built today\n");
+				for (const b of parsed.frontmatter.brief) {
+					sections.push(`- ${b}`);
+				}
+				sections.push("");
+			}
+		}
+	}
+
+	// Intake highlights
+	if (intakeRaw) {
+		const parsed = parseFrontmatter(intakeRaw, IntakeFrontmatterSchema);
+		if (parsed?.frontmatter.highlights.length) {
+			sections.push("## Intake highlights\n");
+			for (const h of parsed.frontmatter.highlights) {
+				sections.push(`- ${h}`);
+			}
+			sections.push("");
+		}
+	}
+
+	// Top reading items
+	if (archiveData) {
+		const READING_SOURCES = new Set(["rss", "browser", "substack", "reddit", "gmail"]);
+		const readItems = archiveData.items
+			.filter((item) => READING_SOURCES.has(item.source) && item.url)
+			.slice(0, 10);
+		if (readItems.length > 0) {
+			sections.push("## What I read\n");
+			for (const item of readItems) {
+				const excerpt =
+					item.excerpt && item.excerpt !== item.title ? ` — ${item.excerpt.slice(0, 120)}` : "";
+				sections.push(`- [${item.title}](${item.url}) (${item.site_name || item.source})${excerpt}`);
+			}
+			sections.push("");
+		}
+	}
+
+	// Seeds
+	try {
+		const rawSeeds = JSON.parse(seedsRaw) as unknown[];
+		const unused = rawSeeds
+			.map((s) => {
+				try {
+					return SeedIdeaSchema.parse(s);
+				} catch {
+					return null;
+				}
+			})
+			.filter((s): s is NonNullable<typeof s> => s !== null && !s.used);
+		if (unused.length > 0) {
+			sections.push("## Seed ideas\n");
+			for (const seed of unused) {
+				sections.push(`- ${seed.text}`);
+			}
+			sections.push("");
+		}
+	} catch {}
+
+	const body = sections.join("\n");
+
+	return c.json({ title: `Brainstorm — ${date}`, body, date });
 });
 
 export default app;

@@ -6,7 +6,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, test } from "vitest";
 import DailyBriefing from "../routes/index.js";
 import { handlers } from "./mocks/handlers.js";
 
-// Mock TanStack Router's Link to render as a plain <a>
+// Mock TanStack Router's Link and useNavigate
 vi.mock("@tanstack/react-router", () => ({
 	Link: ({
 		children,
@@ -26,6 +26,7 @@ vi.mock("@tanstack/react-router", () => ({
 			</a>
 		);
 	},
+	useNavigate: () => vi.fn(),
 }));
 
 const server = setupServer(...handlers);
@@ -72,7 +73,7 @@ describe("DailyBriefing", () => {
 			expect(screen.getByText("Ready to publish")).toBeInTheDocument();
 		});
 		expect(screen.getByText("Week 6: Building the Pipeline")).toBeInTheDocument();
-		expect(screen.getByText("draft")).toBeInTheDocument();
+		expect(screen.getByText("0/3 published")).toBeInTheDocument();
 		expect(screen.getByText("Approve")).toBeInTheDocument();
 		expect(screen.getByText("Edit in Studio")).toBeInTheDocument();
 	});
@@ -111,6 +112,15 @@ describe("DailyBriefing", () => {
 		});
 	});
 
+	test("displays reading items section", async () => {
+		renderWithProviders(<DailyBriefing />);
+		await waitFor(() => {
+			expect(screen.getByText("Today's reading")).toBeInTheDocument();
+		});
+		expect(screen.getByText("Understanding LLM Agents")).toBeInTheDocument();
+		expect(screen.getByText("example.com")).toBeInTheDocument();
+	});
+
 	test("shows empty states when no data", async () => {
 		server.use(
 			http.get("/api/home/:date", () => {
@@ -131,6 +141,7 @@ describe("DailyBriefing", () => {
 					},
 					publishQueue: [],
 					seeds: [],
+					readingItems: [],
 				});
 			}),
 		);
@@ -142,6 +153,8 @@ describe("DailyBriefing", () => {
 		expect(screen.getByText("Nothing to publish")).toBeInTheDocument();
 		// Seeds card should not render at all when empty
 		expect(screen.queryByText("Ideas")).not.toBeInTheDocument();
+		// Reading section shows hint
+		expect(screen.getByText("distill intake")).toBeInTheDocument();
 	});
 
 	test("displays journal Read more link when full entry exists", async () => {

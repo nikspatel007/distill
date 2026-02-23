@@ -213,9 +213,9 @@ export default function StudioDetail() {
 	return (
 		<div className="flex h-full flex-col">
 			{/* Header */}
-			<div className="flex flex-col gap-2 border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-800 md:flex-row md:items-center md:justify-between">
+			<div className="flex flex-col gap-2 border-b border-zinc-200 px-4 py-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] dark:border-zinc-800 md:flex-row md:items-center md:justify-between">
 				<div className="flex items-center gap-3">
-					<Link to="/studio" className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200">
+					<Link to="/studio" className="-ml-2 rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200">
 						<ArrowLeft className="h-5 w-5" />
 					</Link>
 					<div className="flex items-center gap-2.5">

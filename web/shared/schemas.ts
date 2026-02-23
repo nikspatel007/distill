@@ -447,6 +447,18 @@ export const ContentCalendarSchema = z.object({
 	ideas: z.array(ContentIdeaSchema).default([]),
 });
 
+// --- Reading Item Brief (for Dashboard) ---
+
+export const ReadingItemBriefSchema = z.object({
+	id: z.string(),
+	title: z.string(),
+	url: z.string(),
+	source: z.string(),
+	excerpt: z.string().default(""),
+	site_name: z.string().default(""),
+	word_count: z.number().default(0),
+});
+
 // --- Daily Briefing ---
 
 export const JournalBriefSchema = z.object({
@@ -467,8 +479,11 @@ export const IntakeBriefSchema = z.object({
 export const BriefingPublishItemSchema = z.object({
 	slug: z.string(),
 	title: z.string(),
-	type: z.enum(["blog", "twitter", "linkedin", "reddit"]),
+	type: z.string(),
 	status: z.enum(["draft", "approved", "published"]),
+	platforms_ready: z.number().default(0),
+	platforms_published: z.number().default(0),
+	platforms_total: z.number().default(0),
 });
 
 export const DailyBriefingSchema = z.object({
@@ -477,6 +492,7 @@ export const DailyBriefingSchema = z.object({
 	intake: IntakeBriefSchema,
 	publishQueue: z.array(BriefingPublishItemSchema),
 	seeds: z.array(SeedIdeaSchema),
+	readingItems: z.array(ReadingItemBriefSchema).default([]),
 });
 
 // --- Save (edit) ---
@@ -536,6 +552,7 @@ export type ContentIdea = z.infer<typeof ContentIdeaSchema>;
 export type ContentCalendar = z.infer<typeof ContentCalendarSchema>;
 export type JournalBrief = z.infer<typeof JournalBriefSchema>;
 export type IntakeBrief = z.infer<typeof IntakeBriefSchema>;
+export type ReadingItemBrief = z.infer<typeof ReadingItemBriefSchema>;
 export type BriefingPublishItem = z.infer<typeof BriefingPublishItemSchema>;
 export type DailyBriefing = z.infer<typeof DailyBriefingSchema>;
 export type ContentItem = z.infer<typeof ContentItemSchema>;

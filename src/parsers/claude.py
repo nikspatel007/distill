@@ -369,23 +369,12 @@ class ClaudeParser:
 
         enrich_narrative(session)
 
-        # Auto-tag based on content
-        if not session.tags:
-            tags: list[str] = []
-            all_text = " ".join(m.content.lower() for m in session.messages)
-
-            tag_keywords = {
-                "debugging": ["bug", "fix", "error", "debug", "traceback", "exception"],
-                "refactoring": ["refactor", "rename", "restructure", "reorganize", "cleanup"],
-                "feature": ["implement", "add feature", "new feature", "create"],
-                "testing": ["test", "pytest", "coverage", "assert"],
-                "documentation": ["readme", "docstring", "documentation", "docs"],
-            }
-            for tag, keywords in tag_keywords.items():
-                if any(kw in all_text for kw in keywords):
-                    tags.append(tag)
-
-            session.tags = tags
+        # Auto-tag: use project name only (keyword-based tags were too noisy)
+        if not session.tags and session.project and session.project not in (
+            "(unknown)",
+            "(unassigned)",
+        ):
+            session.tags = [session.project.lower()]
 
     def _parse_timestamp(self, ts_str: str) -> datetime:
         """Parse an ISO format timestamp string.

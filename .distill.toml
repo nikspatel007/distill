@@ -35,6 +35,12 @@ substack_blogs = []
 rss_feeds = [ "https://martinfowler.com/feed.atom" ]
 publishers = [ "obsidian", "ghost" ]
 
+[troopx]
+db_url = ""                       # Set via TROOPX_DB_URL env var (default: postgresql://troopx:troopx@localhost:15432/troopx)
+troopx_home = "~/.troopx"
+troopx_project = ""               # Set via TROOPX_PROJECT_DIR env var
+max_age_days = 7
+
 [postiz]
 schedule_enabled = true
 timezone = "America/Chicago"

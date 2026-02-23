@@ -17,6 +17,7 @@ from distill.intake.models import (
     SeedIdea,
     SessionIntakeConfig,
     SubstackIntakeConfig,
+    TroopXIntakeConfig,
     TwitterIntakeConfig,
     YouTubeIntakeConfig,
 )
@@ -59,6 +60,7 @@ __all__ = [
     "SeedStore",
     "SessionIntakeConfig",
     "SubstackIntakeConfig",
+    "TroopXIntakeConfig",
     "TwitterIntakeConfig",
     "YouTubeIntakeConfig",
     "archive_items",

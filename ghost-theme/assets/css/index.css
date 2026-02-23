@@ -1,0 +1,24 @@
+/*
+TroopX Journal - Ghost Theme
+Built on Ghost Starter theme
+*/
+
+/* Foundation */
+@import "vars.css";
+@import "components/global.css";
+@import "components/forms.css";
+@import "components/buttons.css";
+
+/* Layout */
+@import "layout.css";
+
+/* Pages */
+@import "home.css";
+@import "post.css";
+
+/* Ghost components */
+@import "ghost/content.css";
+@import "ghost/members.css";
+@import "ghost/errors.css";
+@import "ghost/pagination.css";
+@import "ghost/comments.css";

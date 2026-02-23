@@ -128,7 +128,7 @@ def prepare_daily_context(
         projects_worked=projects,
         session_summaries=summaries,
         key_outcomes=all_outcomes[:15],
-        tags=all_tags[:20],
+        tags=all_tags[:5],
     )
 
 
@@ -377,7 +377,7 @@ class JournalFormatter:
         if context.tags:
             lines.append("tags:")
             lines.append("  - journal")
-            for tag in context.tags[:10]:
+            for tag in context.tags[:5]:
                 lines.append(f"  - {tag}")
         else:
             lines.append("tags:")

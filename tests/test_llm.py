@@ -12,6 +12,100 @@ from distill.llm import LLMError, call_claude, strip_json_fences
 
 
 # ---------------------------------------------------------------------------
+# call_claude — Anthropic API path
+# ---------------------------------------------------------------------------
+
+
+class TestCallClaudeAnthropicAPI:
+    """Tests for the Anthropic API path in call_claude()."""
+
+    @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-test-key"})
+    @patch("distill.llm.anthropic")
+    def test_api_returns_text(self, mock_anthropic: MagicMock) -> None:
+        """Anthropic API path returns response text."""
+        mock_block = MagicMock()
+        mock_block.type = "text"
+        mock_block.text = "  Hello from API  "
+        mock_response = MagicMock()
+        mock_response.content = [mock_block]
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = mock_response
+        mock_anthropic.Anthropic.return_value = mock_client
+
+        result = call_claude("system prompt", "user prompt")
+        assert result == "Hello from API"
+
+    @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-test-key"})
+    @patch("distill.llm.anthropic")
+    def test_api_passes_system_and_user(self, mock_anthropic: MagicMock) -> None:
+        """Anthropic API sends system and user prompts correctly."""
+        mock_block = MagicMock()
+        mock_block.type = "text"
+        mock_block.text = "ok"
+        mock_response = MagicMock()
+        mock_response.content = [mock_block]
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = mock_response
+        mock_anthropic.Anthropic.return_value = mock_client
+
+        call_claude("My system", "My user")
+
+        call_kwargs = mock_client.messages.create.call_args[1]
+        assert call_kwargs["system"] == "My system"
+        assert call_kwargs["messages"] == [{"role": "user", "content": "My user"}]
+
+    @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-test-key"})
+    @patch("distill.llm.anthropic")
+    def test_api_resolves_model_shortname(self, mock_anthropic: MagicMock) -> None:
+        """Short model names are resolved to full API model IDs."""
+        mock_block = MagicMock()
+        mock_block.type = "text"
+        mock_block.text = "ok"
+        mock_response = MagicMock()
+        mock_response.content = [mock_block]
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = mock_response
+        mock_anthropic.Anthropic.return_value = mock_client
+
+        call_claude("sys", "usr", model="haiku")
+
+        call_kwargs = mock_client.messages.create.call_args[1]
+        assert call_kwargs["model"] == "claude-haiku-4-5-20251001"
+
+    @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-test-key"})
+    @patch("distill.llm.anthropic")
+    def test_api_empty_response_raises(self, mock_anthropic: MagicMock) -> None:
+        """Empty API response raises LLMError."""
+        mock_response = MagicMock()
+        mock_response.content = []
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = mock_response
+        mock_anthropic.Anthropic.return_value = mock_client
+
+        with pytest.raises(LLMError, match="empty response"):
+            call_claude("sys", "usr")
+
+    @patch.dict("os.environ", {"ANTHROPIC_API_KEY": ""})
+    @patch("distill.llm._HAS_AGENT_SDK", False)
+    @patch("distill.llm.subprocess.run")
+    def test_empty_key_falls_through(self, mock_run: MagicMock) -> None:
+        """Empty ANTHROPIC_API_KEY falls through to subprocess."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="from CLI", stderr="")
+
+        result = call_claude("sys", "usr")
+        assert result == "from CLI"
+
+    @patch.dict("os.environ", {"DISTILL_USE_CLI": "1", "ANTHROPIC_API_KEY": "sk-test"})
+    @patch("distill.llm.subprocess.run")
+    def test_use_cli_skips_api(self, mock_run: MagicMock) -> None:
+        """DISTILL_USE_CLI=1 skips API even with key set."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="from CLI", stderr="")
+
+        result = call_claude("sys", "usr")
+        assert result == "from CLI"
+
+
+# ---------------------------------------------------------------------------
 # Helpers for Agent SDK mocks
 # ---------------------------------------------------------------------------
 
@@ -21,7 +115,7 @@ def _make_assistant_message(text: str) -> MagicMock:
     from claude_agent_sdk import AssistantMessage, TextBlock
 
     block = TextBlock(text=text)
-    return AssistantMessage(content=[block], model="claude-sonnet-4-5-20250929")
+    return AssistantMessage(content=[block], model="claude-sonnet-4-6")
 
 
 def _make_result_message() -> MagicMock:
@@ -50,6 +144,7 @@ async def _async_iter_messages(*messages):
 # ---------------------------------------------------------------------------
 
 
+@patch("distill.llm._HAS_ANTHROPIC", False)
 class TestCallClaudeAgentSDK:
     """Tests for the Agent SDK path in call_claude()."""
 
@@ -128,7 +223,7 @@ class TestCallClaudeAgentSDK:
 
         msg = AssistantMessage(
             content=[TextBlock(text="Hello "), TextBlock(text="world")],
-            model="claude-sonnet-4-5-20250929",
+            model="claude-sonnet-4-6",
         )
         mock_query.return_value = _async_iter_messages(msg, _make_result_message())
 
@@ -221,6 +316,7 @@ class TestCallClaudeAgentSDK:
 # ---------------------------------------------------------------------------
 
 
+@patch("distill.llm._HAS_ANTHROPIC", False)
 @patch("distill.llm._HAS_AGENT_SDK", False)
 class TestCallClaudeSubprocess:
     """Tests for the subprocess fallback path in call_claude()."""

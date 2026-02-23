@@ -1,0 +1,90 @@
+/* Members Forms
+/* ---------------------------------------------------------- */
+
+form[data-members-form] .gh-button-loader,
+form[data-members-form] .message-success,
+form[data-members-form] .message-error {
+    display: none;
+}
+
+.gh-button-content {
+    min-width: 100px;
+}
+
+.message-success svg,
+.message-error svg {
+    position: relative;
+    top: -1px;
+    margin-right: 5px;
+    height: 15px;
+    width: 15px;
+}
+.message-success svg {
+    fill: #fff;
+}
+.message-error svg {
+    fill: var(--color-error);
+}
+
+form[data-members-form].success .message-success,
+form[data-members-form].error .message-error {
+    position: fixed;
+    top: 20px;
+    left: 4vmin;
+    right: 4vmin;
+    z-index: 9999;
+    max-width: calc(1400px - 8vmin);
+    margin: 0 auto;
+    padding: 10px 0;
+    color: #fff;
+    font-size: 1.4rem;
+    line-height: 1.5em;
+    font-weight: 500;
+    text-align: center;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+form[data-members-form].success .message-success {
+    background: var(--color-success);
+}
+form[data-members-form].error .message-error {
+    color: var(--color-error);
+    background: var(--bg-surface);
+    box-shadow: var(--color-error) 0 0 0 1px;
+}
+
+form[data-members-form] .gh-button {
+    position: relative;
+    min-width: 120px;
+}
+
+/*-- Loading --*/
+
+form[data-members-form].loading .gh-button-content {
+    visibility: hidden;
+}
+
+form[data-members-form].loading .gh-button-loader {
+    display: inline-block;
+    position: absolute;
+    left: 50%;
+    bottom: -30%;
+    margin: 0 0 0 -19px;
+    transform: scale(0.6);
+}
+
+.gh-button-loader svg path,
+.gh-button-loader svg rect{
+  fill: #fff;
+}
+
+/*-- Show success message on success --*/
+form[data-members-form].success .message-success {
+    display: block;
+}
+
+/*-- Show error message on error --*/
+form[data-members-form].error .message-error {
+    display: block;
+}

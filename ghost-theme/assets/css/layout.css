@@ -1,0 +1,391 @@
+/* Layout - Header, Footer, Page Structure
+/* ---------------------------------------------------------- */
+
+html,
+.gh-viewport {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background: var(--bg);
+}
+
+.gh-main {
+    flex: 1 0 auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.gh-page {
+    padding: 0 4vmin;
+}
+
+.gh-container {
+    width: 100%;
+    max-width: var(--page-width);
+    margin: 0 auto;
+}
+
+
+/* Header
+/* ---------------------------------------------------------- */
+
+.gh-head {
+    padding: 2rem 4vmin;
+    font-size: 1.5rem;
+    line-height: 1.3em;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+}
+
+.gh-head a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.gh-head-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: var(--page-width);
+    margin: 0 auto;
+    gap: 2rem;
+}
+
+.gh-head-brand {
+    display: flex;
+    align-items: center;
+}
+
+.gh-head-logo {
+    display: block;
+    font-weight: 700;
+    font-size: 2rem;
+    line-height: 1.2em;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    white-space: nowrap;
+}
+
+.gh-head-logo:hover {
+    color: var(--text);
+    opacity: 0.8;
+}
+
+.gh-head-logo img {
+    max-height: 40px;
+}
+
+.gh-head-menu {
+    display: flex;
+    align-items: center;
+}
+
+.gh-head-menu .nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    list-style: none;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+}
+
+.gh-head-menu .nav li {
+    margin: 0;
+    padding: 0;
+}
+
+.gh-head-menu .nav a {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    color: var(--text-muted);
+    font-size: 1.4rem;
+    transition: color 0.2s ease;
+}
+
+.gh-head-menu .nav a:hover {
+    color: var(--text);
+}
+
+.gh-head-menu .nav-current a {
+    color: var(--text);
+}
+
+.gh-head-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+/* Theme Toggle */
+
+.theme-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3.6rem;
+    height: 3.6rem;
+    padding: 0;
+    border: none;
+    border-radius: 0.5rem;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.2s ease, background 0.2s ease;
+}
+
+.theme-toggle:hover {
+    color: var(--text);
+    background: var(--bg-surface);
+}
+
+.theme-toggle svg {
+    width: 2rem;
+    height: 2rem;
+}
+
+/* Show sun in dark mode, moon in light mode */
+.theme-toggle .icon-sun {
+    display: block;
+}
+.theme-toggle .icon-moon {
+    display: none;
+}
+[data-theme="light"] .theme-toggle .icon-sun {
+    display: none;
+}
+[data-theme="light"] .theme-toggle .icon-moon {
+    display: block;
+}
+
+/* Burger menu (mobile) */
+.gh-burger {
+    position: relative;
+    display: none;
+    cursor: pointer;
+    border: none;
+    background: none;
+    color: var(--text);
+    padding: 0.5rem;
+}
+
+.gh-burger-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+}
+
+.gh-burger-inner {
+    width: 100%;
+    height: 100%;
+}
+
+.gh-burger-box::before {
+    position: absolute;
+    display: block;
+    top: 0; left: 0; bottom: 0;
+    margin: auto;
+    content: '';
+    width: 100%;
+    height: 1px;
+    background: currentcolor;
+    transition: transform 300ms cubic-bezier(.2,.6,.3,1), width 300ms cubic-bezier(.2,.6,.3,1);
+}
+
+.gh-burger-inner::before,
+.gh-burger-inner::after {
+    position: absolute;
+    display: block;
+    top: 0; left: 0; bottom: 0;
+    margin: auto;
+    content: '';
+    width: 100%;
+    height: 1px;
+    background: currentcolor;
+    transition: transform 250ms cubic-bezier(.2,.7,.3,1);
+}
+
+.gh-burger-inner::before {
+    transform: translatey(-6px);
+}
+.gh-burger-inner::after {
+    transform: translatey(6px);
+}
+
+.gh-head-open .gh-burger-box::before {
+    width: 0;
+    transform: translatex(14px);
+}
+.gh-head-open .gh-burger-inner::before {
+    width: 20px;
+    transform: translatex(2px) rotate(135deg);
+}
+.gh-head-open .gh-burger-inner::after {
+    width: 20px;
+    transform: translatex(2px) rotate(-135deg);
+}
+
+
+/* Footer
+/* ---------------------------------------------------------- */
+
+.gh-foot {
+    padding: 6rem 4vmin 4rem;
+    border-top: 1px solid var(--border);
+}
+
+.gh-foot .gh-container {
+    max-width: var(--content-width);
+}
+
+/* Subscribe form */
+.gh-subscribe {
+    margin-bottom: 3rem;
+    text-align: center;
+}
+
+.gh-subscribe-title {
+    margin: 0 0 1.5rem;
+    font-size: 2rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.gh-subscribe-form {
+    display: flex;
+    gap: 0.8rem;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+.gh-subscribe-input {
+    flex: 1;
+    height: 4rem;
+    padding: 0 1.2rem;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    background: var(--bg-surface);
+    color: var(--text);
+    font-size: 1.4rem;
+}
+
+.gh-subscribe-input::placeholder {
+    color: var(--text-muted);
+}
+
+.gh-subscribe-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.gh-subscribe-btn {
+    height: 4rem;
+    padding: 0 2rem;
+    border: none;
+    border-radius: 0.5rem;
+    background: var(--accent);
+    color: #fff;
+    font-size: 1.4rem;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s ease;
+}
+
+.gh-subscribe-btn:hover {
+    background: var(--accent-hover);
+}
+
+/* Footer meta */
+.gh-foot-meta {
+    text-align: center;
+    font-size: 1.3rem;
+    color: var(--text-muted);
+}
+
+.gh-foot-meta span {
+    margin: 0 0.5rem;
+    opacity: 0.5;
+}
+
+
+/* Mobile Responsive
+/* ---------------------------------------------------------- */
+
+@media (max-width: 640px) {
+    .gh-burger {
+        display: inline-flex;
+    }
+
+    #gh-head {
+        transition: all 0.4s ease-out;
+        overflow: hidden;
+    }
+
+    #gh-head .gh-head-inner {
+        height: 100%;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    #gh-head .gh-head-brand {
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        z-index: 10;
+    }
+
+    /* Hide collapsed content */
+    #gh-head .gh-head-actions,
+    #gh-head .gh-head-menu {
+        display: none;
+    }
+
+    /* Open the menu */
+    .gh-head-open {
+        overflow: hidden;
+        height: 100vh;
+    }
+    .gh-head-open #gh-head {
+        position: fixed;
+        top: 0; right: 0; bottom: 0; left: 0;
+        z-index: 900;
+        overflow-y: scroll;
+        background: var(--bg);
+    }
+    .gh-head-open #gh-head .gh-head-inner {
+        min-height: 100%;
+        justify-content: flex-start;
+    }
+    .gh-head-open #gh-head .gh-head-actions,
+    .gh-head-open #gh-head .gh-head-menu {
+        display: flex;
+    }
+    .gh-head-open #gh-head .gh-head-menu {
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+        margin: 4rem 0;
+        font-size: 2.4rem;
+    }
+    .gh-head-open #gh-head .gh-head-menu .nav {
+        flex-direction: column;
+        align-items: center;
+    }
+    .gh-head-open #gh-head .gh-head-menu .nav a {
+        font-size: 2rem;
+        padding: 1rem;
+    }
+    .gh-head-open #gh-head .gh-head-actions {
+        justify-content: center;
+        padding: 2rem 0;
+    }
+
+    .gh-subscribe-form {
+        flex-direction: column;
+    }
+}

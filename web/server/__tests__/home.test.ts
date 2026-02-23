@@ -11,9 +11,11 @@ describe("GET /api/home/:date", () => {
 		// Create directory structure
 		const journalDir = join(TMP_DIR, "journal");
 		const intakeDir = join(TMP_DIR, "intake");
+		const archiveDir = join(TMP_DIR, "intake", "archive");
 		const blogDir = join(TMP_DIR, "blog");
 		await mkdir(journalDir, { recursive: true });
 		await mkdir(intakeDir, { recursive: true });
+		await mkdir(archiveDir, { recursive: true });
 		await mkdir(blogDir, { recursive: true });
 
 		// Journal with brief in frontmatter
@@ -161,6 +163,70 @@ describe("GET /api/home/:date", () => {
 			"utf-8",
 		);
 
+		// Intake archive with reading items
+		await writeFile(
+			join(TMP_DIR, "intake", "archive", "2026-02-22.json"),
+			JSON.stringify({
+				date: "2026-02-22",
+				item_count: 3,
+				items: [
+					{
+						id: "item-001",
+						url: "https://example.com/bun-release",
+						title: "Bun 1.2 Released",
+						excerpt: "Bun 1.2 brings major improvements to the test runner.",
+						word_count: 500,
+						author: "Jarred Sumner",
+						site_name: "bun.sh",
+						source: "rss",
+						content_type: "article",
+						tags: ["bun", "javascript"],
+						topics: [],
+						published_at: "2026-02-22T08:00:00Z",
+						saved_at: "2026-02-22T10:00:00Z",
+						metadata: {},
+					},
+					{
+						id: "item-002",
+						url: "https://example.com/hono-v4",
+						title: "Hono v4 Streaming",
+						excerpt: "Hono v4 adds native streaming support.",
+						word_count: 300,
+						author: "Yusuke Wada",
+						site_name: "hono.dev",
+						source: "rss",
+						content_type: "article",
+						tags: ["hono"],
+						topics: [],
+						published_at: "2026-02-22T09:00:00Z",
+						saved_at: "2026-02-22T10:30:00Z",
+						metadata: {},
+					},
+					{
+						id: "item-003",
+						url: "https://example.com/sqlite-tips",
+						title: "SQLite Performance Tips",
+						excerpt: "Tips for optimizing SQLite in production.",
+						word_count: 800,
+						author: "",
+						site_name: "",
+						source: "browser",
+						content_type: "article",
+						tags: ["sqlite"],
+						topics: [],
+						published_at: null,
+						saved_at: "2026-02-22T11:00:00Z",
+						metadata: {},
+					},
+				],
+				available_sources: ["rss", "browser"],
+				page: 1,
+				total_pages: 1,
+				total_items: 3,
+			}),
+			"utf-8",
+		);
+
 		setConfig({
 			OUTPUT_DIR: TMP_DIR,
 			PORT: 6109,
@@ -243,7 +309,7 @@ describe("GET /api/home/:date", () => {
 		expect(data.publishQueue.length).toBeGreaterThan(0);
 	});
 
-	test("publish queue includes blog posts with correct status", async () => {
+	test("publish queue is deduplicated by slug with platform counts", async () => {
 		const res = await app.request("/api/home/2026-02-22");
 		const data = await res.json();
 
@@ -252,27 +318,49 @@ describe("GET /api/home/:date", () => {
 			title: string;
 			type: string;
 			status: string;
+			platforms_published: number;
+			platforms_ready: number;
+			platforms_total: number;
 		}>;
 
-		// weekly-2026-W08 is published to twitter
-		const twitterPublished = queue.find(
-			(q) => q.slug === "weekly-2026-W08" && q.type === "twitter",
-		);
-		expect(twitterPublished).toBeDefined();
-		expect(twitterPublished?.status).toBe("published");
+		// One entry per post, not per platform
+		expect(queue).toHaveLength(2);
 
-		// weekly-2026-W08 is NOT published to reddit
-		const redditDraft = queue.find(
-			(q) => q.slug === "weekly-2026-W08" && q.type === "reddit",
-		);
-		expect(redditDraft).toBeDefined();
-		expect(redditDraft?.status).toBe("draft");
+		// weekly-2026-W08 has twitter published (2 of 3 platforms: twitter + obsidian but obsidian is not a target)
+		const weekly = queue.find((q) => q.slug === "weekly-2026-W08");
+		expect(weekly).toBeDefined();
+		expect(weekly?.type).toBe("weekly");
+		expect(weekly?.title).toBe("Week 8: Daily Briefing");
+		expect(weekly?.platforms_published).toBe(1); // only twitter is in TARGET_PLATFORMS
+		expect(weekly?.platforms_total).toBe(3);
+		expect(weekly?.status).toBe("draft"); // not all platforms published
 
-		// theme-local-first is NOT published to any social platform
-		const themeTwitter = queue.find(
-			(q) => q.slug === "theme-local-first" && q.type === "twitter",
-		);
-		expect(themeTwitter).toBeDefined();
-		expect(themeTwitter?.status).toBe("draft");
+		// theme-local-first has no social platforms published
+		const theme = queue.find((q) => q.slug === "theme-local-first");
+		expect(theme).toBeDefined();
+		expect(theme?.type).toBe("thematic");
+		expect(theme?.platforms_published).toBe(0);
+		expect(theme?.status).toBe("draft");
+	});
+
+	test("includes reading items from intake archive", async () => {
+		const res = await app.request("/api/home/2026-02-22");
+		const data = await res.json();
+
+		expect(data.readingItems).toHaveLength(3);
+		expect(data.readingItems[0].id).toBe("item-001");
+		expect(data.readingItems[0].title).toBe("Bun 1.2 Released");
+		expect(data.readingItems[0].url).toBe("https://example.com/bun-release");
+		expect(data.readingItems[0].source).toBe("rss");
+		expect(data.readingItems[0].site_name).toBe("bun.sh");
+		expect(data.readingItems[0].excerpt).toContain("test runner");
+	});
+
+	test("returns empty reading items when no archive exists", async () => {
+		const res = await app.request("/api/home/2025-01-01");
+		const data = await res.json();
+
+		// Falls back to latest archive (2026-02-22)
+		expect(data.readingItems.length).toBeGreaterThan(0);
 	});
 });

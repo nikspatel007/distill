@@ -1,0 +1,18 @@
+/* Pagination (fallback noscript pagination from Ghost)
+/* ---------------------------------------------------------- */
+
+.gh-pagination .pagination {
+    display: flex;
+    justify-content: space-between;
+    margin-block: 4vmin;
+    color: var(--text-muted);
+}
+
+.gh-pagination .pagination a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.gh-pagination .pagination a:hover {
+    color: var(--accent-hover);
+}

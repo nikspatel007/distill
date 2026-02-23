@@ -1,0 +1,2 @@
+!function(){"use strict";document.querySelector(".gh-burger").addEventListener("click",(function(){document.body.classList.toggle("gh-head-open")})),function(){const t=document.querySelector(".theme-toggle");if(!t)return;const e=document.documentElement,n=localStorage.getItem("theme");n&&e.setAttribute("data-theme",n),t.addEventListener("click",(function(){const t="dark"===e.getAttribute("data-theme")?"light":"dark";e.setAttribute("data-theme",t),localStorage.setItem("theme",t)}))}()}();
+//# sourceMappingURL=index.js.map

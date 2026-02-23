@@ -33,6 +33,7 @@ class ContentSource(StrEnum):
     SESSION = "session"
     SEEDS = "seeds"
     MANUAL = "manual"
+    TROOPX = "troopx"
 
 
 class ContentType(StrEnum):
@@ -227,6 +228,29 @@ class SessionIntakeConfig(BaseModel):
         return True  # sessions are always available locally
 
 
+class TroopXIntakeConfig(BaseModel):
+    """TroopX workflow and agent data configuration."""
+
+    db_url: str = ""
+    troopx_home: str = ""
+    troopx_project: str = ""
+    include_workflows: list[str] = Field(default_factory=list)
+    exclude_workflows: list[str] = Field(default_factory=list)
+    max_age_days: int = 7
+
+    @property
+    def is_configured(self) -> bool:
+        return bool(self.db_url) or bool(self.troopx_home) or bool(self.troopx_project)
+
+    @classmethod
+    def from_env(cls) -> TroopXIntakeConfig:
+        return cls(
+            db_url=os.environ.get("TROOPX_DB_URL", ""),
+            troopx_home=os.environ.get("TROOPX_HOME", os.path.expanduser("~/.troopx")),
+            troopx_project=os.environ.get("TROOPX_PROJECT_DIR", ""),
+        )
+
+
 class IntakeConfig(BaseModel):
     """Top-level intake configuration."""
 
@@ -239,6 +263,7 @@ class IntakeConfig(BaseModel):
     youtube: YouTubeIntakeConfig = Field(default_factory=YouTubeIntakeConfig)
     twitter: TwitterIntakeConfig = Field(default_factory=TwitterIntakeConfig)
     session: SessionIntakeConfig = Field(default_factory=SessionIntakeConfig)
+    troopx: TroopXIntakeConfig = Field(default_factory=TroopXIntakeConfig)
 
     model: str | None = None
     claude_timeout: int = 180

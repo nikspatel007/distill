@@ -28,6 +28,12 @@ import {
 } from "../tools/pipeline.js";
 import { listPostizIntegrations, listPostizPosts, publishContent } from "../tools/publishing.js";
 import { fetchUrl, saveToIntake } from "../tools/research.js";
+import {
+	searchTroopx,
+	getTroopxWorkflow,
+	listTroopxWorkflows,
+	getTroopxMemory,
+} from "../tools/troopx.js";
 
 export function createMcpServer(): McpServer {
 	const server = new McpServer({
@@ -230,6 +236,51 @@ export function createMcpServer(): McpServer {
 		{ status: z.string().optional(), limit: z.number().optional() },
 		async (params) => ({
 			content: [{ type: "text" as const, text: JSON.stringify(await listPostizPosts(params)) }],
+		}),
+	);
+
+	// --- TroopX ---
+	server.tool(
+		"search_troopx",
+		"Search TroopX blackboard entries, workflow descriptions, and escalations.",
+		{ query: z.string(), limit: z.number().optional() },
+		async (params) => ({
+			content: [{ type: "text" as const, text: JSON.stringify(await searchTroopx(params)) }],
+		}),
+	);
+
+	server.tool(
+		"get_troopx_workflow",
+		"Get full TroopX workflow details: metadata, blackboard, signals, messages, escalations.",
+		{ workflow_id: z.string() },
+		async (params) => ({
+			content: [
+				{ type: "text" as const, text: JSON.stringify(await getTroopxWorkflow(params)) },
+			],
+		}),
+	);
+
+	server.tool(
+		"list_troopx_workflows",
+		"List recent TroopX workflows with status and description.",
+		{
+			limit: z.number().optional(),
+			status: z.string().optional(),
+			pattern: z.string().optional(),
+		},
+		async (params) => ({
+			content: [
+				{ type: "text" as const, text: JSON.stringify(await listTroopxWorkflows(params)) },
+			],
+		}),
+	);
+
+	server.tool(
+		"get_troopx_memory",
+		"Read TroopX agent working memories and learnings from file system.",
+		{ role: z.string().optional() },
+		async (params) => ({
+			content: [{ type: "text" as const, text: JSON.stringify(await getTroopxMemory(params)) }],
 		}),
 	);
 

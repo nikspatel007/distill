@@ -883,7 +883,7 @@ _GENERIC_NAMES: set[str] = {
     "ux",
     "validation",
     "verification",
-    "vermas",
+
     "webhook",
     "workflow",
     "write",
@@ -1237,7 +1237,11 @@ class BlogSynthesizer:
             raw = self._call_claude(MEMORY_EXTRACTION_PROMPT, prose, f"memory-{slug}")
             data = json.loads(_strip_json_fences(raw))
             key_points = data.get("key_points", [])
-            themes_covered = data.get("themes_covered", [])
+            raw_themes = data.get("themes_covered", [])
+            # Filter generic names and cap at 5
+            themes_covered = [
+                t for t in raw_themes if t.lower() not in _GENERIC_NAMES
+            ][:5]
             examples_used = data.get("examples_used", [])
         except (BlogSynthesisError, json.JSONDecodeError, ValueError):
             logger.warning("Failed to extract blog memory for %s", slug)

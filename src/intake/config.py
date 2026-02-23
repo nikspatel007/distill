@@ -9,6 +9,7 @@ from distill.intake.models import (  # noqa: F401
     RSSConfig,
     SessionIntakeConfig,
     SubstackIntakeConfig,
+    TroopXIntakeConfig,
     TwitterIntakeConfig,
     YouTubeIntakeConfig,
 )

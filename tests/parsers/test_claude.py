@@ -829,10 +829,10 @@ class TestClaudeEnrichment:
         cmd_outcome = next(o for o in sessions[0].outcomes if "command" in o.description.lower())
         assert cmd_outcome is not None
 
-    def test_auto_tagging_debugging(
+    def test_auto_tagging_uses_project_name(
         self, parser: ClaudeParser, temp_dir: Path
     ) -> None:
-        """Test that debugging-related content gets tagged."""
+        """Test that auto-tagging uses project name instead of keyword matching."""
         session_file = temp_dir / "debug-test.jsonl"
         entries = [
             {
@@ -850,12 +850,13 @@ class TestClaudeEnrichment:
 
         sessions = parser.parse_directory(temp_dir)
         assert len(sessions) == 1
-        assert "debugging" in sessions[0].tags
+        # No project set = no auto-tags (keyword-based tagging removed)
+        assert sessions[0].tags == []
 
-    def test_auto_tagging_testing(
+    def test_auto_tagging_no_keywords(
         self, parser: ClaudeParser, temp_dir: Path
     ) -> None:
-        """Test that testing-related content gets tagged."""
+        """Test that generic keyword matching is no longer used for tags."""
         session_file = temp_dir / "test-tag.jsonl"
         entries = [
             {
@@ -868,7 +869,8 @@ class TestClaudeEnrichment:
 
         sessions = parser.parse_directory(temp_dir)
         assert len(sessions) == 1
-        assert "testing" in sessions[0].tags
+        # No keyword-based tags; only project name would be used
+        assert sessions[0].tags == []
 
     def test_tools_used_auto_derived(
         self, parser: ClaudeParser, temp_dir: Path

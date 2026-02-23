@@ -3,7 +3,6 @@ import type { LucideIcon } from "lucide-react";
 import {
 	BookMarked,
 	BookOpen,
-	CalendarDays,
 	FolderKanban,
 	LayoutDashboard,
 	PenLine,
@@ -17,13 +16,13 @@ const navItems: { to: string; label: string; icon: LucideIcon }[] = [
 	{ to: "/journal", label: "Journal", icon: BookOpen },
 	{ to: "/blog", label: "Blog", icon: PenLine },
 	{ to: "/reading", label: "Reading", icon: BookMarked },
-	{ to: "/calendar", label: "Calendar", icon: CalendarDays },
 	{ to: "/studio", label: "Studio", icon: Wand2 },
 	{ to: "/settings", label: "Settings", icon: Settings },
 ];
 
-// Mobile: just the 4 things you actually use on your phone
+// Mobile: the 5 things you actually use on your phone
 const mobileTabItems: { to: string; label: string; icon: LucideIcon }[] = [
+	{ to: "/", label: "Home", icon: LayoutDashboard },
 	{ to: "/journal", label: "Journal", icon: BookOpen },
 	{ to: "/blog", label: "Blog", icon: PenLine },
 	{ to: "/studio", label: "Studio", icon: Wand2 },

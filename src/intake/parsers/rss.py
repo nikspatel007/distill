@@ -236,20 +236,23 @@ class RSSParser(ContentParser):
     @staticmethod
     def _make_excerpt(entry: feedparser.FeedParserDict, body: str) -> str:
         """Build a clean excerpt — first meaningful paragraph."""
+        title = entry.get("title", "").strip()
+
         # Use summary if it differs from body
         summary = entry.get("summary", "")
         if summary:
             clean_summary = _strip_html(summary)
-            if clean_summary != body:
+            if clean_summary != body and clean_summary != title:
                 return clean_summary[:500]
 
         if not body:
             return ""
 
-        # Extract first paragraph
+        # Extract first paragraph that isn't just the title
         paragraphs = [p.strip() for p in body.split("\n\n") if p.strip()]
-        if paragraphs:
-            return paragraphs[0][:500]
+        for p in paragraphs:
+            if p != title:
+                return p[:500]
 
         return body[:500]
 

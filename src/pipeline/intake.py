@@ -117,6 +117,7 @@ def generate_intake(
         RSSConfig,
         SessionIntakeConfig,
         SubstackIntakeConfig,
+        TroopXIntakeConfig,
         TwitterIntakeConfig,
         YouTubeIntakeConfig,
         load_intake_memory,
@@ -165,6 +166,17 @@ def generate_intake(
         # Disable session parsing by clearing sources
         session_config = SessionIntakeConfig(sources=[])
 
+    troopx_config = TroopXIntakeConfig.from_env()
+    # Overlay TOML config if present
+    if _distill_cfg.troopx.db_url:
+        troopx_config.db_url = _distill_cfg.troopx.db_url
+    if _distill_cfg.troopx.troopx_home:
+        troopx_config.troopx_home = _distill_cfg.troopx.troopx_home
+    if _distill_cfg.troopx.troopx_project:
+        troopx_config.troopx_project = _distill_cfg.troopx.troopx_project
+    if _distill_cfg.troopx.max_age_days != 7:
+        troopx_config.max_age_days = _distill_cfg.troopx.max_age_days
+
     config = IntakeConfig(
         rss=rss_config,
         browser=browser_config,
@@ -175,6 +187,7 @@ def generate_intake(
         youtube=youtube_config,
         gmail=gmail_config,
         session=session_config,
+        troopx=troopx_config,
         model=model,
         target_word_count=target_word_count,
         user_name=_distill_cfg.user.name,

@@ -1,0 +1,39 @@
+/* Forms
+/* ---------------------------------------------------------- */
+
+.gh-input,
+.gh-textarea {
+    background: var(--bg-surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    color: var(--text);
+    display: block;
+    outline: 0;
+    padding: 0 0.6em;
+    text-decoration: none;
+    width: 100%;
+}
+
+.gh-input:focus {
+    border-color: var(--accent);
+}
+
+.gh-input::placeholder {
+    color: var(--text-muted);
+}
+
+.gh-select {
+    height: var(--height);
+    padding-right: var(--height);
+    text-overflow: ellipsis;
+}
+
+.gh-input,
+.gh-select {
+    height: var(--height);
+}
+
+.gh-textarea {
+    padding: 0.3em 0.6em;
+    resize: vertical;
+}

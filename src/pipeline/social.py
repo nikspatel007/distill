@@ -13,6 +13,14 @@ from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
+try:
+    import psycopg2
+
+    _HAS_PSYCOPG2 = True
+except ImportError:
+    psycopg2 = None  # type: ignore[assignment]
+    _HAS_PSYCOPG2 = False
+
 DAILY_SOCIAL_STATE_FILENAME = ".daily-social-state.json"
 
 
@@ -43,11 +51,176 @@ def _save_daily_social_state(state: DailySocialState, output_dir: Path) -> None:
     state_path.write_text(state.model_dump_json(indent=2), encoding="utf-8")
 
 
+def _fetch_troopx_highlights(since: datetime, db_url: str) -> str:
+    """Fetch recent TroopX workflow + meeting highlights from PostgreSQL.
+
+    Returns a concise markdown summary (~400-800 words) of recent activity,
+    prioritising failures/escalations. Returns "" if unavailable.
+    """
+    if not _HAS_PSYCOPG2 or not db_url:
+        return ""
+
+    try:
+        conn = psycopg2.connect(db_url)
+    except Exception:
+        logger.debug("TroopX DB connection failed", exc_info=True)
+        return ""
+
+    try:
+        cur = conn.cursor()
+
+        # --- Workflows ---
+        cur.execute(
+            """SELECT workflow_id, task_description, status, started_at, ended_at
+               FROM router_workflow_metadata
+               WHERE started_at >= %s
+               ORDER BY started_at DESC""",
+            (since,),
+        )
+        workflows = cur.fetchall()
+
+        # Enrich each workflow with blackboard + escalation data
+        enriched: list[dict[str, Any]] = []
+        for wf_id, task_desc, status, started_at, ended_at in workflows:
+            cur.execute(
+                """SELECT namespace, key, LEFT(value, 300), contributor_role
+                   FROM blackboard_entries
+                   WHERE workflow_id = %s
+                   ORDER BY created_at""",
+                (wf_id,),
+            )
+            bb_rows = cur.fetchall()
+
+            cur.execute(
+                """SELECT reason, response_signal
+                   FROM router_escalations
+                   WHERE workflow_id = %s""",
+                (wf_id,),
+            )
+            escalation_rows = cur.fetchall()
+
+            duration = ""
+            if started_at and ended_at:
+                mins = int((ended_at - started_at).total_seconds() / 60)
+                duration = f"{mins}m" if mins < 60 else f"{mins // 60}h{mins % 60}m"
+
+            enriched.append(
+                {
+                    "task": task_desc or f"Workflow {wf_id[:8]}",
+                    "status": status or "unknown",
+                    "duration": duration,
+                    "bb_rows": bb_rows,
+                    "escalations": escalation_rows,
+                }
+            )
+
+        # Prioritise: failed/blocked first, then by escalation count, then bb count
+        def _sort_key(w: dict[str, Any]) -> tuple[int, int, int]:
+            status_priority = 0 if w["status"] in ("failed", "blocked") else 1
+            return (status_priority, -len(w["escalations"]), -len(w["bb_rows"]))
+
+        enriched.sort(key=_sort_key)
+        enriched = enriched[:5]  # cap
+
+        # --- Meetings ---
+        cur.execute(
+            """SELECT topic, summary, status
+               FROM meetings
+               WHERE created_at >= %s
+               ORDER BY created_at DESC LIMIT 3""",
+            (since,),
+        )
+        meetings = cur.fetchall()
+
+        cur.close()
+    except Exception:
+        logger.debug("TroopX DB query failed", exc_info=True)
+        conn.close()
+        return ""
+
+    conn.close()
+
+    if not enriched and not meetings:
+        return ""
+
+    # Format markdown
+    lines: list[str] = ["## TroopX Activity"]
+
+    if enriched:
+        completed = sum(1 for w in enriched if w["status"] == "completed")
+        failed = sum(1 for w in enriched if w["status"] in ("failed", "blocked"))
+        lines.append(f"\n### Workflows ({completed} completed, {failed} failed)")
+
+        for w in enriched:
+            dur = f", {w['duration']}" if w["duration"] else ""
+            lines.append(f"\n**{w['task']}** — {w['status']}{dur}")
+            # Top blackboard finding
+            if w["bb_rows"]:
+                top = w["bb_rows"][0]
+                lines.append(f"- Key finding: [{top[0]}] {top[1]}: {top[2]}")
+            for esc in w["escalations"]:
+                resp = f" → {esc[1]}" if esc[1] else ""
+                lines.append(f"- Escalation: {esc[0]}{resp}")
+
+    if meetings:
+        lines.append(f"\n### Meetings ({len(meetings)})")
+        for topic, summary, status in meetings:
+            display = (summary or "")[:200]
+            lines.append(f"\n**{topic or 'Untitled'}**: {display}")
+
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Story Selection
+# ---------------------------------------------------------------------------
+
+STORY_SELECTOR_PROMPT = """\
+You are a story selector for a daily "building in public" social media series.
+
+THESIS: Can one person run a company with AI agents and get to $10M in revenue?
+HYPOTHESIS: Models getting better makes agent teams 10x better, not 10% better — \
+compound effects, not linear improvements.
+
+Your job: read the raw context below and pick ONE story — the single most interesting, \
+surprising, or emotionally resonant thing that happened. Look for:
+- Meetings where agents debated or escalated to a human
+- Blackboard discussions with unexpected findings
+- Workflow failures that revealed something important
+- Surprising outcomes (things that worked better than expected, or broke in illuminating ways)
+- Concrete numbers (time saved, tasks completed, errors caught)
+
+Output a 150-200 word narrative brief:
+1. What happened (specific, concrete)
+2. Why it matters (connects to the thesis)
+3. Emotional hook (what makes a reader care)
+4. Framing angle (how to present it — e.g. "the $10M experiment", "when agents disagree")
+
+No preamble. No headers. Just the brief."""
+
+
+def _select_story(raw_context: str, *, model: str | None = None) -> str:
+    """Pick the single best story from raw context via LLM.
+
+    Falls back to truncated raw context on LLM failure.
+    """
+    from distill.shared.llm import LLMError, call_claude
+
+    try:
+        return call_claude(
+            STORY_SELECTOR_PROMPT, raw_context, model=model, label="story-selector"
+        )
+    except LLMError:
+        logger.warning("Story selector LLM call failed, using raw context", exc_info=True)
+        return raw_context[:2000]
+
+
 def _build_daily_social_context(
     entry: Any,
     output_dir: Path,
     postiz_config: Any,
     recent_entries: list[Any] | None = None,
+    troopx_db_url: str = "",
 ) -> str:
     """Build curated source context for daily social post generation.
 
@@ -150,7 +323,17 @@ def _build_daily_social_context(
     except Exception:
         pass
 
-    return prose + seeds_section + editorial_section
+    # --- 4. Append TroopX highlights ---
+    troopx_section = ""
+    if troopx_db_url:
+        from datetime import timedelta
+
+        yesterday = datetime.now(tz=UTC) - timedelta(days=1)
+        troopx_text = _fetch_troopx_highlights(yesterday, troopx_db_url)
+        if troopx_text:
+            troopx_section = "\n\n" + troopx_text
+
+    return prose + seeds_section + editorial_section + troopx_section
 
 
 def _generate_daily_social_image(
@@ -315,18 +498,24 @@ def generate_daily_social(
         print(f"  Journal entry: {today_entry.date}")
         return []
 
-    # Build curated source context (project-filtered + seeds + editorial notes)
+    # Build curated source context (project-filtered + seeds + editorial notes + TroopX)
     # Pass recent entries so we can pull from the last few days if today is thin
-    recent = [e for e in entries if (today - e.date).days <= 3]
-    source_text = _build_daily_social_context(
-        today_entry, output_dir, postiz_config, recent_entries=recent
-    )
-
-    # Synthesize per-platform content
-    from distill.blog import get_daily_social_prompt
     from distill.shared.config import load_config as _load_cfg
 
     _cfg = _load_cfg()
+    _troopx_db_url = _cfg.troopx.db_url
+
+    recent = [e for e in entries if (today - e.date).days <= 3]
+    source_text = _build_daily_social_context(
+        today_entry, output_dir, postiz_config, recent_entries=recent,
+        troopx_db_url=_troopx_db_url,
+    )
+
+    # Story selection — pick the single best angle from all context
+    story_brief = _select_story(source_text, model=model)
+
+    # Synthesize per-platform content
+    from distill.blog import get_daily_social_prompt
     _focus_project = getattr(postiz_config, "daily_social_project", "")
     _proj_desc = ""
     for _p in _cfg.projects:
@@ -352,7 +541,7 @@ def generate_daily_social(
         )
         system_prompt = day_prefix + prompt
         platform_content[platform] = synthesizer._call_claude(
-            system_prompt, source_text, f"daily-social-{platform}-{today.isoformat()}"
+            system_prompt, story_brief, f"daily-social-{platform}-{today.isoformat()}"
         )
 
     written: list[Path] = []

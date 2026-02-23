@@ -1,7 +1,9 @@
 """Shared LLM calling utilities.
 
-Centralizes all Claude invocations (Agent SDK preferred, subprocess fallback)
-and common LLM output parsing helpers.
+Centralizes all Claude invocations with three backends:
+1. Anthropic API (preferred — uses ANTHROPIC_API_KEY)
+2. Agent SDK (fallback — if installed)
+3. Subprocess ``claude -p`` (last resort)
 """
 
 from __future__ import annotations
@@ -15,7 +17,19 @@ import subprocess
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Agent SDK (preferred) — import conditionally
+# Anthropic API (preferred)
+# ---------------------------------------------------------------------------
+
+try:
+    import anthropic
+
+    _HAS_ANTHROPIC = True
+except ImportError:
+    anthropic = None  # type: ignore[assignment]
+    _HAS_ANTHROPIC = False
+
+# ---------------------------------------------------------------------------
+# Agent SDK (fallback)
 # ---------------------------------------------------------------------------
 
 try:
@@ -34,6 +48,79 @@ except ImportError:
 
 class LLMError(Exception):
     """Base error for LLM calls."""
+
+
+# ---------------------------------------------------------------------------
+# Model name mapping
+# ---------------------------------------------------------------------------
+
+_MODEL_MAP: dict[str, str] = {
+    "sonnet": "claude-sonnet-4-6",
+    "haiku": "claude-haiku-4-5-20251001",
+    "opus": "claude-opus-4-6",
+}
+
+_DEFAULT_MODEL = "claude-sonnet-4-6"
+
+
+def _resolve_model(model: str | None) -> str:
+    """Resolve a short model name to an API model ID."""
+    if model is None:
+        return _DEFAULT_MODEL
+    return _MODEL_MAP.get(model, model)
+
+
+# ---------------------------------------------------------------------------
+# Internal: Anthropic API
+# ---------------------------------------------------------------------------
+
+
+def _call_anthropic_api(
+    system_prompt: str,
+    user_prompt: str,
+    *,
+    model: str | None = None,
+    timeout: int = 120,
+    label: str = "synthesis",
+) -> str:
+    """Call Claude via the Anthropic API."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
+        raise LLMError("ANTHROPIC_API_KEY not set")
+
+    client = anthropic.Anthropic(api_key=api_key, timeout=timeout)  # type: ignore[union-attr]
+    resolved_model = _resolve_model(model)
+
+    logger.debug("Calling Anthropic API model=%s (%s)", resolved_model, label)
+
+    # When user_prompt is empty, use system_prompt as the user message
+    # (backwards compat with callers that put everything in system_prompt)
+    if user_prompt.strip():
+        sys = system_prompt
+        usr = user_prompt
+    else:
+        sys = ""
+        usr = system_prompt
+
+    kwargs: dict[str, object] = {
+        "model": resolved_model,
+        "max_tokens": 16384,
+        "messages": [{"role": "user", "content": usr}],
+    }
+    if sys.strip():
+        kwargs["system"] = sys
+
+    response = client.messages.create(**kwargs)  # type: ignore[arg-type]
+
+    text_parts: list[str] = []
+    for block in response.content:
+        if block.type == "text":
+            text_parts.append(block.text)
+
+    result = "".join(text_parts).strip()
+    if not result:
+        raise LLMError(f"Anthropic API returned empty response (label={label})")
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -134,14 +221,16 @@ def call_claude(
 ) -> str:
     """Call Claude and return the response text.
 
-    Tries the Agent SDK first (if installed). Falls back to ``claude -p``
-    subprocess when the SDK is unavailable or ``DISTILL_USE_CLI=1`` is set.
+    Priority order:
+    1. Anthropic API (if ANTHROPIC_API_KEY is set)
+    2. Agent SDK (if installed, unless DISTILL_USE_CLI=1)
+    3. Subprocess ``claude -p`` (last resort)
 
     Args:
         system_prompt: System prompt for the LLM.
         user_prompt: User/content prompt.
-        model: Optional model override (e.g. "sonnet", "haiku").
-        timeout: Timeout in seconds (subprocess path only).
+        model: Optional model override (e.g. "sonnet", "haiku", "opus").
+        timeout: Timeout in seconds.
         label: Label for logging.
 
     Returns:
@@ -152,6 +241,24 @@ def call_claude(
     """
     use_cli = os.environ.get("DISTILL_USE_CLI", "").strip() == "1"
 
+    # 1. Anthropic API (preferred)
+    if _HAS_ANTHROPIC and not use_cli:
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+        if api_key:
+            try:
+                return _call_anthropic_api(
+                    system_prompt,
+                    user_prompt,
+                    model=model,
+                    timeout=timeout,
+                    label=label,
+                )
+            except LLMError:
+                raise
+            except Exception as exc:
+                raise LLMError(f"Anthropic API failed (label={label}): {exc}") from exc
+
+    # 2. Agent SDK (fallback)
     if _HAS_AGENT_SDK and not use_cli:
         logger.debug("Calling Agent SDK (%s)", label)
         try:
@@ -168,7 +275,7 @@ def call_claude(
         except Exception as exc:
             raise LLMError(f"Agent SDK failed (label={label}): {exc}") from exc
 
-    # Fallback: subprocess
+    # 3. Subprocess (last resort)
     return _call_subprocess(
         system_prompt,
         user_prompt,

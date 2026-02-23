@@ -1,0 +1,22 @@
+<footer class="gh-foot">
+    <div class="gh-container">
+        {{#if @site.members_enabled}}
+        <div class="gh-subscribe">
+            <h3 class="gh-subscribe-title">Subscribe to {{@site.title}}</h3>
+            <form class="gh-subscribe-form" data-members-form="subscribe">
+                <input class="gh-subscribe-input" type="email" required placeholder="your@email.com" data-members-email />
+                <button class="gh-subscribe-btn" type="submit">
+                    <span class="gh-button-content">Subscribe</span>
+                    <span class="gh-button-loader">{{> "icons/loader"}}</span>
+                </button>
+                <p class="message-success">Great! Check your inbox for a confirmation.</p>
+                <p class="message-error">Something went wrong. Please try again.</p>
+            </form>
+        </div>
+        {{/if}}
+
+        <div class="gh-foot-meta">
+            {{@site.title}} <span>|</span> nik-patel.com
+        </div>
+    </div>
+</footer>

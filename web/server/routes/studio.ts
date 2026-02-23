@@ -45,6 +45,12 @@ import {
 } from "../tools/pipeline.js";
 import { listPostizIntegrations, listPostizPosts, publishContent } from "../tools/publishing.js";
 import { fetchUrl, saveToIntake } from "../tools/research.js";
+import {
+	searchTroopx,
+	getTroopxWorkflow,
+	listTroopxWorkflows,
+	getTroopxMemory,
+} from "../tools/troopx.js";
 
 const app = new Hono();
 
@@ -722,6 +728,7 @@ You also have access to tools for:
 - Pipeline: runPipeline, runJournal, runBlog, runIntake, addSeed, addNote
 - Research: fetchUrl (read any URL), saveToIntake (save URL content for future synthesis)
 - Publishing: listIntegrations (connected platforms), publish (post to social), listPosts (recent/upcoming)
+- TroopX: searchTroopx (search workflows/blackboard), getTroopxWorkflow (full workflow details), listTroopxWorkflows (list recent workflows), getTroopxMemory (agent memories)
 
 Use these when the author asks about the broader content pipeline, wants to research a topic, or manage other content.`;
 
@@ -890,6 +897,41 @@ Use these when the author asks about the broader content pipeline, wants to rese
 					limit: z.number().optional(),
 				}),
 				execute: async (params) => listPostizPosts(params),
+			}),
+
+			// --- TroopX ---
+			searchTroopx: tool({
+				description:
+					"Search TroopX blackboard entries, workflow descriptions, and escalations.",
+				inputSchema: z.object({
+					query: z.string().describe("Search term"),
+					limit: z.number().optional().describe("Max results (default 20)"),
+				}),
+				execute: async (params) => searchTroopx(params),
+			}),
+			getTroopxWorkflow: tool({
+				description:
+					"Get full TroopX workflow details: metadata, blackboard, signals, messages, escalations.",
+				inputSchema: z.object({
+					workflow_id: z.string().describe("Workflow ID"),
+				}),
+				execute: async (params) => getTroopxWorkflow(params),
+			}),
+			listTroopxWorkflows: tool({
+				description: "List recent TroopX workflows with status and description.",
+				inputSchema: z.object({
+					limit: z.number().optional().describe("Max results (default 20)"),
+					status: z.string().optional().describe("Filter by status"),
+					pattern: z.string().optional().describe("Filter by task description pattern"),
+				}),
+				execute: async (params) => listTroopxWorkflows(params),
+			}),
+			getTroopxMemory: tool({
+				description: "Read TroopX agent working memories and learnings from file system.",
+				inputSchema: z.object({
+					role: z.string().optional().describe("Specific agent role (default: all)"),
+				}),
+				execute: async (params) => getTroopxMemory(params),
 			}),
 
 			// --- Images ---

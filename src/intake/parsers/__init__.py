@@ -35,6 +35,7 @@ def create_parser(
     from distill.intake.parsers.rss import RSSParser
     from distill.intake.parsers.session import SessionParser
     from distill.intake.parsers.substack import SubstackParser
+    from distill.intake.parsers.troopx import TroopXParser
     from distill.intake.parsers.twitter import TwitterParser
     from distill.intake.parsers.youtube import YouTubeParser
 
@@ -48,6 +49,7 @@ def create_parser(
         ContentSource.YOUTUBE: YouTubeParser,
         ContentSource.GMAIL: GmailParser,
         ContentSource.SESSION: SessionParser,
+        ContentSource.TROOPX: TroopXParser,
     }
 
     if source in parsers:

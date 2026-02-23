@@ -208,6 +208,15 @@ class YouTubeSectionConfig(BaseModel):
     api_key: str = ""
 
 
+class TroopXSectionConfig(BaseModel):
+    """[troopx] section."""
+
+    db_url: str = ""
+    troopx_home: str = ""
+    troopx_project: str = ""
+    max_age_days: int = 7
+
+
 class PostizSectionConfig(BaseModel):
     """[postiz] section."""
 
@@ -275,6 +284,7 @@ class DistillConfig(BaseModel):
     ghost: GhostSectionConfig = Field(default_factory=GhostSectionConfig)
     reddit: RedditSectionConfig = Field(default_factory=RedditSectionConfig)
     youtube: YouTubeSectionConfig = Field(default_factory=YouTubeSectionConfig)
+    troopx: TroopXSectionConfig = Field(default_factory=TroopXSectionConfig)
     postiz: PostizSectionConfig = Field(default_factory=PostizSectionConfig)
     notifications: NotificationConfig = Field(default_factory=NotificationConfig)
     intelligence: IntelligenceConfig = Field(default_factory=IntelligenceConfig)
@@ -319,12 +329,18 @@ class DistillConfig(BaseModel):
 
     def to_intake_config(self) -> object:
         """Convert to IntakeConfig for the intake pipeline."""
-        from distill.intake.config import IntakeConfig, RSSConfig
+        from distill.intake.config import IntakeConfig, RSSConfig, TroopXIntakeConfig
 
         return IntakeConfig(
             rss=RSSConfig(
                 feeds_file=self.intake.feeds_file,
                 opml_file=self.intake.opml_file,
+            ),
+            troopx=TroopXIntakeConfig(
+                db_url=self.troopx.db_url,
+                troopx_home=self.troopx.troopx_home,
+                troopx_project=self.troopx.troopx_project,
+                max_age_days=self.troopx.max_age_days,
             ),
             model=self.intake.model,
             target_word_count=self.intake.target_word_count,
@@ -496,6 +512,9 @@ def _apply_env_vars(config: DistillConfig) -> DistillConfig:
         "REDDIT_CLIENT_SECRET": ("reddit", "client_secret"),
         "REDDIT_USERNAME": ("reddit", "username"),
         "YOUTUBE_API_KEY": ("youtube", "api_key"),
+        "TROOPX_DB_URL": ("troopx", "db_url"),
+        "TROOPX_HOME": ("troopx", "troopx_home"),
+        "TROOPX_PROJECT_DIR": ("troopx", "troopx_project"),
         "DISTILL_SLACK_WEBHOOK": ("notifications", "slack_webhook"),
         "DISTILL_NTFY_URL": ("notifications", "ntfy_url"),
         "DISTILL_NTFY_TOPIC": ("notifications", "ntfy_topic"),

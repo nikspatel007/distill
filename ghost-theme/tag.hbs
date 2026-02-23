@@ -1,0 +1,47 @@
+{{!< default}}
+
+<div class="gh-page">
+    <div class="gh-container">
+
+        <header class="gh-tag-header">
+            <h1 class="gh-tag-name">{{name}}</h1>
+            {{#if description}}
+            <p class="gh-tag-description">{{description}}</p>
+            {{/if}}
+            <span class="gh-tag-meta">{{plural count.posts empty="No posts" singular="% post" plural="% posts"}}</span>
+        </header>
+
+        <div class="gh-postfeed">
+            {{#foreach posts}}
+            <a class="gh-postfeed-item" href="{{url}}">
+                <time class="gh-postfeed-date" datetime="{{date format="YYYY-MM-DD"}}">{{date format="MMM DD"}}</time>
+                <div class="gh-postfeed-content">
+                    <h2 class="gh-postfeed-title">{{title}}</h2>
+                    <p class="gh-postfeed-excerpt">{{excerpt words="25"}}</p>
+                </div>
+            </a>
+            {{/foreach}}
+        </div>
+
+        {{#if pagination.next}}
+        <nav class="gh-pagination">
+            {{#if pagination.prev}}
+                <a href="{{page_url pagination.prev}}">Newer</a>
+            {{else}}
+                <span></span>
+            {{/if}}
+            <span>Page {{pagination.page}} of {{pagination.pages}}</span>
+            <a href="{{page_url pagination.next}}">Older</a>
+        </nav>
+        {{else}}
+            {{#if pagination.prev}}
+            <nav class="gh-pagination">
+                <a href="{{page_url pagination.prev}}">Newer</a>
+                <span>Page {{pagination.page}} of {{pagination.pages}}</span>
+                <span></span>
+            </nav>
+            {{/if}}
+        {{/if}}
+
+    </div>
+</div>

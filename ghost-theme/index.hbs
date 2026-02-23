@@ -1,0 +1,62 @@
+{{!< default}}
+
+<div class="gh-page">
+    <div class="gh-container">
+
+        {{#if @site.description}}
+        <p class="gh-tagline">{{@site.description}}</p>
+        {{/if}}
+
+        {{!-- Tag cloud / categories --}}
+        {{#get "tags" limit="all" order="count.posts desc"}}
+        {{#if tags.length}}
+        <nav class="gh-topics">
+            <span class="gh-topics-label">Topics</span>
+            {{#foreach tags}}
+            <a class="gh-topic-pill" href="{{url}}">{{name}}<span class="gh-topic-count">{{count.posts}}</span></a>
+            {{/foreach}}
+        </nav>
+        {{/if}}
+        {{/get}}
+
+        <div class="gh-postfeed">
+            {{#foreach posts}}
+            <a class="gh-postfeed-item" href="{{url}}">
+                <time class="gh-postfeed-date" datetime="{{date format="YYYY-MM-DD"}}">{{date format="MMM DD"}}</time>
+                <div class="gh-postfeed-content">
+                    <h2 class="gh-postfeed-title">{{title}}</h2>
+                    <p class="gh-postfeed-excerpt">{{excerpt words="25"}}</p>
+                    {{#if tags}}
+                    <div class="gh-postfeed-tags">
+                        {{#foreach tags limit="3"}}
+                        <span class="gh-postfeed-tag">{{name}}</span>
+                        {{/foreach}}
+                    </div>
+                    {{/if}}
+                </div>
+            </a>
+            {{/foreach}}
+        </div>
+
+        {{#if pagination.next}}
+        <nav class="gh-pagination">
+            {{#if pagination.prev}}
+                <a href="{{page_url pagination.prev}}">Newer</a>
+            {{else}}
+                <span></span>
+            {{/if}}
+            <span>Page {{pagination.page}} of {{pagination.pages}}</span>
+            <a href="{{page_url pagination.next}}">Older</a>
+        </nav>
+        {{else}}
+            {{#if pagination.prev}}
+            <nav class="gh-pagination">
+                <a href="{{page_url pagination.prev}}">Newer</a>
+                <span>Page {{pagination.page}} of {{pagination.pages}}</span>
+                <span></span>
+            </nav>
+            {{/if}}
+        {{/if}}
+
+    </div>
+</div>

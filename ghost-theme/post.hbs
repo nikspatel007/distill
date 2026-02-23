@@ -1,0 +1,88 @@
+{{!< default}}
+
+{{#post}}
+
+<article class="gh-article {{post_class}}">
+    <header class="gh-article-header">
+        <h1 class="gh-article-title">{{title}}</h1>
+        <div class="gh-article-meta">
+            <time class="gh-article-date" datetime="{{date format="YYYY-MM-DD"}}">{{date format="MMMM D, YYYY"}}</time>
+            {{#if tags}}
+            <div class="gh-article-tags">
+                {{#foreach tags}}
+                <a class="gh-tag" href="{{url}}">{{name}}</a>
+                {{/foreach}}
+            </div>
+            {{/if}}
+        </div>
+    </header>
+
+    {{#if feature_image}}
+    <figure class="gh-feature-image">
+        <img src="{{feature_image}}" alt="{{title}}" />
+        {{#if feature_image_caption}}
+        <figcaption>{{feature_image_caption}}</figcaption>
+        {{/if}}
+    </figure>
+    {{/if}}
+
+    <div class="gh-content">
+        {{content}}
+    </div>
+
+    {{#if tags}}
+    <footer class="gh-article-footer">
+        <div class="gh-article-tags">
+            {{#foreach tags}}
+            <a class="gh-tag" href="{{url}}">{{name}}</a>
+            {{/foreach}}
+        </div>
+    </footer>
+    {{/if}}
+
+    {{!-- Related posts by primary tag --}}
+    {{#if primary_tag}}
+    {{#get "posts" filter="tags:{{primary_tag.slug}}+id:-{{id}}" limit="3"}}
+    {{#if posts.length}}
+    <aside class="gh-related">
+        <h3 class="gh-related-title">More in {{../primary_tag.name}}</h3>
+        <div class="gh-related-posts">
+            {{#foreach posts}}
+            <a class="gh-related-item" href="{{url}}">
+                <time class="gh-related-date" datetime="{{date format="YYYY-MM-DD"}}">{{date format="MMM DD"}}</time>
+                <span class="gh-related-name">{{title}}</span>
+            </a>
+            {{/foreach}}
+        </div>
+    </aside>
+    {{/if}}
+    {{/get}}
+    {{/if}}
+
+    <nav class="gh-postnav">
+        <div class="gh-postnav-prev">
+            {{#prev_post}}
+            <a href="{{url}}">
+                <span class="gh-postnav-label">Previous</span>
+                <span class="gh-postnav-title">{{title}}</span>
+            </a>
+            {{/prev_post}}
+        </div>
+        <div class="gh-postnav-next">
+            {{#next_post}}
+            <a href="{{url}}">
+                <span class="gh-postnav-label">Next</span>
+                <span class="gh-postnav-title">{{title}}</span>
+            </a>
+            {{/next_post}}
+        </div>
+    </nav>
+
+    {{#if comments}}
+    <section class="gh-comments">
+        {{comments}}
+    </section>
+    {{/if}}
+</article>
+
+{{/post}}

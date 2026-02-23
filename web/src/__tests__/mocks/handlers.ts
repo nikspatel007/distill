@@ -285,12 +285,25 @@ export const handlers = [
 				hasFullDigest: true,
 				date: "2026-02-09",
 			},
+			readingItems: [
+				{
+					id: "item-1",
+					title: "Understanding LLM Agents",
+					url: "https://example.com/llm-agents",
+					source: "rss",
+					excerpt: "A deep dive into building LLM agents for production use.",
+					site_name: "example.com",
+				},
+			],
 			publishQueue: [
 				{
 					slug: "weekly-2026-W06",
 					title: "Week 6: Building the Pipeline",
-					type: "blog",
+					type: "weekly",
 					status: "draft",
+					platforms_ready: 0,
+					platforms_published: 0,
+					platforms_total: 3,
 				},
 			],
 			seeds: [

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="{{@site.locale}}" data-theme="light">
+<head>
+
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="{{asset "built/index.css"}}" />
+    <script src="{{asset "built/index.js"}}" defer></script>
+
+    {{!-- Syntax highlighting --}}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js" defer></script>
+
+    {{!-- Mermaid diagrams --}}
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js" defer></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize Mermaid
+            var theme = document.documentElement.getAttribute('data-theme');
+            mermaid.initialize({
+                startOnLoad: false,
+                theme: theme === 'light' ? 'default' : 'dark',
+                securityLevel: 'loose'
+            });
+
+            // Convert code blocks with language-mermaid to rendered diagrams
+            document.querySelectorAll('pre code.language-mermaid').forEach(function(block) {
+                var pre = block.parentElement;
+                var div = document.createElement('div');
+                div.className = 'mermaid';
+                div.textContent = block.textContent;
+                pre.parentElement.replaceChild(div, pre);
+            });
+
+            mermaid.run();
+        });
+    </script>
+
+    <title>{{meta_title}}</title>
+
+    {{ghost_head}}
+
+</head>
+<body class="{{body_class}}">
+<div class="gh-viewport">
+
+    {{> header}}
+
+    <main class="gh-main">
+        {{{body}}}
+    </main>
+
+    {{> footer}}
+
+</div>
+
+{{ghost_foot}}
+
+</body>
+</html>

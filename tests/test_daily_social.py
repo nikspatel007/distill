@@ -1,16 +1,19 @@
 """Tests for the daily social post generation pipeline."""
 
 import json
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 from distill.pipeline.social import (
     DAILY_SOCIAL_STATE_FILENAME,
+    STORY_SELECTOR_PROMPT,
     DailySocialState,
+    _fetch_troopx_highlights,
     _load_daily_social_state,
     _save_daily_social_state,
+    _select_story,
     generate_daily_social,
 )
 from distill.integrations.postiz import PostizConfig
@@ -172,10 +175,12 @@ class TestGenerateDailySocial:
             tmp_path, postiz_config=config, target_date=date(2026, 2, 15)
         )
 
-        # call_claude receives (system_prompt, user_prompt, ...) — check positional args
-        call_args = mock_run.call_args_list[0][0]  # first call, positional args
-        system_prompt = call_args[0]
-        user_prompt = call_args[1]
+        # call_claude is called: 1x story selector + 1x per-platform
+        # The day counter is in the per-platform prompt (second call)
+        assert mock_run.call_count >= 2
+        platform_call_args = mock_run.call_args_list[1][0]  # second call, positional args
+        system_prompt = platform_call_args[0]
+        user_prompt = platform_call_args[1]
         full_prompt = f"{system_prompt}\n{user_prompt}"
         assert "Day 42/100" in full_prompt
 
@@ -366,3 +371,240 @@ daily_social_series_length = 50
         assert config.postiz.daily_social_time == "07:30"
         assert config.postiz.daily_social_platforms == ["linkedin", "twitter"]
         assert config.postiz.daily_social_series_length == 50
+
+
+class TestFetchTroopxHighlights:
+    """Tests for _fetch_troopx_highlights."""
+
+    def test_returns_empty_when_psycopg2_missing(self):
+        with patch("distill.pipeline.social._HAS_PSYCOPG2", False):
+            result = _fetch_troopx_highlights(datetime(2026, 2, 22), "postgres://localhost/test")
+            assert result == ""
+
+    def test_returns_empty_when_no_db_url(self):
+        result = _fetch_troopx_highlights(datetime(2026, 2, 22), "")
+        assert result == ""
+
+    @patch("distill.pipeline.social._HAS_PSYCOPG2", True)
+    @patch("distill.pipeline.social.psycopg2")
+    def test_returns_empty_on_connection_failure(self, mock_pg):
+        mock_pg.connect.side_effect = Exception("Connection refused")
+        result = _fetch_troopx_highlights(datetime(2026, 2, 22), "postgres://localhost/bad")
+        assert result == ""
+
+    @patch("distill.pipeline.social._HAS_PSYCOPG2", True)
+    @patch("distill.pipeline.social.psycopg2")
+    def test_formats_workflows_and_meetings(self, mock_pg):
+        mock_conn = MagicMock()
+        mock_pg.connect.return_value = mock_conn
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+
+        # Workflow query returns 1 workflow
+        workflow_rows = [
+            ("wf-001", "Build health endpoint", "completed",
+             datetime(2026, 2, 22, 10, 0), datetime(2026, 2, 22, 10, 30))
+        ]
+        # Blackboard for wf-001
+        bb_rows = [("findings", "api-response", "Status 200 OK", "dev")]
+        # Escalations for wf-001
+        esc_rows = [("Need approval for deploy", "approved")]
+        # Meetings
+        meeting_rows = [("Sprint Planning", "Discussed Q1 goals and priorities", "concluded")]
+
+        # Set up cursor.fetchall to return different results for each query
+        mock_cursor.fetchall.side_effect = [
+            workflow_rows,  # workflows query
+            bb_rows,        # blackboard query
+            esc_rows,       # escalations query
+            meeting_rows,   # meetings query
+        ]
+
+        result = _fetch_troopx_highlights(datetime(2026, 2, 22), "postgres://localhost/test")
+
+        assert "## TroopX Activity" in result
+        assert "Build health endpoint" in result
+        assert "completed" in result
+        assert "Key finding:" in result
+        assert "Escalation:" in result
+        assert "Sprint Planning" in result
+
+    @patch("distill.pipeline.social._HAS_PSYCOPG2", True)
+    @patch("distill.pipeline.social.psycopg2")
+    def test_prioritizes_failures(self, mock_pg):
+        mock_conn = MagicMock()
+        mock_pg.connect.return_value = mock_conn
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+
+        # Two workflows: one completed, one failed
+        workflow_rows = [
+            ("wf-001", "Successful task", "completed",
+             datetime(2026, 2, 22, 10, 0), datetime(2026, 2, 22, 10, 30)),
+            ("wf-002", "Failed deploy", "failed",
+             datetime(2026, 2, 22, 11, 0), datetime(2026, 2, 22, 11, 5)),
+        ]
+
+        mock_cursor.fetchall.side_effect = [
+            workflow_rows,
+            [],  # bb for wf-001
+            [],  # esc for wf-001
+            [],  # bb for wf-002
+            [],  # esc for wf-002
+            [],  # meetings
+        ]
+
+        result = _fetch_troopx_highlights(datetime(2026, 2, 22), "postgres://localhost/test")
+
+        # Failed workflow should appear before successful one
+        failed_pos = result.find("Failed deploy")
+        success_pos = result.find("Successful task")
+        assert failed_pos < success_pos
+
+    @patch("distill.pipeline.social._HAS_PSYCOPG2", True)
+    @patch("distill.pipeline.social.psycopg2")
+    def test_caps_at_limits(self, mock_pg):
+        mock_conn = MagicMock()
+        mock_pg.connect.return_value = mock_conn
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+
+        # 8 workflows — should be capped to 5
+        workflow_rows = [
+            (f"wf-{i:03d}", f"Task {i}", "completed",
+             datetime(2026, 2, 22, 10, 0), datetime(2026, 2, 22, 10, 30))
+            for i in range(8)
+        ]
+
+        # Build side_effect: workflow query, then per-workflow bb + esc, then meetings
+        side_effects: list[list] = [workflow_rows]
+        for _ in range(8):
+            side_effects.append([])  # bb
+            side_effects.append([])  # esc
+        side_effects.append([])  # meetings
+
+        mock_cursor.fetchall.side_effect = side_effects
+
+        result = _fetch_troopx_highlights(datetime(2026, 2, 22), "postgres://localhost/test")
+
+        # Count workflow entries (each starts with **Task N**)
+        task_mentions = [line for line in result.split("\n") if line.startswith("**Task")]
+        assert len(task_mentions) <= 5
+
+
+class TestSelectStory:
+    """Tests for _select_story."""
+
+    @patch("distill.shared.llm.call_claude")
+    def test_returns_llm_response(self, mock_call):
+        mock_call.return_value = "Today the agent team autonomously resolved a deploy conflict."
+        result = _select_story("raw context here")
+        assert result == "Today the agent team autonomously resolved a deploy conflict."
+
+    @patch("distill.shared.llm.call_claude")
+    def test_falls_back_on_error(self, mock_call):
+        from distill.shared.llm import LLMError
+
+        mock_call.side_effect = LLMError("API timeout")
+        result = _select_story("raw context fallback text")
+        assert result == "raw context fallback text"
+
+    @patch("distill.shared.llm.call_claude")
+    def test_passes_story_selector_prompt(self, mock_call):
+        mock_call.return_value = "Selected story"
+        _select_story("some context", model="haiku")
+        call_args = mock_call.call_args
+        assert call_args[0][0] == STORY_SELECTOR_PROMPT
+        assert call_args[0][1] == "some context"
+        assert call_args[1]["label"] == "story-selector"
+        assert call_args[1]["model"] == "haiku"
+
+
+class TestGenerateDailySocialWithTroopx:
+    """Tests for TroopX + story selection integration in generate_daily_social."""
+
+    def _make_config(self, **overrides):
+        defaults = {
+            "url": "https://postiz.test",
+            "api_key": "key123",
+            "schedule_enabled": False,
+            "daily_social_enabled": True,
+            "daily_social_platforms": ["linkedin"],
+            "daily_social_series_length": 100,
+        }
+        defaults.update(overrides)
+        return PostizConfig(**defaults)
+
+    def _setup_journal(self, tmp_path, entry_date="2026-02-15"):
+        journal_dir = tmp_path / "journal"
+        journal_dir.mkdir(parents=True, exist_ok=True)
+        entry = (
+            f"---\ndate: {entry_date}\n---\n\n"
+            "# Journal Entry\n\nBuilt a cool agent pipeline today."
+        )
+        (journal_dir / f"journal-{entry_date}.md").write_text(entry, encoding="utf-8")
+
+    @patch("distill.llm.call_claude")
+    @patch("distill.pipeline.social._fetch_troopx_highlights")
+    @patch("distill.shared.config.load_config")
+    def test_includes_troopx_when_configured(self, mock_cfg, mock_fetch, mock_call, tmp_path):
+        from distill.shared.config import DistillConfig, TroopXSectionConfig
+
+        mock_cfg.return_value = DistillConfig(
+            troopx=TroopXSectionConfig(db_url="postgres://localhost/troopx")
+        )
+        mock_fetch.return_value = "## TroopX Activity\n### Workflows (1 completed, 0 failed)"
+        mock_call.return_value = "Post content"
+
+        config = self._make_config()
+        self._setup_journal(tmp_path)
+
+        generate_daily_social(
+            tmp_path, postiz_config=config, target_date=date(2026, 2, 15)
+        )
+
+        # _fetch_troopx_highlights should have been called
+        mock_fetch.assert_called_once()
+        # call_claude should have been called at least 2 times:
+        # 1x story selector + 1x per-platform
+        assert mock_call.call_count >= 2
+
+    @patch("distill.llm.call_claude")
+    @patch("distill.shared.config.load_config")
+    def test_story_selector_runs(self, mock_cfg, mock_call, tmp_path):
+        from distill.shared.config import DistillConfig
+
+        mock_cfg.return_value = DistillConfig()
+        mock_call.return_value = "Post content"
+
+        config = self._make_config()
+        self._setup_journal(tmp_path)
+
+        generate_daily_social(
+            tmp_path, postiz_config=config, target_date=date(2026, 2, 15)
+        )
+
+        # call_claude should be called: 1x story selector + 1x linkedin platform
+        assert mock_call.call_count == 2
+        # First call should be story selector
+        first_call = mock_call.call_args_list[0]
+        assert first_call[0][0] == STORY_SELECTOR_PROMPT
+
+    @patch("distill.llm.call_claude")
+    @patch("distill.shared.config.load_config")
+    def test_works_without_troopx(self, mock_cfg, mock_call, tmp_path):
+        from distill.shared.config import DistillConfig
+
+        mock_cfg.return_value = DistillConfig()  # no troopx db_url
+        mock_call.return_value = "Post without troopx"
+
+        config = self._make_config()
+        self._setup_journal(tmp_path)
+
+        result = generate_daily_social(
+            tmp_path, postiz_config=config, target_date=date(2026, 2, 15)
+        )
+
+        assert len(result) == 1
+        content = result[0].read_text(encoding="utf-8")
+        assert "troopx" not in content.lower() or "Post without troopx" in content
