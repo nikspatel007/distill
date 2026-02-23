@@ -779,7 +779,7 @@ Use these when the author asks about the broader content pipeline, wants to rese
 				inputSchema: z.object({
 					content: z.string().describe("Full adapted content for the platform"),
 					platform: z
-						.enum(["ghost", "x", "linkedin", "slack"])
+						.enum(["ghost", "x", "linkedin", "slack", "reddit"])
 						.optional()
 						.describe(
 							"Target platform. Infer from context (e.g., 'LinkedIn post' → linkedin). Defaults to active tab if unclear.",

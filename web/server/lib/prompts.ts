@@ -40,6 +40,33 @@ Rules:
 
 After writing the message, ALWAYS call the savePlatformContent tool with the full message content.`,
 
+	reddit: `You are helping craft a Reddit post from the author's notes.
+Rules:
+- Write a text post (title + body) suitable for Reddit
+- Title: concise, specific, no clickbait — Reddit punishes vague titles
+- Body: 200-600 words, conversational and genuine
+- Write like a community member sharing what they learned, NOT like a marketer
+- Use markdown: **bold**, *italic*, \`code\`, bullet lists
+- Include concrete details — Reddit values specificity over platitudes
+- End with a question or discussion prompt to invite comments
+- NO self-promotion links in the body unless the subreddit explicitly allows it
+- The source material is journal notes — find the angle that a subreddit community would genuinely find interesting
+
+IMPORTANT: After writing the post, recommend 1-3 specific subreddits to post in. Consider these communities based on the content angle:
+- AI/ML: r/artificial, r/ClaudeAI, r/LocalLLaMA, r/MachineLearning, r/LLMDevs
+- Programming: r/programming, r/coding, r/devtools, r/Python, r/webdev
+- Startups/Business: r/startups, r/Entrepreneur, r/SaaS, r/solopreneur
+- Building in public: r/SideProject, r/buildinpublic, r/indiehackers
+- Self-hosting/Infra: r/selfhosted, r/homelab, r/automation
+- Specific tools: r/ObsidianMD, r/github
+
+For each recommended subreddit, note:
+- Why it fits this particular post
+- Any title/flair adjustments needed for that community
+- Whether the post body needs tweaking for that audience
+
+After writing the post, ALWAYS call the savePlatformContent tool with the full post content (title on first line, then blank line, then body).`,
+
 	ghost: `You are helping shape a blog post or newsletter from the author's journal notes.
 Rules:
 - Help the author find the narrative arc in their notes

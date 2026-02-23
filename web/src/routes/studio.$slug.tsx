@@ -41,6 +41,7 @@ const PLATFORM_TABS = [
 	{ key: "ghost", label: "Ghost" },
 	{ key: "x", label: "X" },
 	{ key: "linkedin", label: "LinkedIn" },
+	{ key: "reddit", label: "Reddit" },
 	{ key: "slack", label: "Slack" },
 ];
 
@@ -549,6 +550,27 @@ function PlatformPreview({ platform, content }: { platform: string; content: str
 				>
 					{content.length.toLocaleString()} chars
 				</p>
+			</div>
+		);
+	}
+
+	if (platform === "reddit") {
+		// Title is first line, body follows after blank line
+		const lines = content.split("\n");
+		const title = lines[0] ?? "";
+		const body = lines.slice(2).join("\n").trim() || lines.slice(1).join("\n").trim();
+		return (
+			<div className="space-y-2">
+				<div className="flex items-center gap-2 border-l-4 border-orange-500 pl-3">
+					<div className="h-6 w-6 rounded-full bg-orange-100 text-center text-xs font-bold leading-6 text-orange-600 dark:bg-orange-900 dark:text-orange-300">
+						r/
+					</div>
+					<p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{title}</p>
+				</div>
+				<p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
+					{body}
+				</p>
+				<p className="text-xs text-zinc-400">{content.length.toLocaleString()} chars</p>
 			</div>
 		);
 	}
