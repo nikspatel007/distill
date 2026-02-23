@@ -54,14 +54,13 @@ const TOOL_CHIPS: Record<string, { label: string; color: string }> = {
 	addNote: { label: "Editorial note saved", color: "amber" },
 	fetchUrl: { label: "URL fetched", color: "sky" },
 	saveToIntake: { label: "Saved to intake", color: "sky" },
-	publishContent: { label: "Content published", color: "green" },
-	listPostizIntegrations: { label: "Integrations loaded", color: "zinc" },
-	listPostizPosts: { label: "Posts loaded", color: "zinc" },
+	publish: { label: "Content published", color: "green" },
+	listIntegrations: { label: "Integrations loaded", color: "zinc" },
+	listPosts: { label: "Posts loaded", color: "zinc" },
 	listContent: { label: "Content listed", color: "zinc" },
 	getContent: { label: "Content loaded", color: "zinc" },
 	createContent: { label: "Content created", color: "green" },
-	updateContentStatus: { label: "Status updated", color: "blue" },
-	deleteContent: { label: "Content deleted", color: "red" },
+	updateStatus: { label: "Status updated", color: "blue" },
 };
 
 const CHIP_COLORS: Record<string, string> = {

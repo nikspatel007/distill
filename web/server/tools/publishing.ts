@@ -33,6 +33,7 @@ export async function publishContent(params: {
 	platforms: string[];
 	mode: string;
 	scheduled_at?: string;
+	content?: string;
 }): Promise<{
 	results: Array<{ platform: string; success: boolean; error?: string }>;
 	error?: string;
@@ -54,20 +55,13 @@ export async function publishContent(params: {
 
 	for (const platform of params.platforms) {
 		const platformRecord = record.platforms[platform];
-		if (!platformRecord?.content) {
+		// Use provided content override, or fall back to stored platform content, or body
+		const postContent = params.content ?? platformRecord?.content ?? record.body;
+		if (!postContent) {
 			results.push({
 				platform,
 				success: false,
-				error: "No adapted content for platform",
-			});
-			continue;
-		}
-
-		if (platformRecord.published) {
-			results.push({
-				platform,
-				success: false,
-				error: "Already published",
+				error: "No content for platform",
 			});
 			continue;
 		}
@@ -93,7 +87,7 @@ export async function publishContent(params: {
 		}
 
 		try {
-			await createPost(platformRecord.content, [integration.id], {
+			await createPost(postContent, [integration.id], {
 				postType: params.mode,
 				scheduledAt: params.scheduled_at,
 			});
@@ -101,10 +95,20 @@ export async function publishContent(params: {
 			// Mark as published in ContentStore
 			const store = loadContentStore();
 			const rec = store[params.slug];
-			const platformRec = rec?.platforms[platform];
-			if (rec && platformRec) {
-				platformRec.published = true;
-				platformRec.published_at = new Date().toISOString();
+			if (rec) {
+				// Ensure platform record exists
+				if (!rec.platforms[platform]) {
+					rec.platforms[platform] = {
+						platform,
+						content: postContent,
+						published: true,
+						published_at: new Date().toISOString(),
+						external_id: "",
+					};
+				} else {
+					rec.platforms[platform].published = true;
+					rec.platforms[platform].published_at = new Date().toISOString();
+				}
 				saveContentStore(store);
 			}
 

@@ -46,10 +46,10 @@ import {
 import { listPostizIntegrations, listPostizPosts, publishContent } from "../tools/publishing.js";
 import { fetchUrl, saveToIntake } from "../tools/research.js";
 import {
-	searchTroopx,
+	getTroopxMemory,
 	getTroopxWorkflow,
 	listTroopxWorkflows,
-	getTroopxMemory,
+	searchTroopx,
 } from "../tools/troopx.js";
 
 const app = new Hono();
@@ -704,6 +704,18 @@ app.post("/api/studio/chat", zValidator("json", StudioChatRequestSchema), async 
 
 	const { messages, content, platform, slug } = c.req.valid("json");
 
+	// Build platform content summary so the AI knows what's ready
+	const storeRec = slug ? getContentRecord(slug) : null;
+	const platformSummary = storeRec
+		? Object.entries(storeRec.platforms)
+				.map(([p, rec]) => {
+					const len = rec.content?.length ?? 0;
+					const status = rec.published ? "published" : len > 0 ? "ready" : "empty";
+					return `  - ${p}: ${status}${len > 0 ? ` (${len} chars)` : ""}`;
+				})
+				.join("\n")
+		: "";
+
 	const platformPrompt =
 		PLATFORM_PROMPTS[platform] ??
 		`You are adapting content for ${platform}.
@@ -712,6 +724,10 @@ After writing the adapted content, ALWAYS call the savePlatformContent tool with
 
 	const systemPrompt = `${platformPrompt}
 
+Content slug: ${slug ?? "unknown"}
+Current platform tab: ${platform}
+Timezone: America/Chicago
+${platformSummary ? `\nPlatform content status:\n${platformSummary}\n` : ""}
 Here are the author's source notes to work with:
 
 ---
@@ -720,8 +736,12 @@ ${content}
 
 Be a thoughtful collaborator. Ask questions, suggest angles, explain your choices.
 
-When you write or revise content for the platform, call the savePlatformContent tool with the full content.
+IMPORTANT: When saving or publishing content, ALWAYS specify the platform explicitly based on context. If the author mentions "LinkedIn", save to linkedin. If they mention "Twitter" or "X", save to x. Do NOT rely on the active tab — determine the platform from what the author is discussing.
+
+When you write or revise content for a platform, call savePlatformContent with the content AND the platform name (ghost, x, linkedin, slack).
 When the author asks you to edit, rewrite, or improve the source post itself, call the updateSourceContent tool with the complete updated post. Always send the FULL updated content, not just the changed section.${isImageConfigured() ? "\nYou can generate images to accompany the content using the generateImage tool. Generate a hero image when you write the first draft, or when the author asks for one." : ""}
+
+When the author asks to publish or schedule content, use the publish tool with the correct platform. The current slug is "${slug ?? ""}". Convert times to ISO 8601 format using the America/Chicago timezone (UTC-6). For example, "9am tomorrow" on 2026-02-23 becomes "2026-02-24T15:00:00Z".
 
 You also have access to tools for:
 - Content management: listContent, getContent, updateStatus, createContent
@@ -755,11 +775,22 @@ Use these when the author asks about the broader content pipeline, wants to rese
 			}),
 			savePlatformContent: tool({
 				description:
-					"Save adapted content for the target platform. Call every time you write or revise platform content.",
+					"Save adapted content for a platform. Specify the platform explicitly (x, linkedin, slack, ghost). Always determine the target platform from conversation context — don't rely on the active tab.",
 				inputSchema: z.object({
 					content: z.string().describe("Full adapted content for the platform"),
+					platform: z
+						.enum(["ghost", "x", "linkedin", "slack"])
+						.optional()
+						.describe(
+							"Target platform. Infer from context (e.g., 'LinkedIn post' → linkedin). Defaults to active tab if unclear.",
+						),
 				}),
-				execute: async ({ content: c }) => savePlatform({ slug: slug ?? "", platform, content: c }),
+				execute: async (params) =>
+					savePlatform({
+						slug: slug ?? "",
+						platform: params.platform ?? platform,
+						content: params.content,
+					}),
 			}),
 			listContent: tool({
 				description: "List all content items in the studio. Use to browse available posts.",
@@ -881,14 +912,34 @@ Use these when the author asks about the broader content pipeline, wants to rese
 				execute: async () => listPostizIntegrations(),
 			}),
 			publish: tool({
-				description: "Publish content to social platforms via Postiz.",
+				description:
+					"Publish or schedule content to social platforms via Postiz. Defaults to the current content slug and platform. Can pass content directly if platform content isn't saved yet.",
 				inputSchema: z.object({
-					slug: z.string(),
-					platforms: z.array(z.string()).describe("Platform names: x, linkedin, slack, ghost"),
+					slug: z.string().optional().describe("Content slug (defaults to current)"),
+					platforms: z
+						.array(z.string())
+						.optional()
+						.describe("Platform names: x, linkedin, slack (defaults to current platform)"),
 					mode: z.enum(["draft", "schedule", "now"]),
-					scheduled_at: z.string().optional().describe("ISO datetime for scheduled posts"),
+					scheduled_at: z
+						.string()
+						.optional()
+						.describe("ISO 8601 datetime for scheduled posts (use America/Chicago timezone)"),
+					content: z
+						.string()
+						.optional()
+						.describe(
+							"Content to publish. If omitted, uses saved platform content or source body.",
+						),
 				}),
-				execute: async (params) => publishContent(params),
+				execute: async (params) =>
+					publishContent({
+						slug: params.slug ?? slug ?? "",
+						platforms: params.platforms ?? [platform],
+						mode: params.mode,
+						scheduled_at: params.scheduled_at,
+						content: params.content,
+					}),
 			}),
 			listPosts: tool({
 				description: "List recent and upcoming posts from Postiz.",
@@ -901,8 +952,7 @@ Use these when the author asks about the broader content pipeline, wants to rese
 
 			// --- TroopX ---
 			searchTroopx: tool({
-				description:
-					"Search TroopX blackboard entries, workflow descriptions, and escalations.",
+				description: "Search TroopX blackboard entries, workflow descriptions, and escalations.",
 				inputSchema: z.object({
 					query: z.string().describe("Search term"),
 					limit: z.number().optional().describe("Max results (default 20)"),
@@ -959,7 +1009,7 @@ Use these when the author asks about the broader content pipeline, wants to rese
 					}
 				: {}),
 		},
-		stopWhen: stepCountIs(3),
+		stopWhen: stepCountIs(5),
 	});
 
 	return result.toUIMessageStreamResponse();

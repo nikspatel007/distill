@@ -62,7 +62,7 @@ describe("publishContent", () => {
 		expect(result.results).toEqual([]);
 	});
 
-	test("returns error when platform content missing", async () => {
+	test("returns error when no content and no body", async () => {
 		setConfig({
 			OUTPUT_DIR: tempDir,
 			PORT: 6109,
@@ -71,13 +71,13 @@ describe("publishContent", () => {
 			POSTIZ_API_KEY: "fake-key",
 		});
 
-		// Seed ContentStore with a record but no platform content
+		// Seed ContentStore with a record with empty body and no platform content
 		const store: ContentStoreData = {
 			"pub-test": {
 				slug: "pub-test",
 				content_type: "weekly",
 				title: "Test Post",
-				body: "Test content",
+				body: "",
 				status: "ready",
 				created_at: "2026-02-21T10:00:00Z",
 				source_dates: ["2026-02-21"],
@@ -99,10 +99,10 @@ describe("publishContent", () => {
 		expect(result.results).toHaveLength(1);
 		expect(result.results[0]?.platform).toBe("x");
 		expect(result.results[0]?.success).toBe(false);
-		expect(result.results[0]?.error).toBe("No adapted content for platform");
+		expect(result.results[0]?.error).toBe("No content for platform");
 	});
 
-	test("returns error when platform already published", async () => {
+	test("falls back to body when no platform content", async () => {
 		setConfig({
 			OUTPUT_DIR: tempDir,
 			PORT: 6109,
@@ -111,7 +111,49 @@ describe("publishContent", () => {
 			POSTIZ_API_KEY: "fake-key",
 		});
 
-		// Seed ContentStore with already-published platform content
+		// Seed ContentStore with body but no platform-specific content
+		const store: ContentStoreData = {
+			"pub-test": {
+				slug: "pub-test",
+				content_type: "weekly",
+				title: "Test Post",
+				body: "Body content used as fallback",
+				status: "ready",
+				created_at: "2026-02-21T10:00:00Z",
+				source_dates: ["2026-02-21"],
+				tags: [],
+				images: [],
+				platforms: {},
+				chat_history: [],
+				metadata: {},
+				file_path: "",
+			},
+		};
+		saveContentStore(store);
+
+		// Will fail at integration lookup (Postiz not reachable) but should
+		// NOT fail with "No content for platform" since body is the fallback
+		const result = await publishContent({
+			slug: "pub-test",
+			platforms: ["x"],
+			mode: "draft",
+		});
+		expect(result.results).toHaveLength(1);
+		expect(result.results[0]?.platform).toBe("x");
+		expect(result.results[0]?.success).toBe(false);
+		// Fails at integration, not at content
+		expect(result.results[0]?.error).toContain("No Postiz integration");
+	});
+
+	test("returns error for unknown platform provider", async () => {
+		setConfig({
+			OUTPUT_DIR: tempDir,
+			PORT: 6109,
+			PROJECT_DIR: "",
+			POSTIZ_URL: "http://localhost:9999",
+			POSTIZ_API_KEY: "fake-key",
+		});
+
 		const store: ContentStoreData = {
 			"pub-test": {
 				slug: "pub-test",
@@ -139,6 +181,7 @@ describe("publishContent", () => {
 		};
 		saveContentStore(store);
 
+		// Ghost isn't a Postiz platform — published via Ghost API directly
 		const result = await publishContent({
 			slug: "pub-test",
 			platforms: ["ghost"],
@@ -147,6 +190,6 @@ describe("publishContent", () => {
 		expect(result.results).toHaveLength(1);
 		expect(result.results[0]?.platform).toBe("ghost");
 		expect(result.results[0]?.success).toBe(false);
-		expect(result.results[0]?.error).toBe("Already published");
+		expect(result.results[0]?.error).toBe("Unknown platform provider mapping");
 	});
 });
