@@ -396,6 +396,36 @@ class TestPostizIntakePublisher:
         assert result == "Content"  # Not configured, returns as-is
 
 
+class TestPostizIntakeSkipApi:
+    def test_skip_api_returns_prose_without_calling_postiz(self):
+        """When skip_api=True, format_daily returns prose without making API calls."""
+        config = PostizConfig(url="https://postiz.test", api_key="key")
+        pub = PostizIntakePublisher(postiz_config=config, skip_api=True)
+        result = pub.format_daily(MagicMock(), "My digest")
+        assert result == "My digest"
+
+    @patch("distill.integrations.postiz.PostizClient")
+    def test_skip_api_never_creates_client(self, mock_client_cls):
+        """When skip_api=True, PostizClient is never instantiated."""
+        config = PostizConfig(url="https://postiz.test", api_key="key")
+        pub = PostizIntakePublisher(postiz_config=config, skip_api=True)
+        pub.format_daily(MagicMock(), "Content")
+        mock_client_cls.assert_not_called()
+
+    def test_skip_api_false_default(self):
+        """Default skip_api is False."""
+        pub = PostizIntakePublisher()
+        assert pub._skip_api is False
+
+    def test_factory_creates_with_skip_api(self):
+        """create_intake_publisher('postiz') passes skip_api=True."""
+        from distill.intake.publishers import create_intake_publisher
+
+        pub = create_intake_publisher("postiz")
+        assert isinstance(pub, PostizIntakePublisher)
+        assert pub._skip_api is True
+
+
 class TestPublisherFactoryIntegration:
     def test_create_blog_publisher_postiz(self):
         from distill.blog.publishers import create_publisher

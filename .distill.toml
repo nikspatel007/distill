@@ -33,7 +33,7 @@ use_defaults = true
 browser_history = true
 substack_blogs = []
 rss_feeds = [ "https://martinfowler.com/feed.atom" ]
-publishers = [ "obsidian", "ghost" ]
+publishers = [ "obsidian" ]
 
 [troopx]
 db_url = ""                       # Set via TROOPX_DB_URL env var (default: postgresql://troopx:troopx@localhost:15432/troopx)
@@ -48,7 +48,7 @@ weekly_time = "09:00"
 weekly_day = 1                    # Tuesday 9am CT (day after weekly blog generation)
 thematic_time = "09:00"
 thematic_days = [0, 1, 2, 3, 4, 5, 6]  # Any day — schedules for next day 9am CT
-daily_social_enabled = true
+daily_social_enabled = false
 daily_social_time = "08:00"       # 8am CT every day
 daily_social_platforms = ["linkedin", "twitter", "slack"]
 daily_social_series_length = 100  # 100 days of building in public
@@ -73,7 +73,7 @@ hn_min_points = 50
 
 [ghost]
 default = "troopx"
-auto_publish = true
+auto_publish = false
 blog_as_draft = true
 
 [ghost.troopx]

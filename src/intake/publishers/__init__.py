@@ -57,11 +57,13 @@ def create_intake_publisher(
         return social_publishers[platform]()
 
     if platform == "ghost":
-        return GhostIntakePublisher(ghost_config=ghost_config, output_dir=output_dir)
+        return GhostIntakePublisher(
+            ghost_config=ghost_config, output_dir=output_dir, skip_api=True
+        )
 
     if platform == "postiz":
         from distill.intake.publishers.postiz import PostizIntakePublisher
 
-        return PostizIntakePublisher()
+        return PostizIntakePublisher(skip_api=True)
 
     raise ValueError(f"Unknown intake publisher: {platform!r}")

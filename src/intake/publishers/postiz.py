@@ -15,8 +15,9 @@ logger = logging.getLogger(__name__)
 class PostizIntakePublisher(IntakePublisher):
     """Publisher that pushes intake digests to Postiz as drafts or scheduled posts."""
 
-    def __init__(self, *, postiz_config: Any = None) -> None:
+    def __init__(self, *, postiz_config: Any = None, skip_api: bool = False) -> None:
         self._postiz_config = postiz_config
+        self._skip_api = skip_api
 
     def format_daily(self, context: Any, prose: str) -> str:
         """Push digest prose to Postiz."""
@@ -25,6 +26,9 @@ class PostizIntakePublisher(IntakePublisher):
         config = self._postiz_config or PostizConfig.from_env()
         if not config.is_configured:
             logger.warning("Postiz not configured for intake publishing")
+            return prose
+
+        if self._skip_api:
             return prose
 
         try:

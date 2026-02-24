@@ -495,6 +495,42 @@ class TestImageUpload:
 
 
 # ------------------------------------------------------------------
+# skip_api mode
+# ------------------------------------------------------------------
+
+
+class TestSkipApiMode:
+    def test_skip_api_suppresses_api_client(self):
+        """When skip_api=True, no API client is created even if config is valid."""
+        config = _configured_ghost()
+        pub = GhostIntakePublisher(ghost_config=config, skip_api=True)
+        assert pub._api is None
+
+    def test_skip_api_still_formats_content(self):
+        """File-only output still works with skip_api=True."""
+        config = _configured_ghost()
+        pub = GhostIntakePublisher(ghost_config=config, skip_api=True)
+        result = pub.format_daily(_ctx(), "My digest content.")
+        assert "<!-- ghost-meta:" in result
+        assert "My digest content." in result
+
+    def test_skip_api_false_creates_api_client(self):
+        """When skip_api=False (default), API client is created for configured config."""
+        with patch("distill.integrations.ghost.GhostAPIClient") as MockClient:
+            MockClient.return_value = MagicMock()
+            pub = GhostIntakePublisher(ghost_config=_configured_ghost(), skip_api=False)
+            assert pub._api is not None
+
+    def test_factory_creates_with_skip_api(self):
+        """create_intake_publisher('ghost') passes skip_api=True."""
+        from distill.intake.publishers import create_intake_publisher
+
+        pub = create_intake_publisher("ghost")
+        # skip_api=True means no API client regardless of config
+        assert pub._api is None
+
+
+# ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
 

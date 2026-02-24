@@ -64,7 +64,7 @@ describe("GET /api/publish/queue", () => {
 	});
 });
 
-describe("POST /api/publish/:slug", () => {
+describe("POST /api/publish/:slug (removed)", () => {
 	beforeAll(() => {
 		setConfig({
 			OUTPUT_DIR: FIXTURES,
@@ -79,13 +79,13 @@ describe("POST /api/publish/:slug", () => {
 		resetConfig();
 	});
 
-	test("returns 503 when Postiz is not configured", async () => {
+	test("returns 404 — legacy endpoint removed", async () => {
 		const res = await app.request("/api/publish/weekly-2026-W06", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ platform: "twitter", mode: "draft" }),
 		});
-		expect(res.status).toBe(503);
+		expect(res.status).toBe(404);
 	});
 });
 

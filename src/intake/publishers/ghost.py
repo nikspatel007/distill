@@ -35,11 +35,12 @@ class GhostIntakePublisher(IntakePublisher):
         self,
         ghost_config: GhostConfig | None = None,
         output_dir: Path | None = None,
+        skip_api: bool = False,
     ) -> None:
         self._config = ghost_config
         self._output_dir = output_dir
         self._api: object | None = None
-        if ghost_config and ghost_config.is_configured:
+        if not skip_api and ghost_config and ghost_config.is_configured:
             from distill.integrations.ghost import GhostAPIClient
 
             self._api = GhostAPIClient(ghost_config)
