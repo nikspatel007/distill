@@ -118,6 +118,136 @@ export const CreateShareSchema = z.object({
 	tags: z.array(z.string()).default([]),
 });
 
+// --- Knowledge Graph ---
+
+export const NodeTypeEnum = z.enum([
+	"session", "project", "file", "entity", "thread",
+	"artifact", "goal", "problem", "decision", "insight",
+]);
+
+export const EdgeTypeEnum = z.enum([
+	"modifies", "reads", "executes_in", "uses", "produces",
+	"leads_to", "motivated_by", "blocked_by", "solved_by",
+	"informed_by", "implements", "co_occurs", "part_of",
+	"related_to", "references", "depends_on", "pivoted_from",
+	"evolved_into",
+]);
+
+export const GraphNodeSchema = z.object({
+	id: z.string(),
+	node_type: NodeTypeEnum,
+	name: z.string(),
+	properties: z.record(z.unknown()).default({}),
+	first_seen: z.string(),
+	last_seen: z.string(),
+});
+
+export const GraphEdgeSchema = z.object({
+	id: z.string(),
+	source_key: z.string(),
+	target_key: z.string(),
+	edge_type: EdgeTypeEnum,
+	weight: z.number().default(1),
+	properties: z.record(z.unknown()).default({}),
+});
+
+export const GraphSessionSchema = z.object({
+	id: z.string(),
+	summary: z.string(),
+	hours_ago: z.number(),
+	project: z.string(),
+	goal: z.string(),
+	files_modified: z.array(z.string()),
+	files_read: z.array(z.string()),
+	problems: z.array(z.object({
+		error: z.string(),
+		command: z.string(),
+		resolved: z.boolean(),
+	})),
+	entities: z.array(z.string()),
+});
+
+export const GraphActivityResponseSchema = z.object({
+	project: z.string(),
+	time_window_hours: z.number(),
+	sessions: z.array(GraphSessionSchema),
+	top_entities: z.array(z.object({ name: z.string(), count: z.number() })),
+	active_files: z.array(z.object({ path: z.string(), hours_ago: z.number() })),
+	stats: z.object({
+		session_count: z.number(),
+		avg_files_per_session: z.number(),
+		total_problems: z.number(),
+	}),
+});
+
+export const GraphNodesResponseSchema = z.object({
+	nodes: z.array(GraphNodeSchema),
+	edges: z.array(GraphEdgeSchema),
+});
+
+export const CouplingClusterSchema = z.object({
+	files: z.array(z.string()),
+	co_modification_count: z.number(),
+	description: z.string().default(""),
+});
+
+export const ErrorHotspotSchema = z.object({
+	file: z.string(),
+	problem_count: z.number(),
+	recent_problems: z.array(z.string()),
+});
+
+export const ScopeWarningSchema = z.object({
+	session_name: z.string(),
+	files_modified: z.number(),
+	project: z.string().default(""),
+	problems_hit: z.number().default(0),
+});
+
+export const RecurringProblemSchema = z.object({
+	pattern: z.string(),
+	occurrence_count: z.number(),
+	sessions: z.array(z.string()),
+});
+
+export const GraphInsightsResponseSchema = z.object({
+	date: z.string(),
+	coupling_clusters: z.array(CouplingClusterSchema),
+	error_hotspots: z.array(ErrorHotspotSchema),
+	scope_warnings: z.array(ScopeWarningSchema),
+	recurring_problems: z.array(RecurringProblemSchema),
+	session_count: z.number(),
+	avg_files_per_session: z.number(),
+	total_problems: z.number(),
+});
+
+export const GraphAboutResponseSchema = z.object({
+	focus: z.object({
+		name: z.string(),
+		type: z.string(),
+		summary: z.string(),
+	}).nullable(),
+	neighbors: z.array(z.object({
+		name: z.string(),
+		type: z.string(),
+		relevance: z.number(),
+		last_seen: z.string(),
+	})),
+	edges: z.array(z.object({
+		type: z.string(),
+		source: z.string(),
+		target: z.string(),
+		weight: z.number(),
+	})),
+});
+
+export const GraphStatsResponseSchema = z.object({
+	total_nodes: z.number(),
+	total_edges: z.number(),
+	nodes_by_type: z.record(z.string(), z.number()),
+	edges_by_type: z.record(z.string(), z.number()),
+});
+
 // --- Editorial Notes ---
 
 export const EditorialNoteSchema = z.object({
@@ -581,6 +711,18 @@ export type BriefingPublishItem = z.infer<typeof BriefingPublishItemSchema>;
 export type DailyBriefing = z.infer<typeof DailyBriefingSchema>;
 export type ContentItem = z.infer<typeof ContentItemSchema>;
 export type ContentItemsResponse = z.infer<typeof ContentItemsResponseSchema>;
+export type GraphNode = z.infer<typeof GraphNodeSchema>;
+export type GraphEdge = z.infer<typeof GraphEdgeSchema>;
+export type GraphSession = z.infer<typeof GraphSessionSchema>;
+export type GraphActivityResponse = z.infer<typeof GraphActivityResponseSchema>;
+export type GraphNodesResponse = z.infer<typeof GraphNodesResponseSchema>;
+export type GraphInsightsResponse = z.infer<typeof GraphInsightsResponseSchema>;
+export type GraphAboutResponse = z.infer<typeof GraphAboutResponseSchema>;
+export type GraphStatsResponse = z.infer<typeof GraphStatsResponseSchema>;
+export type CouplingCluster = z.infer<typeof CouplingClusterSchema>;
+export type ErrorHotspot = z.infer<typeof ErrorHotspotSchema>;
+export type ScopeWarning = z.infer<typeof ScopeWarningSchema>;
+export type RecurringProblem = z.infer<typeof RecurringProblemSchema>;
 
 // --- Content Store ---
 
