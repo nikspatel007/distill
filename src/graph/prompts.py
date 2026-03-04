@@ -119,3 +119,107 @@ def _format_user_prompt(data: dict[str, Any]) -> str:
             lines.append(f"- {op['project']}: {op['summary']} ({op['hours_ago']}h ago)")
 
     return "\n".join(lines)
+
+
+# ── Executive briefing prompt ───────────────────────────────────────────
+
+_BRIEFING_SYSTEM_PROMPT = """\
+You are a personal intelligence analyst. You synthesize a developer's recent \
+coding sessions, reading habits, and structural insights into an executive briefing.
+
+Rules:
+- Write in second person ("You made progress on...", "Your reading on...")
+- Use plain English — no file paths, no session IDs, no jargon
+- A non-technical stakeholder should be able to read this
+- Use momentum language: active/cooling/emerging for status, \
+accelerating/steady/decelerating for momentum
+- Never use completion language ("50% done", "on track to finish")
+- Connect reading topics to active work when relevant
+- Limit recommendations to top 3, ordered by impact
+- Keep the summary to 2-3 sentences
+- Headlines should be under 15 words
+- Output valid JSON matching the schema exactly — no markdown, no code fences
+
+Output schema:
+{
+  "summary": "2-3 sentence executive narrative",
+  "areas": [{"name": "...", "status": "active|cooling|emerging", \
+"momentum": "accelerating|steady|decelerating", "headline": "...", \
+"sessions": N, "reading_count": N, "open_threads": ["..."]}],
+  "learning": [{"topic": "...", "reading_count": N, \
+"connection": "...", "status": "active|emerging|cooling"}],
+  "risks": [{"severity": "high|medium|low", "headline": "...", \
+"detail": "...", "project": "..."}],
+  "recommendations": [{"priority": N, "action": "...", "rationale": "..."}]
+}
+"""
+
+
+def get_briefing_prompt(
+    context_data: dict[str, Any],
+    insights_text: str,
+    intake_text: str,
+) -> str:
+    """Build the executive briefing prompt from graph + insights + intake data."""
+    system = _BRIEFING_SYSTEM_PROMPT
+    user = _format_briefing_user_prompt(context_data, insights_text, intake_text)
+    return f"{system}\n\n---\n\n{user}"
+
+
+def _format_briefing_user_prompt(
+    data: dict[str, Any],
+    insights_text: str,
+    intake_text: str,
+) -> str:
+    """Format the user portion of the briefing prompt."""
+    parts: list[str] = []
+
+    project = data.get("project", "(all)")
+    hours = data.get("time_window_hours", 48)
+    parts.append(f"Project: {project}")
+    parts.append(f"Time window: last {hours} hours")
+
+    # Sessions
+    sessions = data.get("sessions", [])
+    if sessions:
+        parts.append(f"\n## Recent Sessions ({len(sessions)})")
+        for s in sessions:
+            proj = s.get("project", "unknown")
+            goal = _sanitize_text(s.get("goal", "")) or "(no goal)"
+            hours_ago = s.get("hours_ago", 0)
+            files_mod = s.get("files_modified", [])
+            problems = s.get("problems", [])
+            entities = s.get("entities", [])
+            parts.append(f"- [{proj}] {goal} ({hours_ago}h ago)")
+            if files_mod:
+                parts.append(f"  Files modified: {len(files_mod)}")
+            if problems:
+                parts.append(f"  Problems: {len(problems)}")
+            if entities:
+                parts.append(f"  Tech: {', '.join(entities[:8])}")
+
+    # Entities / tech stack
+    top_entities = data.get("top_entities", [])
+    if top_entities:
+        parts.append("\n## Tech Stack (by frequency)")
+        for e in top_entities[:15]:
+            parts.append(f"- {e['name']}: {e['count']}")
+
+    # Structural insights
+    if insights_text.strip():
+        parts.append(f"\n## Structural Insights\n{insights_text}")
+
+    # Intake / reading
+    if intake_text.strip():
+        parts.append(f"\n## Recent Reading\n{intake_text}")
+
+    # Other projects
+    other = data.get("other_projects", [])
+    if other:
+        parts.append("\n## Other Active Projects")
+        for o in other:
+            parts.append(
+                f"- {o['project']}: {o.get('summary', '')} ({o.get('hours_ago', 0)}h ago)"
+            )
+
+    return "\n".join(parts)

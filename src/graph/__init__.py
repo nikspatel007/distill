@@ -25,7 +25,19 @@ from distill.graph.models import (
     GraphNode,
     NodeType,
 )
-from distill.graph.prompts import get_context_prompt
+from distill.graph.briefing import (
+    BRIEFING_FILENAME,
+    Briefing,
+    BriefingArea,
+    BriefingLearning,
+    BriefingRecommendation,
+    BriefingRisk,
+    BriefingSynthesisError,
+    generate_briefing,
+    load_briefing,
+    save_briefing,
+)
+from distill.graph.prompts import get_briefing_prompt, get_context_prompt
 from distill.graph.query import GraphQuery
 from distill.graph.store import GRAPH_STORE_FILENAME, GraphStore
 from distill.graph.synthesizer import (
@@ -66,4 +78,16 @@ __all__ = [
     "ContextSynthesisError",
     "inject_context",
     "synthesize_context",
+    # briefing
+    "Briefing",
+    "BriefingArea",
+    "BriefingLearning",
+    "BriefingRecommendation",
+    "BriefingRisk",
+    "BriefingSynthesisError",
+    "BRIEFING_FILENAME",
+    "generate_briefing",
+    "load_briefing",
+    "save_briefing",
+    "get_briefing_prompt",
 ]
