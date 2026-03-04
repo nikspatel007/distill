@@ -1,11 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import ForceGraph2D from "react-force-graph-2d";
-import type {
-	GraphAboutResponse,
-	GraphActivityResponse,
-	GraphNodesResponse,
-} from "../../shared/schemas.js";
+import type { GraphActivityResponse } from "../../shared/schemas.js";
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -27,7 +23,7 @@ function relativeTime(hoursAgo: number): string {
 	return `${days}d ago`;
 }
 
-type Tab = "briefing" | "activity" | "explorer";
+type Tab = "briefing" | "activity" | "concepts";
 type TimeWindow = 24 | 48 | 168 | 720;
 
 const TIME_OPTIONS: { label: string; value: TimeWindow }[] = [
@@ -66,13 +62,6 @@ function BriefingTab() {
 			</div>
 		);
 	}
-
-	const statusBadge = (s: string) =>
-		({
-			active: "text-emerald-700 bg-emerald-100 border-emerald-300",
-			cooling: "text-amber-700 bg-amber-100 border-amber-300",
-			emerging: "text-blue-700 bg-blue-100 border-blue-300",
-		})[s] ?? "text-zinc-600 bg-zinc-100 border-zinc-300";
 
 	const statusBorder = (s: string) =>
 		({
@@ -386,202 +375,413 @@ function ActivityTab({ hours }: { hours: number }) {
 }
 
 // ---------------------------------------------------------------------------
-// Explorer Tab
+// Concept Graph (replaces old Explorer)
 // ---------------------------------------------------------------------------
 
-const NODE_COLORS: Record<string, string> = {
-	session: "#6366f1",
-	project: "#a855f7",
-	file: "#22c55e",
-	problem: "#ef4444",
-	entity: "#f97316",
-	goal: "#eab308",
-	thread: "#06b6d4",
-	decision: "#8b5cf6",
-	insight: "#14b8a6",
-	artifact: "#64748b",
-};
+type ConceptNodeType = "project" | "topic" | "thread" | "risk" | "entity";
 
-const ALL_NODE_TYPES = Object.keys(NODE_COLORS);
-
-interface ForceNode {
+interface ConceptNode {
 	id: string;
-	name: string;
-	type: string;
+	label: string;
+	type: ConceptNodeType;
 	color: string;
-	val: number;
+	width: number;
+	height: number;
+	status?: string;
+	detail?: string;
 	x?: number;
 	y?: number;
 }
 
-interface ForceLink {
-	source: string | ForceNode;
-	target: string | ForceNode;
-	type: string;
-	weight: number;
+interface ConceptLink {
+	source: string | ConceptNode;
+	target: string | ConceptNode;
+	label: string;
 }
 
-function ExplorerTab({ hours }: { hours: number }) {
+const CONCEPT_COLORS: Record<ConceptNodeType, Record<string, string>> = {
+	project: { active: "#22c55e", cooling: "#f59e0b", emerging: "#3b82f6", default: "#22c55e" },
+	topic: { active: "#3b82f6", cooling: "#f59e0b", emerging: "#8b5cf6", default: "#3b82f6" },
+	thread: { active: "#f97316", cooling: "#a3a3a3", emerging: "#f97316", default: "#f97316" },
+	risk: { high: "#ef4444", medium: "#f59e0b", low: "#a3a3a3", default: "#ef4444" },
+	entity: { default: "#6b7280" },
+};
+
+const CONCEPT_SIZES: Record<ConceptNodeType, { width: number; height: number }> = {
+	project: { width: 160, height: 44 },
+	topic: { width: 140, height: 36 },
+	thread: { width: 130, height: 32 },
+	risk: { width: 130, height: 32 },
+	entity: { width: 110, height: 28 },
+};
+
+const CONCEPT_LEGEND: { type: ConceptNodeType; label: string; color: string }[] = [
+	{ type: "project", label: "Projects", color: "#22c55e" },
+	{ type: "topic", label: "Topics", color: "#3b82f6" },
+	{ type: "thread", label: "Threads", color: "#f97316" },
+	{ type: "risk", label: "Risks", color: "#ef4444" },
+	{ type: "entity", label: "Entities", color: "#6b7280" },
+];
+
+function conceptColor(type: ConceptNodeType, status?: string): string {
+	const palette = CONCEPT_COLORS[type];
+	return palette[status ?? "default"] ?? palette.default ?? "#6b7280";
+}
+
+function truncate(s: string, max: number): string {
+	return s.length <= max ? s : `${s.slice(0, max - 1)}\u2026`;
+}
+
+function statusBadge(s: string): string {
+	return (
+		({
+			active: "text-emerald-700 bg-emerald-100 border-emerald-300",
+			cooling: "text-amber-700 bg-amber-100 border-amber-300",
+			emerging: "text-blue-700 bg-blue-100 border-blue-300",
+			high: "text-red-700 bg-red-100 border-red-300",
+			medium: "text-amber-700 bg-amber-100 border-amber-300",
+			low: "text-zinc-600 bg-zinc-100 border-zinc-300",
+		})[s] ?? "text-zinc-600 bg-zinc-100 border-zinc-300"
+	);
+}
+
+// biome-ignore lint/suspicious/noExplicitAny: briefing/activity are untyped JSON
+function buildConceptGraph(briefing: any, activity: any): { nodes: ConceptNode[]; links: ConceptLink[] } {
+	const nodes: ConceptNode[] = [];
+	const links: ConceptLink[] = [];
+	const nodeIds = new Set<string>();
+
+	const addNode = (id: string, label: string, type: ConceptNodeType, status?: string, detail?: string) => {
+		if (nodeIds.has(id)) return;
+		nodeIds.add(id);
+		const size = CONCEPT_SIZES[type];
+		nodes.push({ id, label: truncate(label, 24), type, color: conceptColor(type, status), width: size.width, height: size.height, status, detail });
+	};
+
+	const addLink = (source: string, target: string, label: string) => {
+		if (nodeIds.has(source) && nodeIds.has(target) && source !== target) {
+			links.push({ source, target, label });
+		}
+	};
+
+	// 1. Projects from briefing areas
+	const areas = briefing?.areas ?? [];
+	for (const area of areas) {
+		const pid = `project:${area.name}`;
+		addNode(pid, area.name, "project", area.status, area.headline);
+
+		// 2. Threads from open_threads (max 3 per project)
+		const threads: string[] = area.open_threads ?? [];
+		for (const t of threads.slice(0, 3)) {
+			const tid = `thread:${t}`;
+			addNode(tid, t, "thread", area.status, `Open thread in ${area.name}`);
+			addLink(pid, tid, "open thread");
+		}
+	}
+
+	// 3. Topics from briefing learning
+	const learnings = briefing?.learning ?? [];
+	for (const l of learnings) {
+		const tid = `topic:${l.topic}`;
+		addNode(tid, l.topic, "topic", l.status, l.connection);
+
+		// Link to project if area name appears in connection text
+		const conn = (l.connection ?? "").toLowerCase();
+		for (const area of areas) {
+			if (conn.includes(area.name.toLowerCase())) {
+				addLink(`project:${area.name}`, tid, "learning");
+			}
+		}
+	}
+
+	// Topic-to-topic edges for same status
+	for (let i = 0; i < learnings.length; i++) {
+		for (let j = i + 1; j < learnings.length; j++) {
+			if (learnings[i].status === learnings[j].status) {
+				addLink(`topic:${learnings[i].topic}`, `topic:${learnings[j].topic}`, "related");
+			}
+		}
+	}
+
+	// 4. Risks from briefing risks
+	const risks = briefing?.risks ?? [];
+	for (const r of risks) {
+		const rid = `risk:${r.headline}`;
+		addNode(rid, r.headline, "risk", r.severity, r.detail);
+
+		// Link to projects via risk.project field (comma-split)
+		const projects = (r.project ?? "").split(",").map((s: string) => s.trim()).filter(Boolean);
+		for (const p of projects) {
+			if (nodeIds.has(`project:${p}`)) {
+				addLink(`project:${p}`, rid, "risk");
+			}
+		}
+		// If no project matched, link to all projects
+		if (projects.length === 0) {
+			for (const area of areas) {
+				addLink(`project:${area.name}`, rid, "risk");
+			}
+		}
+	}
+
+	// 5. Entities from activity top_entities (top 8)
+	const entities = (activity?.top_entities ?? []).slice(0, 8);
+	for (const e of entities) {
+		const eid = `entity:${e.name}`;
+		addNode(eid, e.name, "entity", undefined, `Mentioned ${e.count} times`);
+	}
+
+	// Link entities to projects via session data
+	const sessions = activity?.sessions ?? [];
+	const projectEntities: Record<string, Set<string>> = {};
+	for (const s of sessions) {
+		const proj = s.project;
+		if (!proj) continue;
+		if (!projectEntities[proj]) projectEntities[proj] = new Set();
+		for (const ent of s.entities ?? []) {
+			projectEntities[proj].add(ent);
+		}
+	}
+	for (const e of entities) {
+		for (const [proj, ents] of Object.entries(projectEntities)) {
+			if (ents.has(e.name) && nodeIds.has(`project:${proj}`)) {
+				addLink(`project:${proj}`, `entity:${e.name}`, "uses");
+			}
+		}
+	}
+
+	return { nodes, links };
+}
+
+function roundedRect(
+	ctx: CanvasRenderingContext2D,
+	x: number,
+	y: number,
+	w: number,
+	h: number,
+	r: number,
+) {
+	ctx.beginPath();
+	ctx.moveTo(x + r, y);
+	ctx.lineTo(x + w - r, y);
+	ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+	ctx.lineTo(x + w, y + h - r);
+	ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+	ctx.lineTo(x + r, y + h);
+	ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+	ctx.lineTo(x, y + r);
+	ctx.quadraticCurveTo(x, y, x + r, y);
+	ctx.closePath();
+}
+
+interface SelectedConcept {
+	node: ConceptNode;
+	connections: { node: ConceptNode; label: string }[];
+}
+
+function ConceptsTab() {
 	// biome-ignore lint/suspicious/noExplicitAny: react-force-graph-2d ref type is not well-typed
 	const graphRef = useRef<any>(null);
-	const containerRef = useRef<HTMLDivElement>(null);
-	const [selectedNode, setSelectedNode] = useState<GraphAboutResponse | null>(null);
+	const [selected, setSelected] = useState<SelectedConcept | null>(null);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [highlightedId, setHighlightedId] = useState<string | null>(null);
-	const [hiddenTypes, setHiddenTypes] = useState<Set<string>>(new Set());
+	const [hiddenTypes, setHiddenTypes] = useState<Set<ConceptNodeType>>(new Set());
 
-	const { data, isLoading } = useQuery<GraphNodesResponse>({
-		queryKey: ["graph-nodes", hours],
+	// biome-ignore lint/suspicious/noExplicitAny: briefing response is untyped
+	const { data: briefing, isLoading: loadingBriefing } = useQuery<any>({
+		queryKey: ["graph", "briefing"],
 		queryFn: async () => {
-			const res = await fetch(`/api/graph/nodes?hours=${hours}`);
-			if (!res.ok) throw new Error("Failed to load nodes");
+			const res = await fetch("/api/graph/briefing");
 			return res.json();
 		},
 	});
 
-	// Count nodes per type for the legend
+	const { data: activity, isLoading: loadingActivity } = useQuery<GraphActivityResponse>({
+		queryKey: ["graph-activity", 48],
+		queryFn: async () => {
+			const res = await fetch("/api/graph/activity?hours=48");
+			if (!res.ok) throw new Error("Failed to load activity");
+			return res.json();
+		},
+	});
+
+	const { nodes: allNodes, links: allLinks } = useMemo(
+		() => buildConceptGraph(briefing, activity),
+		[briefing, activity],
+	);
+
 	const typeCounts = useMemo(() => {
 		const counts: Record<string, number> = {};
-		for (const n of data?.nodes ?? []) {
-			counts[n.node_type] = (counts[n.node_type] ?? 0) + 1;
+		for (const n of allNodes) {
+			counts[n.type] = (counts[n.type] ?? 0) + 1;
 		}
 		return counts;
-	}, [data]);
+	}, [allNodes]);
 
 	const graphData = useMemo(() => {
-		if (!data) return { nodes: [], links: [] };
-
-		const nodes: ForceNode[] = [];
-		const nodeKeys = new Set<string>();
-
-		for (const n of data.nodes ?? []) {
-			if (hiddenTypes.has(n.node_type)) continue;
-			const key = `${n.node_type}:${n.name}`;
-			nodeKeys.add(key);
-			nodes.push({
-				id: key,
-				name: n.name,
-				type: n.node_type,
-				color: NODE_COLORS[n.node_type] ?? "#94a3b8",
-				val: n.node_type === "session" ? 3 : n.node_type === "project" ? 5 : 1,
-			});
-		}
-
-		const links: ForceLink[] = [];
-		for (const e of data.edges ?? []) {
-			if (nodeKeys.has(e.source_key) && nodeKeys.has(e.target_key)) {
-				links.push({
-					source: e.source_key,
-					target: e.target_key,
-					type: e.edge_type,
-					weight: e.weight,
-				});
-			}
-		}
-
+		const visibleIds = new Set<string>();
+		const nodes = allNodes.filter((n) => {
+			if (hiddenTypes.has(n.type)) return false;
+			visibleIds.add(n.id);
+			return true;
+		});
+		const links = allLinks.filter(
+			(l) => {
+				const sid = typeof l.source === "string" ? l.source : l.source.id;
+				const tid = typeof l.target === "string" ? l.target : l.target.id;
+				return visibleIds.has(sid) && visibleIds.has(tid);
+			},
+		);
 		return { nodes, links };
-	}, [data, hiddenTypes]);
+	}, [allNodes, allLinks, hiddenTypes]);
 
-	// Zoom to fit after data loads — multiple attempts as force layout settles
-	useEffect(() => {
-		if (graphData.nodes.length > 0 && graphRef.current) {
-			const t1 = setTimeout(() => graphRef.current?.zoomToFit(400, 40), 300);
-			const t2 = setTimeout(() => graphRef.current?.zoomToFit(400, 40), 1200);
-			const t3 = setTimeout(() => graphRef.current?.zoomToFit(400, 40), 3000);
-			return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-		}
-	}, [graphData.nodes.length]);
+	// Configure forces once the graph ref is available
+	const graphRefCallback = useCallback(
+		// biome-ignore lint/suspicious/noExplicitAny: react-force-graph-2d ref type is not well-typed
+		(fg: any) => {
+			if (!fg) return;
+			graphRef.current = fg;
+			// Strong charge repulsion to spread nodes apart
+			const charge = fg.d3Force("charge");
+			if (charge?.strength) charge.strength(-600);
+			// Wide link distance so connected nodes don't overlap
+			const link = fg.d3Force("link");
+			if (link?.distance) link.distance(180);
+		},
+		[],
+	);
 
 	const handleNodeClick = useCallback(
 		// biome-ignore lint/suspicious/noExplicitAny: node type is loose from ForceGraph2D
-		async (node: any) => {
-			const name = node.name as string | undefined;
-			if (!name) return;
-			setHighlightedId(node.id as string);
-			try {
-				const res = await fetch(`/api/graph/about/${encodeURIComponent(name)}`);
-				if (!res.ok) return;
-				const about: GraphAboutResponse = await res.json();
-				setSelectedNode(about);
-			} catch {
-				// ignore fetch errors
+		(node: any) => {
+			const conceptNode = node as ConceptNode;
+			if (!conceptNode.id) return;
+			setHighlightedId(conceptNode.id);
+
+			// Build connections from allLinks
+			const connections: { node: ConceptNode; label: string }[] = [];
+			for (const link of allLinks) {
+				const sid = typeof link.source === "string" ? link.source : (link.source as ConceptNode).id;
+				const tid = typeof link.target === "string" ? link.target : (link.target as ConceptNode).id;
+				if (sid === conceptNode.id) {
+					const target = allNodes.find((n) => n.id === tid);
+					if (target) connections.push({ node: target, label: link.label });
+				} else if (tid === conceptNode.id) {
+					const source = allNodes.find((n) => n.id === sid);
+					if (source) connections.push({ node: source, label: link.label });
+				}
 			}
+			setSelected({ node: conceptNode, connections });
 		},
-		[],
+		[allNodes, allLinks],
 	);
 
 	const nodeCanvasObject = useCallback(
 		// biome-ignore lint/suspicious/noExplicitAny: node and ctx types loose from ForceGraph2D
 		(node: any, ctx: any, globalScale: number) => {
-			const x = node.x as number | undefined;
-			const y = node.y as number | undefined;
-			const color = (node.color as string | undefined) ?? "#94a3b8";
-			const name = (node.name as string | undefined) ?? "";
-			const nodeId = (node.id as string | undefined) ?? "";
-			const isHighlighted = nodeId === highlightedId;
-			const isSearchMatch =
-				searchQuery.length > 1 && name.toLowerCase().includes(searchQuery.toLowerCase());
-
+			const n = node as ConceptNode;
+			const x = n.x;
+			const y = n.y;
 			if (x == null || y == null) return;
 
-			const baseRadius = node.type === "project" ? 6 : node.type === "session" ? 5 : 3.5;
-			const radius = isHighlighted ? baseRadius + 3 : isSearchMatch ? baseRadius + 2 : baseRadius;
+			// Fixed size in graph coordinates (not screen pixels)
+			const w = n.width;
+			const h = n.height;
+			const isHighlighted = n.id === highlightedId;
+			const isSearchMatch =
+				searchQuery.length > 1 && n.label.toLowerCase().includes(searchQuery.toLowerCase());
 
-			// Highlight ring for selected / search match
+			// Highlight ring
 			if (isHighlighted || isSearchMatch) {
-				ctx.beginPath();
-				ctx.arc(x, y, radius + 2, 0, 2 * Math.PI, false);
+				const pad = 4;
+				roundedRect(ctx, x - w / 2 - pad, y - h / 2 - pad, w + pad * 2, h + pad * 2, 8);
 				ctx.strokeStyle = isHighlighted ? "#4f46e5" : "#f59e0b";
-				ctx.lineWidth = 2;
+				ctx.lineWidth = 2.5;
 				ctx.stroke();
 			}
 
-			// Node circle
-			ctx.beginPath();
-			ctx.arc(x, y, radius, 0, 2 * Math.PI, false);
-			ctx.fillStyle = isSearchMatch && !isHighlighted ? "#fbbf24" : color;
+			// Background fill (15% opacity)
+			roundedRect(ctx, x - w / 2, y - h / 2, w, h, 6);
+			ctx.fillStyle = `${n.color}26`;
 			ctx.fill();
+			ctx.strokeStyle = n.color;
+			ctx.lineWidth = 1.5;
+			ctx.stroke();
 
-			// Label — show at lower zoom for important nodes, always for highlighted
-			const showLabel =
-				isHighlighted ||
-				isSearchMatch ||
-				globalScale > 1.2 ||
-				(globalScale > 0.6 && (node.type === "project" || node.type === "session"));
+			// Label
+			const fontSize = 11;
+			ctx.font = `${n.type === "project" ? "bold " : "600 "}${fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
+			ctx.textAlign = "center";
+			ctx.textBaseline = "middle";
+			ctx.fillStyle = "#1f2937";
+			ctx.fillText(n.label, x, y);
 
-			if (showLabel) {
-				const fontSize = isHighlighted
-					? Math.max(12 / globalScale, 10)
-					: Math.round(10 / globalScale);
-				ctx.font = `${isHighlighted ? "bold " : ""}${fontSize}px sans-serif`;
-				ctx.textAlign = "center";
-				ctx.textBaseline = "top";
-				ctx.fillStyle = isHighlighted ? "#1e1b4b" : "#374151";
-				ctx.fillText(name, x, y + radius + 2);
+			// Type badge below node
+			if (globalScale > 0.4) {
+				const badgeFontSize = 8;
+				ctx.font = `500 ${badgeFontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
+				ctx.fillStyle = n.color;
+				ctx.fillText(n.type, x, y + h / 2 + badgeFontSize + 2);
 			}
 		},
 		[highlightedId, searchQuery],
 	);
 
+	const linkCanvasObject = useCallback(
+		// biome-ignore lint/suspicious/noExplicitAny: link and ctx types loose from ForceGraph2D
+		(link: any, ctx: any, globalScale: number) => {
+			const src = link.source;
+			const tgt = link.target;
+			if (!src || !tgt || src.x == null || src.y == null || tgt.x == null || tgt.y == null) return;
+
+			ctx.beginPath();
+			ctx.moveTo(src.x, src.y);
+			ctx.lineTo(tgt.x, tgt.y);
+			ctx.strokeStyle = "#d1d5db";
+			ctx.lineWidth = 1;
+			ctx.stroke();
+
+			// Edge label at midpoint
+			if (globalScale > 0.4 && link.label) {
+				const mx = (src.x + tgt.x) / 2;
+				const my = (src.y + tgt.y) / 2;
+				const fontSize = 8;
+				ctx.font = `400 ${fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
+				ctx.textAlign = "center";
+				ctx.textBaseline = "middle";
+				ctx.fillStyle = "#9ca3af";
+				ctx.fillText(link.label, mx, my);
+			}
+		},
+		[],
+	);
+
 	const handleSearch = useCallback(() => {
 		if (!searchQuery.trim() || !graphRef.current) return;
 		const q = searchQuery.trim().toLowerCase();
-		const match = graphData.nodes.find((n) => n.name.toLowerCase().includes(q));
+		const match = graphData.nodes.find((n) => n.label.toLowerCase().includes(q));
 		if (match && match.x != null && match.y != null) {
 			setHighlightedId(match.id);
 			graphRef.current.centerAt(match.x, match.y, 600);
-			graphRef.current.zoom(4, 600);
-			// Fetch detail for the found node
-			fetch(`/api/graph/about/${encodeURIComponent(match.name)}`)
-				.then((res) => (res.ok ? res.json() : null))
-				.then((about) => {
-					if (about) setSelectedNode(about);
-				})
-				.catch(() => {});
+			graphRef.current.zoom(3, 600);
+			// Build connections locally
+			const connections: { node: ConceptNode; label: string }[] = [];
+			for (const link of allLinks) {
+				const sid = typeof link.source === "string" ? link.source : (link.source as ConceptNode).id;
+				const tid = typeof link.target === "string" ? link.target : (link.target as ConceptNode).id;
+				if (sid === match.id) {
+					const target = allNodes.find((n) => n.id === tid);
+					if (target) connections.push({ node: target, label: link.label });
+				} else if (tid === match.id) {
+					const source = allNodes.find((n) => n.id === sid);
+					if (source) connections.push({ node: source, label: link.label });
+				}
+			}
+			setSelected({ node: match, connections });
 		}
-	}, [searchQuery, graphData.nodes]);
+	}, [searchQuery, graphData.nodes, allNodes, allLinks]);
 
-	const toggleType = useCallback((type: string) => {
+	const toggleType = useCallback((type: ConceptNodeType) => {
 		setHiddenTypes((prev) => {
 			const next = new Set(prev);
 			if (next.has(type)) {
@@ -593,22 +793,26 @@ function ExplorerTab({ hours }: { hours: number }) {
 		});
 	}, []);
 
-	const presentTypes = useMemo(() => {
-		if (!data) return [];
-		const types = new Set<string>();
-		for (const n of data.nodes ?? []) {
-			types.add(n.node_type);
-		}
-		return ALL_NODE_TYPES.filter((t) => types.has(t));
-	}, [data]);
+	if (loadingBriefing || loadingActivity)
+		return <div className="animate-pulse text-zinc-400">Loading concept graph...</div>;
 
-	if (isLoading) return <div className="animate-pulse text-zinc-400">Loading graph...</div>;
-
-	const totalNodes = graphData.nodes.length;
-	const totalEdges = graphData.links.length;
+	if (allNodes.length === 0) {
+		return (
+			<div className="text-center py-16 text-zinc-500">
+				<p className="text-lg">No concept data available</p>
+				<p className="text-sm mt-2">
+					Run{" "}
+					<code className="bg-zinc-800 text-zinc-200 px-2 py-0.5 rounded">
+						distill graph briefing --output ./insights
+					</code>{" "}
+					to generate briefing data
+				</p>
+			</div>
+		);
+	}
 
 	return (
-		<div ref={containerRef} className="flex flex-col" style={{ height: "calc(100vh - 200px)" }}>
+		<div className="flex flex-col" style={{ height: "calc(100vh - 200px)" }}>
 			{/* Top bar: search + stats */}
 			<div className="flex items-center justify-between gap-4 mb-3">
 				<div className="flex items-center gap-2">
@@ -619,7 +823,7 @@ function ExplorerTab({ hours }: { hours: number }) {
 						onKeyDown={(e) => {
 							if (e.key === "Enter") handleSearch();
 						}}
-						placeholder="Search nodes..."
+						placeholder="Search concepts..."
 						className="w-64 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
 					/>
 					<button
@@ -634,9 +838,9 @@ function ExplorerTab({ hours }: { hours: number }) {
 							type="button"
 							onClick={() => {
 								setHighlightedId(null);
-								setSelectedNode(null);
+								setSelected(null);
 								setSearchQuery("");
-								graphRef.current?.zoomToFit(400, 60);
+								graphRef.current?.zoomToFit(400, 80);
 							}}
 							className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-50"
 						>
@@ -645,9 +849,9 @@ function ExplorerTab({ hours }: { hours: number }) {
 					)}
 				</div>
 				<div className="flex items-center gap-3 text-xs text-zinc-500">
-					<span className="font-medium">{totalNodes.toLocaleString()} nodes</span>
+					<span className="font-medium">{graphData.nodes.length} concepts</span>
 					<span className="text-zinc-300">|</span>
-					<span className="font-medium">{totalEdges.toLocaleString()} edges</span>
+					<span className="font-medium">{graphData.links.length} connections</span>
 				</div>
 			</div>
 
@@ -656,11 +860,12 @@ function ExplorerTab({ hours }: { hours: number }) {
 				{/* Left sidebar — legend & filters */}
 				<div className="w-44 shrink-0 border-r border-zinc-200 bg-zinc-50 p-3 overflow-y-auto">
 					<h4 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">
-						Node Types
+						Concept Types
 					</h4>
 					<div className="space-y-1">
-						{presentTypes.map((type) => {
+						{CONCEPT_LEGEND.map(({ type, label, color }) => {
 							const count = typeCounts[type] ?? 0;
+							if (count === 0) return null;
 							const hidden = hiddenTypes.has(type);
 							return (
 								<button
@@ -675,12 +880,9 @@ function ExplorerTab({ hours }: { hours: number }) {
 								>
 									<span
 										className="inline-block h-3 w-3 rounded-full shrink-0"
-										style={{
-											backgroundColor: NODE_COLORS[type] ?? "#94a3b8",
-											opacity: hidden ? 0.3 : 1,
-										}}
+										style={{ backgroundColor: color, opacity: hidden ? 0.3 : 1 }}
 									/>
-									<span className="text-zinc-700 capitalize flex-1">{type}</span>
+									<span className="text-zinc-700 flex-1">{label}</span>
 									<span className="text-zinc-400 tabular-nums">{count}</span>
 								</button>
 							);
@@ -696,9 +898,7 @@ function ExplorerTab({ hours }: { hours: number }) {
 						</button>
 						<button
 							type="button"
-							onClick={() => {
-								graphRef.current?.zoomToFit(400, 60);
-							}}
+							onClick={() => graphRef.current?.zoomToFit(400, 80)}
 							className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs text-zinc-600 hover:bg-zinc-50"
 						>
 							Fit to view
@@ -706,53 +906,62 @@ function ExplorerTab({ hours }: { hours: number }) {
 					</div>
 				</div>
 
-				{/* Graph canvas — auto-sized by ForceGraph2D */}
+				{/* Graph canvas */}
 				<div className="flex-1 relative bg-zinc-50/30 min-h-0">
-					{graphData.nodes.length > 0 ? (
-						<ForceGraph2D
-							ref={graphRef}
-							graphData={graphData}
-							nodeLabel="name"
-							nodeColor="color"
-							nodeVal="val"
-							linkDirectionalArrowLength={3}
-							linkDirectionalArrowRelPos={1}
-							linkWidth={(link: ForceLink) => Math.max(Math.min(link.weight, 4), 0.5)}
-							linkColor={() => "#d1d5db"}
-							onNodeClick={handleNodeClick}
-							nodeCanvasObject={nodeCanvasObject}
-							backgroundColor="#fafafa"
-							cooldownTicks={100}
-							d3AlphaDecay={0.02}
-							d3VelocityDecay={0.3}
-						/>
-					) : (
-						<div className="flex h-full items-center justify-center text-sm text-zinc-400">
-							No nodes in this time window. Try expanding to 7d or 30d.
-						</div>
-					)}
+					<ForceGraph2D
+						ref={graphRefCallback}
+						graphData={graphData}
+						nodeLabel=""
+						onNodeClick={handleNodeClick}
+						onNodeDragEnd={() => {
+							// Re-heat simulation slightly after drag
+							graphRef.current?.d3ReheatSimulation();
+						}}
+						nodeCanvasObject={nodeCanvasObject}
+						nodeCanvasObjectMode={() => "replace" as const}
+						linkCanvasObject={linkCanvasObject}
+						linkCanvasObjectMode={() => "replace" as const}
+						nodePointerAreaPaint={(node: ConceptNode, color: string, ctx: CanvasRenderingContext2D) => {
+							const w = node.width;
+							const h = node.height;
+							const x = node.x ?? 0;
+							const y = node.y ?? 0;
+							ctx.fillStyle = color;
+							ctx.fillRect(x - w / 2, y - h / 2, w, h);
+						}}
+						enableNodeDrag={true}
+						backgroundColor="#fafafa"
+						cooldownTicks={100}
+						d3AlphaDecay={0.03}
+						d3VelocityDecay={0.25}
+						onEngineStop={() => graphRef.current?.zoomToFit(400, 80)}
+					/>
 				</div>
 
 				{/* Right detail panel */}
-				{selectedNode?.focus && (
+				{selected && (
 					<div className="w-80 shrink-0 border-l border-zinc-200 bg-white p-4 overflow-y-auto">
 						<div className="flex items-center justify-between mb-3">
 							<div className="flex items-center gap-2">
 								<span
 									className="inline-block h-3 w-3 rounded-full"
-									style={{
-										backgroundColor:
-											NODE_COLORS[selectedNode.focus.type] ?? "#94a3b8",
-									}}
+									style={{ backgroundColor: selected.node.color }}
 								/>
 								<span className="text-xs font-semibold uppercase text-zinc-500">
-									{selectedNode.focus.type}
+									{selected.node.type}
 								</span>
+								{selected.node.status && (
+									<span
+										className={`text-xs font-medium px-2 py-0.5 rounded-full border ${statusBadge(selected.node.status)}`}
+									>
+										{selected.node.status}
+									</span>
+								)}
 							</div>
 							<button
 								type="button"
 								onClick={() => {
-									setSelectedNode(null);
+									setSelected(null);
 									setHighlightedId(null);
 								}}
 								className="text-zinc-400 hover:text-zinc-600 text-lg leading-none"
@@ -761,34 +970,32 @@ function ExplorerTab({ hours }: { hours: number }) {
 							</button>
 						</div>
 						<h4 className="text-lg font-semibold text-zinc-900 mb-2">
-							{selectedNode.focus.name}
+							{selected.node.label}
 						</h4>
-						{selectedNode.focus.summary && (
+						{selected.node.detail && (
 							<p className="text-sm text-zinc-600 leading-relaxed mb-4">
-								{selectedNode.focus.summary}
+								{selected.node.detail}
 							</p>
 						)}
-						{(selectedNode.neighbors ?? []).length > 0 && (
+						{selected.connections.length > 0 && (
 							<div>
 								<h5 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">
-									Connections ({(selectedNode.neighbors ?? []).length})
+									Connections ({selected.connections.length})
 								</h5>
 								<div className="space-y-1 max-h-96 overflow-y-auto">
-									{(selectedNode.neighbors ?? []).slice(0, 30).map((nb) => (
+									{selected.connections.map((c) => (
 										<div
-											key={`${nb.type}:${nb.name}`}
+											key={c.node.id}
 											className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-zinc-50 cursor-default"
 										>
 											<span
 												className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
-												style={{
-													backgroundColor: NODE_COLORS[nb.type] ?? "#94a3b8",
-												}}
+												style={{ backgroundColor: c.node.color }}
 											/>
 											<span className="text-zinc-800 truncate flex-1">
-												{nb.name}
+												{c.node.label}
 											</span>
-											<span className="text-zinc-400 shrink-0">{nb.type}</span>
+											<span className="text-zinc-400 shrink-0">{c.label}</span>
 										</div>
 									))}
 								</div>
@@ -810,12 +1017,12 @@ export default function GraphPage() {
 	const [activeTab, setActiveTab] = useState<Tab>("briefing");
 
 	return (
-		<div className={`mx-auto p-4 md:p-6 ${activeTab === "explorer" ? "" : "max-w-5xl"}`}>
+		<div className={`mx-auto p-4 md:p-6 ${activeTab === "concepts" ? "" : "max-w-5xl"}`}>
 			<div className="space-y-6">
 				<h2 className="text-2xl font-bold">Knowledge Graph</h2>
 
 				{/* Time window toggle — only for data tabs, not the pre-computed briefing */}
-				{activeTab !== "briefing" && (
+				{activeTab === "activity" && (
 					<div className="flex items-center gap-2">
 						{TIME_OPTIONS.map((opt) => (
 							<button
@@ -837,18 +1044,18 @@ export default function GraphPage() {
 				{/* Tab bar */}
 				<div className="border-b border-zinc-200 dark:border-zinc-800">
 					<nav className="-mb-px flex gap-4" aria-label="Graph tabs">
-						{(["briefing", "activity", "explorer"] as const).map((tab) => (
+						{[{ key: "briefing" as const, label: "Briefing" }, { key: "activity" as const, label: "Activity" }, { key: "concepts" as const, label: "Concepts" }].map(({ key, label }) => (
 							<button
-								key={tab}
+								key={key}
 								type="button"
-								onClick={() => setActiveTab(tab)}
-								className={`border-b-2 px-1 pb-2 text-sm font-medium capitalize transition-colors ${
-									activeTab === tab
+								onClick={() => setActiveTab(key)}
+								className={`border-b-2 px-1 pb-2 text-sm font-medium transition-colors ${
+									activeTab === key
 										? "border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400"
 										: "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
 								}`}
 							>
-								{tab}
+								{label}
 							</button>
 						))}
 					</nav>
@@ -857,7 +1064,7 @@ export default function GraphPage() {
 				{/* Tab content */}
 				{activeTab === "briefing" && <BriefingTab />}
 				{activeTab === "activity" && <ActivityTab hours={hours} />}
-				{activeTab === "explorer" && <ExplorerTab hours={hours} />}
+				{activeTab === "concepts" && <ConceptsTab />}
 			</div>
 		</div>
 	);

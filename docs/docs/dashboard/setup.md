@@ -31,9 +31,24 @@ This:
 |------|--------------|
 | **Home** | Pipeline status, recent activity, quick stats |
 | **Reading** | Daily intake digests with full markdown rendering |
+| **Graph** | Knowledge graph with three tabs (see below) |
 | **Shares** | URLs shared from your phone — click to read extracted content |
 | **Studio** | Blog post editor with AI chat and multi-platform publishing |
 | **Settings** | Configuration, source management, sharing setup |
+
+### Knowledge Graph
+
+The Graph page (`/graph`) has three tabs:
+
+- **Briefing** — Executive summary generated from your recent sessions. Shows focus areas with status (active/cooling/emerging), learning topics, risks, and recommendations.
+- **Activity** — Session timeline with stats, entity tag cloud, and file activity over a configurable time window (24h–30d).
+- **Concepts** — Interactive mind-map of ~25 concept nodes extracted from the briefing. Projects, topics, threads, risks, and entities are shown as labeled rectangles with color-coded edges. Click a node to see its detail and connections. Drag nodes to rearrange the layout.
+
+!!! note "Generate briefing data first"
+    The Briefing and Concepts tabs require a briefing file. Generate one with:
+    ```bash
+    uv run python -m distill graph briefing --output ./insights
+    ```
 
 ## Port
 
