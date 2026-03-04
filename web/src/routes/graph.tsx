@@ -68,30 +68,37 @@ function BriefingTab() {
 		);
 	}
 
-	const statusColor = (s: string) =>
+	const statusBadge = (s: string) =>
 		({
-			active: "text-emerald-400 bg-emerald-400/10 border-emerald-400/30",
-			cooling: "text-amber-400 bg-amber-400/10 border-amber-400/30",
-			emerging: "text-blue-400 bg-blue-400/10 border-blue-400/30",
-		})[s] ?? "text-zinc-400 bg-zinc-400/10 border-zinc-400/30";
+			active: "text-emerald-700 bg-emerald-100 border-emerald-300",
+			cooling: "text-amber-700 bg-amber-100 border-amber-300",
+			emerging: "text-blue-700 bg-blue-100 border-blue-300",
+		})[s] ?? "text-zinc-600 bg-zinc-100 border-zinc-300";
+
+	const statusBorder = (s: string) =>
+		({
+			active: "border-l-emerald-500",
+			cooling: "border-l-amber-500",
+			emerging: "border-l-blue-500",
+		})[s] ?? "border-l-zinc-400";
 
 	const momentumIcon = (m: string) =>
 		({ accelerating: "\u2197", steady: "\u2192", decelerating: "\u2198" })[m] ?? "";
 
-	const severityColor = (s: string) =>
+	const severityBorder = (s: string) =>
 		({
-			high: "border-red-400/40 bg-red-400/5",
-			medium: "border-amber-400/40 bg-amber-400/5",
-			low: "border-zinc-600 bg-zinc-800/50",
-		})[s] ?? "border-zinc-600 bg-zinc-800/50";
+			high: "border-l-red-500",
+			medium: "border-l-amber-500",
+			low: "border-l-zinc-400",
+		})[s] ?? "border-l-zinc-400";
 
 	return (
 		<div className="space-y-8">
 			{/* Summary */}
-			<div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-6">
-				<p className="text-lg text-zinc-200 leading-relaxed">{data.summary}</p>
+			<div className="bg-white border border-zinc-200 rounded-lg p-6 shadow-sm">
+				<p className="text-base text-zinc-800 leading-relaxed">{data.summary}</p>
 				{data.generated_at && (
-					<p className="text-xs text-zinc-600 mt-3">
+					<p className="text-xs text-zinc-400 mt-3">
 						Generated {new Date(data.generated_at).toLocaleString()}
 					</p>
 				)}
@@ -100,27 +107,35 @@ function BriefingTab() {
 			{/* Areas */}
 			{data.areas?.length > 0 && (
 				<section>
-					<h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider mb-3">
+					<h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">
 						Focus Areas
 					</h3>
 					<div className="grid gap-3 md:grid-cols-2">
 						{data.areas.map((area: any, i: number) => (
-							<div key={i} className={`border rounded-lg p-4 ${statusColor(area.status)}`}>
+							<div
+								key={i}
+								className={`bg-white border border-zinc-200 border-l-4 ${statusBorder(area.status)} rounded-lg p-4 shadow-sm`}
+							>
 								<div className="flex items-center justify-between mb-1">
-									<span className="font-semibold">{area.name}</span>
-									<span className="text-sm opacity-70">
+									<span className="font-semibold text-zinc-900">{area.name}</span>
+									<span
+										className={`text-xs font-medium px-2 py-0.5 rounded-full border ${statusBadge(area.status)}`}
+									>
 										{momentumIcon(area.momentum)} {area.status}
 									</span>
 								</div>
-								<p className="text-sm opacity-80">{area.headline}</p>
-								<div className="flex gap-4 mt-2 text-xs opacity-60">
+								<p className="text-sm text-zinc-600 mt-1">{area.headline}</p>
+								<div className="flex gap-4 mt-2 text-xs text-zinc-500">
 									{area.sessions > 0 && <span>{area.sessions} sessions</span>}
 									{area.reading_count > 0 && <span>{area.reading_count} articles</span>}
 								</div>
 								{area.open_threads?.length > 0 && (
-									<div className="mt-2 flex flex-wrap gap-1">
+									<div className="mt-3 flex flex-wrap gap-1.5">
 										{area.open_threads.map((t: string, j: number) => (
-											<span key={j} className="text-xs bg-black/20 rounded px-2 py-0.5">
+											<span
+												key={j}
+												className="text-xs text-zinc-600 bg-zinc-100 border border-zinc-200 rounded px-2 py-1"
+											>
 												{t}
 											</span>
 										))}
@@ -135,25 +150,28 @@ function BriefingTab() {
 			{/* Learning */}
 			{data.learning?.length > 0 && (
 				<section>
-					<h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider mb-3">
+					<h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">
 						Learning
 					</h3>
 					<div className="space-y-2">
 						{data.learning.map((l: any, i: number) => (
-							<div key={i} className="border border-zinc-800 rounded-lg p-4 bg-zinc-900/30">
+							<div
+								key={i}
+								className={`bg-white border border-zinc-200 border-l-4 ${statusBorder(l.status)} rounded-lg p-4 shadow-sm`}
+							>
 								<div className="flex items-center justify-between">
-									<span className="font-medium text-zinc-200">{l.topic}</span>
+									<span className="font-medium text-zinc-900">{l.topic}</span>
 									<span
-										className={`text-xs px-2 py-0.5 rounded border ${statusColor(l.status)}`}
+										className={`text-xs font-medium px-2 py-0.5 rounded-full border ${statusBadge(l.status)}`}
 									>
 										{l.status}
 									</span>
 								</div>
 								{l.connection && (
-									<p className="text-sm text-zinc-400 mt-1">{l.connection}</p>
+									<p className="text-sm text-zinc-600 mt-1">{l.connection}</p>
 								)}
 								{l.reading_count > 0 && (
-									<p className="text-xs text-zinc-600 mt-1">{l.reading_count} articles</p>
+									<p className="text-xs text-zinc-500 mt-1">{l.reading_count} articles</p>
 								)}
 							</div>
 						))}
@@ -166,27 +184,32 @@ function BriefingTab() {
 				{/* Risks */}
 				{data.risks?.length > 0 && (
 					<section>
-						<h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider mb-3">
+						<h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">
 							Risks
 						</h3>
 						<div className="space-y-2">
 							{data.risks.map((r: any, i: number) => (
-								<div key={i} className={`border rounded-lg p-3 ${severityColor(r.severity)}`}>
+								<div
+									key={i}
+									className={`bg-white border border-zinc-200 border-l-4 ${severityBorder(r.severity)} rounded-lg p-3 shadow-sm`}
+								>
 									<div className="flex items-center gap-2">
 										<span
-											className={`text-xs font-bold uppercase ${
+											className={`text-xs font-bold uppercase px-1.5 py-0.5 rounded ${
 												r.severity === "high"
-													? "text-red-400"
+													? "text-red-700 bg-red-100"
 													: r.severity === "medium"
-														? "text-amber-400"
-														: "text-zinc-400"
+														? "text-amber-700 bg-amber-100"
+														: "text-zinc-600 bg-zinc-100"
 											}`}
 										>
 											{r.severity}
 										</span>
-										<span className="text-sm text-zinc-200">{r.headline}</span>
+										<span className="text-sm font-medium text-zinc-800">{r.headline}</span>
 									</div>
-									{r.detail && <p className="text-xs text-zinc-500 mt-1">{r.detail}</p>}
+									{r.detail && (
+										<p className="text-sm text-zinc-600 mt-2 leading-relaxed">{r.detail}</p>
+									)}
 								</div>
 							))}
 						</div>
@@ -196,20 +219,25 @@ function BriefingTab() {
 				{/* Recommendations */}
 				{data.recommendations?.length > 0 && (
 					<section>
-						<h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider mb-3">
+						<h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">
 							Recommendations
 						</h3>
 						<div className="space-y-2">
 							{data.recommendations.map((rec: any, i: number) => (
-								<div key={i} className="border border-zinc-800 rounded-lg p-3 bg-zinc-900/30">
+								<div
+									key={i}
+									className="bg-white border border-zinc-200 border-l-4 border-l-indigo-500 rounded-lg p-3 shadow-sm"
+								>
 									<div className="flex items-start gap-3">
-										<span className="text-lg font-bold text-indigo-400 leading-none mt-0.5">
+										<span className="text-lg font-bold text-indigo-600 leading-none mt-0.5">
 											{rec.priority}
 										</span>
 										<div>
-											<p className="text-sm font-medium text-zinc-200">{rec.action}</p>
+											<p className="text-sm font-medium text-zinc-800">{rec.action}</p>
 											{rec.rationale && (
-												<p className="text-xs text-zinc-500 mt-1">{rec.rationale}</p>
+												<p className="text-sm text-zinc-600 mt-1 leading-relaxed">
+													{rec.rationale}
+												</p>
 											)}
 										</div>
 									</div>
