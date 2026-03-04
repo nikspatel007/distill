@@ -3,6 +3,7 @@ import type { LucideIcon } from "lucide-react";
 import {
 	BookMarked,
 	LayoutDashboard,
+	Network,
 	Settings,
 	Share2,
 	Wand2,
@@ -13,6 +14,7 @@ const navItems: { to: string; label: string; icon: LucideIcon }[] = [
 	{ to: "/studio", label: "Studio", icon: Wand2 },
 	{ to: "/reading", label: "Reading", icon: BookMarked },
 	{ to: "/shares", label: "Shares", icon: Share2 },
+	{ to: "/graph", label: "Graph", icon: Network },
 ];
 
 // Mobile: core tabs, no settings
@@ -21,6 +23,7 @@ const mobileTabItems: { to: string; label: string; icon: LucideIcon }[] = [
 	{ to: "/studio", label: "Studio", icon: Wand2 },
 	{ to: "/reading", label: "Reading", icon: BookMarked },
 	{ to: "/shares", label: "Shares", icon: Share2 },
+	{ to: "/graph", label: "Graph", icon: Network },
 ];
 
 export function Sidebar() {

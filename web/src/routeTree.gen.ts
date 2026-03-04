@@ -1,6 +1,7 @@
 import { createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
 import { RootLayout } from "./routes/__root.js";
 import Dashboard from "./routes/index.js";
+import GraphPage from "./routes/graph.js";
 import Reading from "./routes/reading.js";
 import ReadingDetail from "./routes/reading.$date.js";
 import Share from "./routes/share.js";
@@ -60,6 +61,12 @@ const studioDetailRoute = createRoute({
   component: StudioDetail,
 });
 
+const graphRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/graph",
+  component: GraphPage,
+});
+
 const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings",
@@ -75,5 +82,6 @@ export const routeTree = rootRoute.addChildren([
   shareDetailRoute,
   studioRoute,
   studioDetailRoute,
+  graphRoute,
   settingsRoute,
 ]);
