@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ForceGraph2D from "react-force-graph-2d";
 import type {
 	GraphAboutResponse,
@@ -28,7 +28,7 @@ function relativeTime(hoursAgo: number): string {
 	return `${days}d ago`;
 }
 
-type Tab = "briefing" | "activity" | "explorer" | "insights";
+type Tab = "briefing" | "activity" | "explorer";
 type TimeWindow = 24 | 48 | 168 | 720;
 
 const TIME_OPTIONS: { label: string; value: TimeWindow }[] = [
@@ -425,9 +425,29 @@ interface ForceLink {
 function ExplorerTab({ hours }: { hours: number }) {
 	// biome-ignore lint/suspicious/noExplicitAny: react-force-graph-2d ref type is not well-typed
 	const graphRef = useRef<any>(null);
+	const containerRef = useRef<HTMLDivElement>(null);
 	const [selectedNode, setSelectedNode] = useState<GraphAboutResponse | null>(null);
 	const [searchQuery, setSearchQuery] = useState("");
+	const [highlightedId, setHighlightedId] = useState<string | null>(null);
 	const [hiddenTypes, setHiddenTypes] = useState<Set<string>>(new Set());
+	const [containerSize, setContainerSize] = useState({ width: 900, height: 600 });
+
+	// Responsive sizing — fill available space
+	useEffect(() => {
+		const measure = () => {
+			if (containerRef.current) {
+				const rect = containerRef.current.getBoundingClientRect();
+				const sidebarWidth = selectedNode?.focus ? 320 : 0;
+				setContainerSize({
+					width: Math.max(rect.width - sidebarWidth, 400),
+					height: Math.max(window.innerHeight - rect.top - 32, 500),
+				});
+			}
+		};
+		measure();
+		window.addEventListener("resize", measure);
+		return () => window.removeEventListener("resize", measure);
+	}, [selectedNode]);
 
 	const { data, isLoading } = useQuery<GraphNodesResponse>({
 		queryKey: ["graph-nodes", hours],
@@ -437,6 +457,15 @@ function ExplorerTab({ hours }: { hours: number }) {
 			return res.json();
 		},
 	});
+
+	// Count nodes per type for the legend
+	const typeCounts = useMemo(() => {
+		const counts: Record<string, number> = {};
+		for (const n of data?.nodes ?? []) {
+			counts[n.node_type] = (counts[n.node_type] ?? 0) + 1;
+		}
+		return counts;
+	}, [data]);
 
 	const graphData = useMemo(() => {
 		if (!data) return { nodes: [], links: [] };
@@ -453,7 +482,7 @@ function ExplorerTab({ hours }: { hours: number }) {
 				name: n.name,
 				type: n.node_type,
 				color: NODE_COLORS[n.node_type] ?? "#94a3b8",
-				val: 1,
+				val: n.node_type === "session" ? 3 : n.node_type === "project" ? 5 : 1,
 			});
 		}
 
@@ -472,11 +501,21 @@ function ExplorerTab({ hours }: { hours: number }) {
 		return { nodes, links };
 	}, [data, hiddenTypes]);
 
+	// Zoom to fit after data loads
+	useEffect(() => {
+		if (graphData.nodes.length > 0 && graphRef.current) {
+			setTimeout(() => {
+				graphRef.current?.zoomToFit(400, 60);
+			}, 500);
+		}
+	}, [graphData.nodes.length]);
+
 	const handleNodeClick = useCallback(
 		// biome-ignore lint/suspicious/noExplicitAny: node type is loose from ForceGraph2D
 		async (node: any) => {
 			const name = node.name as string | undefined;
 			if (!name) return;
+			setHighlightedId(node.id as string);
 			try {
 				const res = await fetch(`/api/graph/about/${encodeURIComponent(name)}`);
 				if (!res.ok) return;
@@ -496,37 +535,67 @@ function ExplorerTab({ hours }: { hours: number }) {
 			const y = node.y as number | undefined;
 			const color = (node.color as string | undefined) ?? "#94a3b8";
 			const name = (node.name as string | undefined) ?? "";
+			const nodeId = (node.id as string | undefined) ?? "";
+			const isHighlighted = nodeId === highlightedId;
+			const isSearchMatch =
+				searchQuery.length > 1 && name.toLowerCase().includes(searchQuery.toLowerCase());
 
 			if (x == null || y == null) return;
 
-			// Draw circle
-			const radius = 4;
+			const baseRadius = node.type === "project" ? 6 : node.type === "session" ? 5 : 3.5;
+			const radius = isHighlighted ? baseRadius + 3 : isSearchMatch ? baseRadius + 2 : baseRadius;
+
+			// Highlight ring for selected / search match
+			if (isHighlighted || isSearchMatch) {
+				ctx.beginPath();
+				ctx.arc(x, y, radius + 2, 0, 2 * Math.PI, false);
+				ctx.strokeStyle = isHighlighted ? "#4f46e5" : "#f59e0b";
+				ctx.lineWidth = 2;
+				ctx.stroke();
+			}
+
+			// Node circle
 			ctx.beginPath();
 			ctx.arc(x, y, radius, 0, 2 * Math.PI, false);
-			ctx.fillStyle = color;
+			ctx.fillStyle = isSearchMatch && !isHighlighted ? "#fbbf24" : color;
 			ctx.fill();
 
-			// Draw label when zoomed in
-			if (globalScale > 1.5) {
-				ctx.font = `${Math.round(10 / globalScale)}px sans-serif`;
+			// Label — show at lower zoom for important nodes, always for highlighted
+			const showLabel =
+				isHighlighted ||
+				isSearchMatch ||
+				globalScale > 1.2 ||
+				(globalScale > 0.6 && (node.type === "project" || node.type === "session"));
+
+			if (showLabel) {
+				const fontSize = isHighlighted
+					? Math.max(12 / globalScale, 10)
+					: Math.round(10 / globalScale);
+				ctx.font = `${isHighlighted ? "bold " : ""}${fontSize}px sans-serif`;
 				ctx.textAlign = "center";
 				ctx.textBaseline = "top";
-				ctx.fillStyle = "#374151";
+				ctx.fillStyle = isHighlighted ? "#1e1b4b" : "#374151";
 				ctx.fillText(name, x, y + radius + 2);
 			}
 		},
-		[],
+		[highlightedId, searchQuery],
 	);
 
 	const handleSearch = useCallback(() => {
 		if (!searchQuery.trim() || !graphRef.current) return;
 		const q = searchQuery.trim().toLowerCase();
-		const match = graphData.nodes.find(
-			(n) => n.name.toLowerCase().includes(q),
-		);
+		const match = graphData.nodes.find((n) => n.name.toLowerCase().includes(q));
 		if (match && match.x != null && match.y != null) {
-			graphRef.current.centerAt(match.x, match.y, 400);
-			graphRef.current.zoom(3, 400);
+			setHighlightedId(match.id);
+			graphRef.current.centerAt(match.x, match.y, 600);
+			graphRef.current.zoom(4, 600);
+			// Fetch detail for the found node
+			fetch(`/api/graph/about/${encodeURIComponent(match.name)}`)
+				.then((res) => (res.ok ? res.json() : null))
+				.then((about) => {
+					if (about) setSelectedNode(about);
+				})
+				.catch(() => {});
 		}
 	}, [searchQuery, graphData.nodes]);
 
@@ -553,11 +622,14 @@ function ExplorerTab({ hours }: { hours: number }) {
 
 	if (isLoading) return <div className="animate-pulse text-zinc-400">Loading graph...</div>;
 
+	const totalNodes = graphData.nodes.length;
+	const totalEdges = graphData.links.length;
+
 	return (
-		<div className="space-y-4">
-			{/* Controls row */}
-			<div className="flex flex-wrap items-center gap-3">
-				<div className="flex gap-2">
+		<div ref={containerRef} className="flex flex-col" style={{ minHeight: "calc(100vh - 200px)" }}>
+			{/* Top bar: search + stats */}
+			<div className="flex items-center justify-between gap-4 mb-3">
+				<div className="flex items-center gap-2">
 					<input
 						type="text"
 						value={searchQuery}
@@ -566,38 +638,94 @@ function ExplorerTab({ hours }: { hours: number }) {
 							if (e.key === "Enter") handleSearch();
 						}}
 						placeholder="Search nodes..."
-						className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+						className="w-64 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
 					/>
 					<button
 						type="button"
 						onClick={handleSearch}
-						className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700"
+						className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700"
 					>
 						Find
 					</button>
+					{highlightedId && (
+						<button
+							type="button"
+							onClick={() => {
+								setHighlightedId(null);
+								setSelectedNode(null);
+								setSearchQuery("");
+								graphRef.current?.zoomToFit(400, 60);
+							}}
+							className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-50"
+						>
+							Clear
+						</button>
+					)}
 				</div>
-				<div className="flex flex-wrap gap-2">
-					{presentTypes.map((type) => (
-						<label key={type} className="flex items-center gap-1.5 text-xs cursor-pointer">
-							<input
-								type="checkbox"
-								checked={!hiddenTypes.has(type)}
-								onChange={() => toggleType(type)}
-								className="rounded"
-							/>
-							<span
-								className="inline-block h-2.5 w-2.5 rounded-full"
-								style={{ backgroundColor: NODE_COLORS[type] ?? "#94a3b8" }}
-							/>
-							<span className="text-zinc-600 dark:text-zinc-400">{type}</span>
-						</label>
-					))}
+				<div className="flex items-center gap-3 text-xs text-zinc-500">
+					<span className="font-medium">{totalNodes.toLocaleString()} nodes</span>
+					<span className="text-zinc-300">|</span>
+					<span className="font-medium">{totalEdges.toLocaleString()} edges</span>
 				</div>
 			</div>
 
-			{/* Main area: graph + detail panel */}
-			<div className="flex gap-4">
-				<div className="flex-1 rounded-lg border border-zinc-200 dark:border-zinc-800" style={{ height: 500 }}>
+			{/* Main: sidebar legend + graph + detail panel */}
+			<div className="flex flex-1 gap-0 rounded-lg border border-zinc-200 bg-white shadow-sm overflow-hidden">
+				{/* Left sidebar — legend & filters */}
+				<div className="w-44 shrink-0 border-r border-zinc-200 bg-zinc-50 p-3 overflow-y-auto">
+					<h4 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">
+						Node Types
+					</h4>
+					<div className="space-y-1">
+						{presentTypes.map((type) => {
+							const count = typeCounts[type] ?? 0;
+							const hidden = hiddenTypes.has(type);
+							return (
+								<button
+									key={type}
+									type="button"
+									onClick={() => toggleType(type)}
+									className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
+										hidden
+											? "opacity-40 hover:opacity-60"
+											: "hover:bg-zinc-200/60"
+									}`}
+								>
+									<span
+										className="inline-block h-3 w-3 rounded-full shrink-0"
+										style={{
+											backgroundColor: NODE_COLORS[type] ?? "#94a3b8",
+											opacity: hidden ? 0.3 : 1,
+										}}
+									/>
+									<span className="text-zinc-700 capitalize flex-1">{type}</span>
+									<span className="text-zinc-400 tabular-nums">{count}</span>
+								</button>
+							);
+						})}
+					</div>
+					<div className="mt-4 pt-3 border-t border-zinc-200">
+						<button
+							type="button"
+							onClick={() => setHiddenTypes(new Set())}
+							className="w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs text-zinc-600 hover:bg-zinc-50"
+						>
+							Show all
+						</button>
+						<button
+							type="button"
+							onClick={() => {
+								graphRef.current?.zoomToFit(400, 60);
+							}}
+							className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs text-zinc-600 hover:bg-zinc-50"
+						>
+							Fit to view
+						</button>
+					</div>
+				</div>
+
+				{/* Graph canvas */}
+				<div className="flex-1 relative bg-zinc-50/30">
 					{graphData.nodes.length > 0 ? (
 						<ForceGraph2D
 							ref={graphRef}
@@ -607,12 +735,16 @@ function ExplorerTab({ hours }: { hours: number }) {
 							nodeVal="val"
 							linkDirectionalArrowLength={3}
 							linkDirectionalArrowRelPos={1}
-							linkWidth={(link: ForceLink) => Math.min(link.weight, 5)}
-							linkColor={() => "#94a3b8"}
+							linkWidth={(link: ForceLink) => Math.max(Math.min(link.weight, 4), 0.5)}
+							linkColor={() => "#d1d5db"}
 							onNodeClick={handleNodeClick}
 							nodeCanvasObject={nodeCanvasObject}
-							width={undefined}
-							height={500}
+							backgroundColor="#fafafa"
+							width={containerSize.width - 176 - (selectedNode?.focus ? 0 : 0)}
+							height={containerSize.height}
+							cooldownTicks={100}
+							d3AlphaDecay={0.02}
+							d3VelocityDecay={0.3}
 						/>
 					) : (
 						<div className="flex h-full items-center justify-center text-sm text-zinc-400">
@@ -621,41 +753,65 @@ function ExplorerTab({ hours }: { hours: number }) {
 					)}
 				</div>
 
-				{/* Detail panel */}
+				{/* Right detail panel */}
 				{selectedNode?.focus && (
-					<div className="w-72 shrink-0 space-y-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-						<div className="flex items-center gap-2">
-							<span
-								className="inline-block h-3 w-3 rounded-full"
-								style={{ backgroundColor: NODE_COLORS[selectedNode.focus.type] ?? "#94a3b8" }}
-							/>
-							<span className="text-xs font-medium uppercase text-zinc-500">
-								{selectedNode.focus.type}
-							</span>
+					<div className="w-80 shrink-0 border-l border-zinc-200 bg-white p-4 overflow-y-auto">
+						<div className="flex items-center justify-between mb-3">
+							<div className="flex items-center gap-2">
+								<span
+									className="inline-block h-3 w-3 rounded-full"
+									style={{
+										backgroundColor:
+											NODE_COLORS[selectedNode.focus.type] ?? "#94a3b8",
+									}}
+								/>
+								<span className="text-xs font-semibold uppercase text-zinc-500">
+									{selectedNode.focus.type}
+								</span>
+							</div>
+							<button
+								type="button"
+								onClick={() => {
+									setSelectedNode(null);
+									setHighlightedId(null);
+								}}
+								className="text-zinc-400 hover:text-zinc-600 text-lg leading-none"
+							>
+								&times;
+							</button>
 						</div>
-						<h4 className="font-semibold text-zinc-900 dark:text-zinc-100">
+						<h4 className="text-lg font-semibold text-zinc-900 mb-2">
 							{selectedNode.focus.name}
 						</h4>
 						{selectedNode.focus.summary && (
-							<p className="text-sm text-zinc-600 dark:text-zinc-400">
+							<p className="text-sm text-zinc-600 leading-relaxed mb-4">
 								{selectedNode.focus.summary}
 							</p>
 						)}
 						{(selectedNode.neighbors ?? []).length > 0 && (
 							<div>
-								<h5 className="mb-1 text-xs font-medium text-zinc-500">Neighbors</h5>
-								<ul className="space-y-1">
-									{(selectedNode.neighbors ?? []).slice(0, 20).map((nb) => (
-										<li key={`${nb.type}:${nb.name}`} className="flex items-center gap-1.5 text-xs">
+								<h5 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">
+									Connections ({(selectedNode.neighbors ?? []).length})
+								</h5>
+								<div className="space-y-1 max-h-96 overflow-y-auto">
+									{(selectedNode.neighbors ?? []).slice(0, 30).map((nb) => (
+										<div
+											key={`${nb.type}:${nb.name}`}
+											className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-zinc-50 cursor-default"
+										>
 											<span
-												className="inline-block h-2 w-2 rounded-full"
-												style={{ backgroundColor: NODE_COLORS[nb.type] ?? "#94a3b8" }}
+												className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
+												style={{
+													backgroundColor: NODE_COLORS[nb.type] ?? "#94a3b8",
+												}}
 											/>
-											<span className="text-zinc-700 dark:text-zinc-300">{nb.name}</span>
-											<span className="text-zinc-400">({nb.type})</span>
-										</li>
+											<span className="text-zinc-800 truncate flex-1">
+												{nb.name}
+											</span>
+											<span className="text-zinc-400 shrink-0">{nb.type}</span>
+										</div>
 									))}
-								</ul>
+								</div>
 							</div>
 						)}
 					</div>
@@ -840,7 +996,7 @@ export default function GraphPage() {
 	const [activeTab, setActiveTab] = useState<Tab>("briefing");
 
 	return (
-		<div className="mx-auto max-w-5xl p-4 md:p-6">
+		<div className={`mx-auto p-4 md:p-6 ${activeTab === "explorer" ? "" : "max-w-5xl"}`}>
 			<div className="space-y-6">
 				<h2 className="text-2xl font-bold">Knowledge Graph</h2>
 
@@ -867,7 +1023,7 @@ export default function GraphPage() {
 				{/* Tab bar */}
 				<div className="border-b border-zinc-200 dark:border-zinc-800">
 					<nav className="-mb-px flex gap-4" aria-label="Graph tabs">
-						{(["briefing", "activity", "explorer", "insights"] as const).map((tab) => (
+						{(["briefing", "activity", "explorer"] as const).map((tab) => (
 							<button
 								key={tab}
 								type="button"
@@ -888,7 +1044,6 @@ export default function GraphPage() {
 				{activeTab === "briefing" && <BriefingTab />}
 				{activeTab === "activity" && <ActivityTab hours={hours} />}
 				{activeTab === "explorer" && <ExplorerTab hours={hours} />}
-				{activeTab === "insights" && <InsightsTab hours={hours} />}
 			</div>
 		</div>
 	);
