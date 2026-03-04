@@ -2,6 +2,7 @@
 
 from distill.intake.models import (  # noqa: F401
     BrowserIntakeConfig,
+    DiscoveryIntakeConfig,
     GmailIntakeConfig,
     IntakeConfig,
     LinkedInIntakeConfig,

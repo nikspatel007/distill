@@ -27,5 +27,18 @@
 		}
 	},
 	"include": ["src", "server", "shared", "vite.config.ts"],
-	"exclude": ["node_modules", "dist"]
+	"exclude": [
+		"node_modules",
+		"dist",
+		"src/routes/blog.tsx",
+		"src/routes/blog.$slug.tsx",
+		"src/routes/journal.tsx",
+		"src/routes/journal.$date.tsx",
+		"src/routes/projects.tsx",
+		"src/routes/projects.$name.tsx",
+		"src/routes/calendar.tsx",
+		"src/routes/publish.tsx",
+		"src/__tests__/Journal.test.tsx",
+		"src/__tests__/Publish.test.tsx"
+	]
 }

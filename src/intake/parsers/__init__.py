@@ -29,6 +29,7 @@ def create_parser(
         source = ContentSource(source)
 
     from distill.intake.parsers.browser import BrowserParser
+    from distill.intake.parsers.discovery import DiscoveryParser
     from distill.intake.parsers.gmail import GmailParser
     from distill.intake.parsers.linkedin import LinkedInParser
     from distill.intake.parsers.reddit import RedditParser
@@ -50,6 +51,7 @@ def create_parser(
         ContentSource.GMAIL: GmailParser,
         ContentSource.SESSION: SessionParser,
         ContentSource.TROOPX: TroopXParser,
+        ContentSource.DISCOVERY: DiscoveryParser,
     }
 
     if source in parsers:

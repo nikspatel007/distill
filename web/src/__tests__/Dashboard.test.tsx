@@ -67,17 +67,6 @@ describe("DailyBriefing", () => {
 		expect(screen.getByText(/12 items/)).toBeInTheDocument();
 	});
 
-	test("displays publish queue with approve button", async () => {
-		renderWithProviders(<DailyBriefing />);
-		await waitFor(() => {
-			expect(screen.getByText("Ready to publish")).toBeInTheDocument();
-		});
-		expect(screen.getByText("Week 6: Building the Pipeline")).toBeInTheDocument();
-		expect(screen.getByText("0/3 published")).toBeInTheDocument();
-		expect(screen.getByText("Approve")).toBeInTheDocument();
-		expect(screen.getByText("Edit in Studio")).toBeInTheDocument();
-	});
-
 	test("displays seeds with develop and dismiss buttons", async () => {
 		renderWithProviders(<DailyBriefing />);
 		await waitFor(() => {
@@ -150,23 +139,21 @@ describe("DailyBriefing", () => {
 			expect(screen.getByText("No journal entry for this date")).toBeInTheDocument();
 		});
 		expect(screen.getByText("No intake digest for this date")).toBeInTheDocument();
-		expect(screen.getByText("Nothing to publish")).toBeInTheDocument();
+		// Publish queue is removed from dashboard — no "Nothing to publish"
+		expect(screen.queryByText("Nothing to publish")).not.toBeInTheDocument();
 		// Seeds card should not render at all when empty
 		expect(screen.queryByText("Ideas")).not.toBeInTheDocument();
 		// Reading section shows hint
 		expect(screen.getByText("distill intake")).toBeInTheDocument();
 	});
 
-	test("displays journal Read more link when full entry exists", async () => {
+	test("displays intake Read more link when full digest exists", async () => {
 		renderWithProviders(<DailyBriefing />);
 		await waitFor(() => {
-			expect(screen.getByText("What you built")).toBeInTheDocument();
+			expect(screen.getByText("What you read")).toBeInTheDocument();
 		});
-		const readMoreLinks = screen.getAllByText("Read more");
-		expect(readMoreLinks.length).toBeGreaterThanOrEqual(1);
-		// Journal Read more link should point to /journal/2026-02-09
-		const journalLink = readMoreLinks[0]!;
-		expect(journalLink.closest("a")).toHaveAttribute("href", "/journal/2026-02-09");
+		const readMoreLink = screen.getByText("Read more");
+		expect(readMoreLink.closest("a")).toHaveAttribute("href", "/reading/2026-02-09");
 	});
 
 	test("displays error state on fetch failure", async () => {

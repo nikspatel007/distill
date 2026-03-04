@@ -6,10 +6,12 @@ import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { getConfig } from "./lib/config.js";
+import { resolveGhostLabels } from "./lib/ghost.js";
 import blog from "./routes/blog.js";
 import calendar from "./routes/calendar.js";
 import config from "./routes/config.js";
 import dashboard from "./routes/dashboard.js";
+import ghost from "./routes/ghost.js";
 import home from "./routes/home.js";
 import journal from "./routes/journal.js";
 import memory from "./routes/memory.js";
@@ -19,6 +21,7 @@ import projects from "./routes/projects.js";
 import publish from "./routes/publish.js";
 import reading from "./routes/reading.js";
 import seeds from "./routes/seeds.js";
+import shares from "./routes/shares.js";
 import studio from "./routes/studio.js";
 
 const app = new Hono();
@@ -31,6 +34,7 @@ app.use("/api/*", cors());
 app.route("/", config);
 app.route("/", pipeline);
 app.route("/", dashboard);
+app.route("/", ghost);
 app.route("/", home);
 app.route("/", journal);
 app.route("/", blog);
@@ -40,6 +44,7 @@ app.route("/", projects);
 app.route("/", publish);
 app.route("/", studio);
 app.route("/", seeds);
+app.route("/", shares);
 app.route("/", notes);
 app.route("/", memory);
 
@@ -67,6 +72,9 @@ if (import.meta.main) {
 	const hasTLS = config.TLS_CERT && config.TLS_KEY;
 
 	console.log(`Reading data from: ${config.OUTPUT_DIR}`);
+
+	// Resolve Ghost site titles from API (async, non-blocking)
+	resolveGhostLabels().catch(() => {});
 
 	// Always start HTTP server
 	Bun.serve({

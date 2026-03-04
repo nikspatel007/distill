@@ -217,6 +217,15 @@ class TroopXSectionConfig(BaseModel):
     max_age_days: int = 7
 
 
+class DiscoverySectionConfig(BaseModel):
+    """[discovery] section — active web search for topics & people."""
+
+    topics: list[str] = Field(default_factory=list)
+    people: list[str] = Field(default_factory=list)
+    max_results_per_query: int = 5
+    max_age_days: int = 3
+
+
 class PostizSectionConfig(BaseModel):
     """[postiz] section."""
 
@@ -266,6 +275,12 @@ class SocialConfig(BaseModel):
     secondary_hashtags: list[str] = Field(default_factory=list)
 
 
+class ServerSectionConfig(BaseModel):
+    """[server] section."""
+
+    hostname: str = ""
+
+
 class IntelligenceConfig(BaseModel):
     """[intelligence] section."""
 
@@ -285,12 +300,14 @@ class DistillConfig(BaseModel):
     reddit: RedditSectionConfig = Field(default_factory=RedditSectionConfig)
     youtube: YouTubeSectionConfig = Field(default_factory=YouTubeSectionConfig)
     troopx: TroopXSectionConfig = Field(default_factory=TroopXSectionConfig)
+    discovery: DiscoverySectionConfig = Field(default_factory=DiscoverySectionConfig)
     postiz: PostizSectionConfig = Field(default_factory=PostizSectionConfig)
     notifications: NotificationConfig = Field(default_factory=NotificationConfig)
     intelligence: IntelligenceConfig = Field(default_factory=IntelligenceConfig)
     projects: list[ProjectConfig] = Field(default_factory=list)
     user: UserConfig = Field(default_factory=UserConfig)
     social: SocialConfig = Field(default_factory=SocialConfig)
+    server: ServerSectionConfig = Field(default_factory=ServerSectionConfig)
     brainstorm: BrainstormConfig = Field(default_factory=BrainstormConfig)
 
     def render_project_context(self) -> str:
@@ -329,7 +346,12 @@ class DistillConfig(BaseModel):
 
     def to_intake_config(self) -> object:
         """Convert to IntakeConfig for the intake pipeline."""
-        from distill.intake.config import IntakeConfig, RSSConfig, TroopXIntakeConfig
+        from distill.intake.config import (
+            DiscoveryIntakeConfig,
+            IntakeConfig,
+            RSSConfig,
+            TroopXIntakeConfig,
+        )
 
         return IntakeConfig(
             rss=RSSConfig(
@@ -341,6 +363,12 @@ class DistillConfig(BaseModel):
                 troopx_home=self.troopx.troopx_home,
                 troopx_project=self.troopx.troopx_project,
                 max_age_days=self.troopx.max_age_days,
+            ),
+            discovery=DiscoveryIntakeConfig(
+                topics=list(self.discovery.topics),
+                people=list(self.discovery.people),
+                max_results_per_query=self.discovery.max_results_per_query,
+                max_age_days=self.discovery.max_age_days,
             ),
             model=self.intake.model,
             target_word_count=self.intake.target_word_count,

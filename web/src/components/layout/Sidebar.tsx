@@ -2,31 +2,25 @@ import { Link } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
 import {
 	BookMarked,
-	BookOpen,
-	FolderKanban,
 	LayoutDashboard,
-	PenLine,
 	Settings,
+	Share2,
 	Wand2,
 } from "lucide-react";
 
 const navItems: { to: string; label: string; icon: LucideIcon }[] = [
-	{ to: "/", label: "Dashboard", icon: LayoutDashboard },
-	{ to: "/projects", label: "Projects", icon: FolderKanban },
-	{ to: "/journal", label: "Journal", icon: BookOpen },
-	{ to: "/blog", label: "Blog", icon: PenLine },
-	{ to: "/reading", label: "Reading", icon: BookMarked },
+	{ to: "/", label: "Home", icon: LayoutDashboard },
 	{ to: "/studio", label: "Studio", icon: Wand2 },
-	{ to: "/settings", label: "Settings", icon: Settings },
+	{ to: "/reading", label: "Reading", icon: BookMarked },
+	{ to: "/shares", label: "Shares", icon: Share2 },
 ];
 
-// Mobile: the 5 things you actually use on your phone
+// Mobile: core tabs, no settings
 const mobileTabItems: { to: string; label: string; icon: LucideIcon }[] = [
 	{ to: "/", label: "Home", icon: LayoutDashboard },
-	{ to: "/journal", label: "Journal", icon: BookOpen },
-	{ to: "/blog", label: "Blog", icon: PenLine },
 	{ to: "/studio", label: "Studio", icon: Wand2 },
 	{ to: "/reading", label: "Reading", icon: BookMarked },
+	{ to: "/shares", label: "Shares", icon: Share2 },
 ];
 
 export function Sidebar() {
@@ -56,6 +50,17 @@ export function Sidebar() {
 						</li>
 					))}
 				</ul>
+				{/* Settings pinned at bottom */}
+				<div className="border-t border-zinc-200 px-2 py-2 dark:border-zinc-800">
+					<Link
+						to="/settings"
+						className="flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800 [&.active]:bg-indigo-50 [&.active]:text-indigo-700 dark:[&.active]:bg-indigo-950 dark:[&.active]:text-indigo-300"
+						activeProps={{ className: "active" }}
+					>
+						<Settings className="h-4 w-4" />
+						Settings
+					</Link>
+				</div>
 				<div className="border-t border-zinc-200 p-4 text-xs text-zinc-400 dark:border-zinc-800">
 					distill v0.1.0
 				</div>

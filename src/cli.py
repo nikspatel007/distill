@@ -1241,7 +1241,7 @@ def intake_cmd(
             "-s",
             help=(
                 "Comma-separated sources"
-                " (rss,browser,substack,linkedin,twitter,reddit,youtube,gmail)."
+                " (rss,browser,substack,linkedin,twitter,reddit,youtube,gmail,discovery)."
                 " Default: all configured."
             ),
         ),
@@ -2039,6 +2039,85 @@ def seed_list(
         tag_str = f" [dim][{', '.join(seed.tags)}][/dim]" if seed.tags else ""
         console.print(f"  {status}{seed.text}{tag_str}")
         console.print(f"    [dim]ID: {seed.id} | {seed.created_at.date()}[/dim]")
+
+
+@app.command(name="share")
+def share_add(
+    url: Annotated[
+        str,
+        typer.Argument(help="URL to share into the next intake digest."),
+    ],
+    note: Annotated[
+        str,
+        typer.Option(
+            "--note",
+            help="Optional note about this URL.",
+        ),
+    ] = "",
+    tags: Annotated[
+        str,
+        typer.Option(
+            "--tags",
+            help="Comma-separated tags.",
+        ),
+    ] = "",
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output directory (where shares are stored).",
+        ),
+    ] = Path("./insights"),
+) -> None:
+    """Share a URL — it will be included in the next intake digest."""
+    from distill.intake import ShareStore
+
+    store = ShareStore(output)
+    tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
+    share = store.add(url, note=note, tags=tag_list)
+    console.print(f"[green]Shared:[/green] {share.url}")
+    if note:
+        console.print(f"  Note: {note}")
+    if tag_list:
+        console.print(f"  Tags: {', '.join(tag_list)}")
+    console.print(f"  ID: {share.id}")
+
+
+@app.command(name="shares")
+def share_list(
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output directory (where shares are stored).",
+        ),
+    ] = Path("./insights"),
+    show_all: Annotated[
+        bool,
+        typer.Option(
+            "--all",
+            help="Show all shares, including used ones.",
+        ),
+    ] = False,
+) -> None:
+    """List pending shared URLs."""
+    from distill.intake import ShareStore
+
+    store = ShareStore(output)
+    shares = store.list_all() if show_all else store.list_pending()
+
+    if not shares:
+        console.print("[yellow]No shares found.[/yellow]")
+        return
+
+    for share in shares:
+        status = "[dim](used)[/dim] " if share.used else ""
+        tag_str = f" [dim][{', '.join(share.tags)}][/dim]" if share.tags else ""
+        note_str = f" — {share.note}" if share.note else ""
+        console.print(f"  {status}{share.url}{note_str}{tag_str}")
+        console.print(f"    [dim]ID: {share.id} | {share.created_at.date()}[/dim]")
 
 
 @app.command(name="note")

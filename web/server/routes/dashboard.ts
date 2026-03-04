@@ -17,23 +17,37 @@ app.get("/api/dashboard", async (c) => {
 	const { OUTPUT_DIR } = getConfig();
 
 	// Load data files in parallel
-	const [memory, blogMemory, blogState, journalEntries, intakeFiles, seedsRaw, notesRaw] =
-		await Promise.all([
-			readJson(join(OUTPUT_DIR, ".distill-memory.json"), UnifiedMemorySchema),
-			readJson(join(OUTPUT_DIR, "blog", ".blog-memory.json"), BlogMemorySchema),
-			readJson(join(OUTPUT_DIR, "blog", ".blog-state.json"), BlogStateSchema),
-			loadJournalEntries(OUTPUT_DIR),
-			listFiles(join(OUTPUT_DIR, "intake"), /^intake-.*\.md$/),
-			readFile(join(OUTPUT_DIR, ".distill-seeds.json"), "utf-8").catch(() => "[]"),
-			readFile(join(OUTPUT_DIR, ".distill-notes.json"), "utf-8").catch(() => "[]"),
-		]);
+	const [
+		memory,
+		blogMemory,
+		blogState,
+		journalEntries,
+		intakeFiles,
+		seedsRaw,
+		sharesRaw,
+		notesRaw,
+	] = await Promise.all([
+		readJson(join(OUTPUT_DIR, ".distill-memory.json"), UnifiedMemorySchema),
+		readJson(join(OUTPUT_DIR, "blog", ".blog-memory.json"), BlogMemorySchema),
+		readJson(join(OUTPUT_DIR, "blog", ".blog-state.json"), BlogStateSchema),
+		loadJournalEntries(OUTPUT_DIR),
+		listFiles(join(OUTPUT_DIR, "intake"), /^intake-.*\.md$/),
+		readFile(join(OUTPUT_DIR, ".distill-seeds.json"), "utf-8").catch(() => "[]"),
+		readFile(join(OUTPUT_DIR, ".distill-shares.json"), "utf-8").catch(() => "[]"),
+		readFile(join(OUTPUT_DIR, ".distill-notes.json"), "utf-8").catch(() => "[]"),
+	]);
 
-	// Count seeds and notes
+	// Count seeds, shares, and notes
 	let seedCount = 0;
+	let shareCount = 0;
 	let activeNoteCount = 0;
 	try {
 		const seeds = JSON.parse(seedsRaw) as Array<{ used?: boolean }>;
 		seedCount = seeds.filter((s) => !s.used).length;
+	} catch {}
+	try {
+		const shares = JSON.parse(sharesRaw) as Array<{ used?: boolean }>;
+		shareCount = shares.filter((s) => !s.used).length;
 	} catch {}
 	try {
 		const notes = JSON.parse(notesRaw) as Array<{ used?: boolean }>;
@@ -120,6 +134,7 @@ app.get("/api/dashboard", async (c) => {
 				platforms: p.platforms ?? [],
 			})),
 		seedCount,
+		shareCount,
 		activeNoteCount,
 	};
 

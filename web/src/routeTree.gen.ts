@@ -1,16 +1,11 @@
 import { createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
 import { RootLayout } from "./routes/__root.js";
 import Dashboard from "./routes/index.js";
-import ProjectList from "./routes/projects.js";
-import ProjectDetail from "./routes/projects.$name.js";
-import JournalList from "./routes/journal.js";
-import JournalDetail from "./routes/journal.$date.js";
-import BlogList from "./routes/blog.js";
-import BlogDetail from "./routes/blog.$slug.js";
 import Reading from "./routes/reading.js";
 import ReadingDetail from "./routes/reading.$date.js";
-import Calendar from "./routes/calendar.js";
-import Publish from "./routes/publish.js";
+import Share from "./routes/share.js";
+import ShareDetail from "./routes/shares.$id.js";
+import Shares from "./routes/shares.js";
 import Studio from "./routes/studio.js";
 import StudioDetail from "./routes/studio.$slug.js";
 import Settings from "./routes/settings.js";
@@ -21,42 +16,6 @@ const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
   component: Dashboard,
-});
-
-const projectsRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/projects",
-  component: ProjectList,
-});
-
-const projectDetailRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/projects/$name",
-  component: ProjectDetail,
-});
-
-const journalRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/journal",
-  component: JournalList,
-});
-
-const journalDetailRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/journal/$date",
-  component: JournalDetail,
-});
-
-const blogRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/blog",
-  component: BlogList,
-});
-
-const blogDetailRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/blog/$slug",
-  component: BlogDetail,
 });
 
 const readingRoute = createRoute({
@@ -71,16 +30,22 @@ const readingDetailRoute = createRoute({
   component: ReadingDetail,
 });
 
-const calendarRoute = createRoute({
+const shareRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/calendar",
-  component: Calendar,
+  path: "/share",
+  component: Share,
 });
 
-const publishRoute = createRoute({
+const sharesRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/publish",
-  component: Publish,
+  path: "/shares",
+  component: Shares,
+});
+
+const shareDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/shares/$id",
+  component: ShareDetail,
 });
 
 const studioRoute = createRoute({
@@ -103,16 +68,11 @@ const settingsRoute = createRoute({
 
 export const routeTree = rootRoute.addChildren([
   indexRoute,
-  projectsRoute,
-  projectDetailRoute,
-  journalRoute,
-  journalDetailRoute,
-  blogRoute,
-  blogDetailRoute,
   readingRoute,
   readingDetailRoute,
-  calendarRoute,
-  publishRoute,
+  shareRoute,
+  sharesRoute,
+  shareDetailRoute,
   studioRoute,
   studioDetailRoute,
   settingsRoute,

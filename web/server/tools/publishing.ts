@@ -90,6 +90,7 @@ export async function publishContent(params: {
 			await createPost(postContent, [integration.id], {
 				postType: params.mode,
 				scheduledAt: params.scheduled_at,
+				provider: providerName,
 			});
 
 			// Mark as published in ContentStore

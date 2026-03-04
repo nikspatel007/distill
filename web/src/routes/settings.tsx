@@ -260,6 +260,9 @@ function SourcesTab() {
 				)}
 			</div>
 
+			{/* Mobile Sharing */}
+			<MobileSharingSection />
+
 			{/* Coming Soon sources */}
 			{comingSoonSources.length > 0 && (
 				<div className={sectionClass}>
@@ -744,6 +747,137 @@ function EditorialTab() {
 						</div>
 					))}
 				</div>
+			)}
+		</div>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Mobile Sharing Section (used in Sources tab)
+// ---------------------------------------------------------------------------
+
+function MobileSharingSection() {
+	const queryClient = useQueryClient();
+	const [copied, setCopied] = useState(false);
+
+	const { data: config } = useQuery<DistillConfig>({
+		queryKey: ["config"],
+		queryFn: async () => {
+			const res = await fetch("/api/config");
+			if (!res.ok) throw new Error("Failed to load config");
+			return res.json();
+		},
+	});
+
+	const { data: shareUrlData } = useQuery<{ hostname: string; port: number; shareUrl: string }>({
+		queryKey: ["share-url"],
+		queryFn: async () => {
+			const res = await fetch("/api/config/share-url");
+			if (!res.ok) throw new Error("Failed to load share URL");
+			return res.json();
+		},
+	});
+
+	const [hostname, setHostname] = useState("");
+
+	useEffect(() => {
+		if (!config) return;
+		const srv = config as Record<string, unknown>;
+		const serverCfg = srv.server as Record<string, unknown> | undefined;
+		setHostname((serverCfg?.hostname as string) ?? "");
+	}, [config]);
+
+	const saveMutation = useMutation({
+		mutationFn: async (updates: Record<string, unknown>) => {
+			const res = await fetch("/api/config", {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(updates),
+			});
+			if (!res.ok) throw new Error("Failed to save config");
+			return res.json();
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["config"] });
+			queryClient.invalidateQueries({ queryKey: ["share-url"] });
+		},
+	});
+
+	const shareUrl = shareUrlData?.shareUrl ?? "";
+	const displayUrl = hostname
+		? `http://${hostname}:${shareUrlData?.port ?? 6107}/api/shares`
+		: "";
+
+	function handleCopy() {
+		if (displayUrl) {
+			navigator.clipboard.writeText(displayUrl);
+			setCopied(true);
+			setTimeout(() => setCopied(false), 2000);
+		}
+	}
+
+	return (
+		<div className={sectionClass}>
+			<h3 className="text-base font-semibold">Mobile Sharing</h3>
+			<p className="text-sm text-zinc-500">
+				Share URLs from your phone to include in the next intake digest. Uses Tailscale or
+				any private network.
+			</p>
+			<label className={labelClass}>
+				Server hostname (Tailscale name or IP)
+				<div className="flex gap-2">
+					<input
+						type="text"
+						value={hostname}
+						onChange={(e) => setHostname(e.target.value)}
+						placeholder="my-mac.tail12345.ts.net"
+						className={`flex-1 ${inputClass}`}
+					/>
+					<button
+						type="button"
+						onClick={() => saveMutation.mutate({ server: { hostname } })}
+						disabled={saveMutation.isPending}
+						className={saveButtonClass}
+					>
+						Save
+					</button>
+				</div>
+			</label>
+			{displayUrl && (
+				<>
+					<div className="rounded-md bg-zinc-50 p-3 dark:bg-zinc-800">
+						<p className="text-xs font-medium text-zinc-500 mb-1">Your sharing URL:</p>
+						<code className="text-sm text-indigo-600 dark:text-indigo-400 break-all">
+							{displayUrl}
+						</code>
+						<button
+							type="button"
+							onClick={handleCopy}
+							className="ml-2 text-xs text-zinc-500 hover:text-zinc-700"
+						>
+							{copied ? "Copied!" : "Copy"}
+						</button>
+					</div>
+					<details className="text-sm">
+						<summary className="cursor-pointer font-medium text-zinc-600 dark:text-zinc-400">
+							iOS Shortcut setup
+						</summary>
+						<ol className="mt-2 ml-4 list-decimal space-y-1 text-zinc-500">
+							<li>Open Shortcuts app, tap "+" to create a new shortcut</li>
+							<li>Add "Receive <strong>any</strong> input from <strong>Share Sheet</strong>"</li>
+							<li>Add "Get URLs from Input"</li>
+							<li>
+								Add "Get Contents of URL":<br />
+								Method: <strong>POST</strong><br />
+								URL: <code className="text-xs bg-zinc-100 dark:bg-zinc-700 px-1 rounded">{displayUrl}</code><br />
+								Headers: <code className="text-xs bg-zinc-100 dark:bg-zinc-700 px-1 rounded">Content-Type: application/json</code><br />
+								Body: JSON <code className="text-xs bg-zinc-100 dark:bg-zinc-700 px-1 rounded">{'{"url": "URLs"}'}</code>
+							</li>
+							<li>Add "Show Notification": "Saved to Distill"</li>
+							<li>Name it "Send to Distill"</li>
+						</ol>
+					</details>
+				</>
 			)}
 		</div>
 	);

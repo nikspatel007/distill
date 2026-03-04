@@ -483,7 +483,12 @@ BLOG_SYSTEM_PROMPTS: dict[BlogPostType, str] = {
         " it anyway, one good session, unresolved reflection\n"
         '- Ending with "the question remains open" or "tomorrow'
         ' will be different" or any deferred resolution\n'
-        "- Numbered or bulleted takeaways or advice lists\n\n"
+        "- Numbered or bulleted takeaways or advice lists\n"
+        '- "X is not Y. It is Z" / "X are not Y. They are Z" reframing'
+        " constructions. Just state what the thing IS. Don't define it"
+        " by negating something else first.\n"
+        '- "not just X" followed by "they are Y" or "it is Y". Say what'
+        " it is directly.\n\n"
         "Target {word_count} words." + _OUTPUT_INSTRUCTION
     ),
     BlogPostType.THEMATIC: (
@@ -520,7 +525,12 @@ BLOG_SYSTEM_PROMPTS: dict[BlogPostType, str] = {
         "- The confession arc (built, flaw, denial, one good session)\n"
         '- Ending with unresolved deferral ("tomorrow..." / "the'
         ' question remains...")\n'
-        "- Bulleted advice or numbered takeaway lists\n\n"
+        "- Bulleted advice or numbered takeaway lists\n"
+        '- "X is not Y. It is Z" / "X are not Y. They are Z" reframing'
+        " constructions. Just state what the thing IS. Don't define by"
+        " negating something else first.\n"
+        '- "not just X" followed by "they are Y" or "it is Y". Say what'
+        " it is directly.\n\n"
         "Target {word_count} words. Structure the essay however"
         " the argument demands." + _OUTPUT_INSTRUCTION
     ),

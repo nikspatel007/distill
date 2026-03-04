@@ -66,17 +66,66 @@ export async function listIntegrations(): Promise<
 	}));
 }
 
+/**
+ * Split thread content into separate tweet entries.
+ * Supports `---` delimiters (preferred) or numbered tweets (`1/ ...`, `2/ ...`).
+ */
+function splitThread(content: string): Array<{ content: string; image: unknown[] }> {
+	const stripped = content.trim();
+
+	// Primary: split on --- delimiter lines
+	if (/^\s*---\s*$/m.test(stripped)) {
+		const parts = stripped.split(/\n\s*---\s*\n/);
+		const tweets = parts.map((p) => p.trim()).filter(Boolean);
+		if (tweets.length > 1) {
+			return tweets.map((t) => ({ content: t, image: [] }));
+		}
+	}
+
+	// Fallback: numbered tweets (1/ ... 2/ ...)
+	const parts = stripped.split(/\n*(?=\d+[/)]\s)/);
+	const tweets = parts
+		.map((p) => p.replace(/^\d+[/)]\s*/, "").trim())
+		.filter(Boolean);
+	if (tweets.length > 1) {
+		return tweets.map((t) => ({ content: t, image: [] }));
+	}
+
+	// Single post
+	return [{ content: stripped, image: [] }];
+}
+
 export async function createPost(
 	content: string,
 	integrationIds: string[],
-	options: { postType?: string; scheduledAt?: string; imageUrl?: string } = {},
+	options: {
+		postType?: string;
+		scheduledAt?: string;
+		imageUrl?: string;
+		provider?: string;
+	} = {},
 ): Promise<unknown> {
 	const imageArray = options.imageUrl ? [{ url: options.imageUrl }] : [];
-	const posts = integrationIds.map((id) => ({
-		integration: { id },
-		value: [{ content, image: imageArray }],
-		settings: { __type: "" },
-	}));
+	const provider = options.provider ?? "";
+
+	const posts = integrationIds.map((id) => {
+		// Platform-specific settings (matches Python Postiz client)
+		const settings: Record<string, string> = { __type: provider };
+		if (provider === "x") {
+			settings["who_can_reply_post"] = "everyone";
+		}
+
+		// X: split content into thread entries; others: single entry
+		const value =
+			provider === "x" ? splitThread(content) : [{ content, image: imageArray }];
+
+		// Attach images to first thread entry for X
+		if (provider === "x" && value.length > 0 && imageArray.length > 0) {
+			value[0]!.image = imageArray;
+		}
+
+		return { integration: { id }, value, settings };
+	});
 
 	return postizRequest({
 		method: "POST",

@@ -34,6 +34,7 @@ class ContentSource(StrEnum):
     SEEDS = "seeds"
     MANUAL = "manual"
     TROOPX = "troopx"
+    DISCOVERY = "discovery"
 
 
 class ContentType(StrEnum):
@@ -251,6 +252,19 @@ class TroopXIntakeConfig(BaseModel):
         )
 
 
+class DiscoveryIntakeConfig(BaseModel):
+    """Discovery parser configuration — active web search for topics & people."""
+
+    topics: list[str] = Field(default_factory=list)
+    people: list[str] = Field(default_factory=list)
+    max_results_per_query: int = 5
+    max_age_days: int = 3
+
+    @property
+    def is_configured(self) -> bool:
+        return bool(self.topics or self.people)
+
+
 class IntakeConfig(BaseModel):
     """Top-level intake configuration."""
 
@@ -264,6 +278,7 @@ class IntakeConfig(BaseModel):
     twitter: TwitterIntakeConfig = Field(default_factory=TwitterIntakeConfig)
     session: SessionIntakeConfig = Field(default_factory=SessionIntakeConfig)
     troopx: TroopXIntakeConfig = Field(default_factory=TroopXIntakeConfig)
+    discovery: DiscoveryIntakeConfig = Field(default_factory=DiscoveryIntakeConfig)
 
     model: str | None = None
     claude_timeout: int = 180
@@ -399,6 +414,21 @@ class SeedIdea(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC))
     used: bool = False
     used_in: str | None = None
+
+
+class ShareItem(BaseModel):
+    """A URL shared from phone or CLI for the next intake digest."""
+
+    id: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])
+    url: str
+    note: str = ""
+    tags: list[str] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC))
+    used: bool = False
+    used_in: str | None = None
+    title: str = ""
+    author: str = ""
+    excerpt: str = ""
 
 
 # ---------------------------------------------------------------------------

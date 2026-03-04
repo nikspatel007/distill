@@ -285,6 +285,105 @@ def call_claude(
     )
 
 
+_TOOL_TYPE_MAP: dict[str, str] = {
+    "WebSearch": "web_search_20250305",
+    "WebFetch": "web_fetch_20250910",
+}
+
+
+def _call_anthropic_with_tools(
+    system_prompt: str,
+    user_prompt: str,
+    *,
+    allowed_tools: list[str],
+    model: str | None = None,
+    timeout: int = 120,
+    label: str = "tool-query",
+) -> str:
+    """Call Claude via the Anthropic API with server-side tools (web_search, web_fetch)."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
+        raise LLMError("ANTHROPIC_API_KEY not set")
+
+    client = anthropic.Anthropic(api_key=api_key, timeout=timeout)  # type: ignore[union-attr]
+    resolved_model = _resolve_model(model)
+
+    # Server-side tools use type as the identifier, name must match the canonical name
+    _CANONICAL_NAME: dict[str, str] = {
+        "WebSearch": "web_search",
+        "WebFetch": "web_fetch",
+    }
+
+    tools: list[dict[str, object]] = []
+    for tool_name in allowed_tools:
+        tool_type = _TOOL_TYPE_MAP.get(tool_name)
+        if tool_type:
+            canonical = _CANONICAL_NAME.get(tool_name, tool_name.lower())
+            tools.append({"type": tool_type, "name": canonical})
+
+    if not tools:
+        raise LLMError(f"No valid tool types for: {allowed_tools}")
+
+    logger.debug("Calling Anthropic API with tools=%s model=%s (%s)", allowed_tools, resolved_model, label)
+
+    response = client.messages.create(  # type: ignore[arg-type]
+        model=resolved_model,
+        max_tokens=8192,
+        system=system_prompt,
+        tools=tools,
+        messages=[{"role": "user", "content": user_prompt}],
+    )
+
+    text_parts: list[str] = []
+    for block in response.content:
+        if block.type == "text":
+            text_parts.append(block.text)
+
+    result = "".join(text_parts).strip()
+    if not result:
+        raise LLMError(f"Anthropic API returned empty response (label={label})")
+    return result
+
+
+def call_claude_with_tools(
+    system_prompt: str,
+    user_prompt: str,
+    *,
+    allowed_tools: list[str],
+    model: str | None = None,
+    label: str = "tool-query",
+) -> str:
+    """Call Claude with server-side tools (web search, web fetch) via the Anthropic API.
+
+    Args:
+        system_prompt: System prompt for the LLM.
+        user_prompt: User/content prompt.
+        allowed_tools: Tool names (e.g. ["WebSearch", "WebFetch"]).
+        model: Optional model override.
+        label: Label for logging.
+
+    Returns:
+        The LLM response text (stripped).
+
+    Raises:
+        LLMError: If the Anthropic API is unavailable or the call fails.
+    """
+    if not _HAS_ANTHROPIC:
+        raise LLMError("anthropic package not installed — required for tool-based queries")
+    try:
+        return _call_anthropic_with_tools(
+            system_prompt,
+            user_prompt,
+            allowed_tools=allowed_tools,
+            model=model,
+            label=label,
+        )
+    except LLMError:
+        raise
+    except Exception as exc:
+        raise LLMError(f"Anthropic API tool call failed (label={label}): {exc}") from exc
+
+
 # ---------------------------------------------------------------------------
 # JSON output helpers
 # ---------------------------------------------------------------------------

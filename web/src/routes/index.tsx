@@ -33,12 +33,6 @@ function isToday(dateStr: string): boolean {
 	return dateStr === today;
 }
 
-const statusBadgeClass: Record<string, string> = {
-	draft: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
-	approved: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-	published: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-};
-
 export default function DailyBriefing() {
 	const [date, setDate] = useState("today");
 	const [readingOpen, setReadingOpen] = useState(true);
@@ -98,20 +92,6 @@ export default function DailyBriefing() {
 		},
 	});
 
-	const approveItem = useMutation({
-		mutationFn: async (slug: string) => {
-			const res = await fetch(`/api/studio/items/${slug}/status`, {
-				method: "PUT",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ status: "ready" }),
-			});
-			if (!res.ok) throw new Error("Failed to approve");
-		},
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["home", date] });
-		},
-	});
-
 	const brainstorm = useMutation({
 		mutationFn: async () => {
 			// 1. Assemble today's context
@@ -154,7 +134,6 @@ export default function DailyBriefing() {
 
 	const journal = data.journal;
 	const intake = data.intake;
-	const publishQueue = data.publishQueue ?? [];
 	const seeds = (data.seeds ?? []).filter((s) => !s.used);
 	const readingItems = data.readingItems ?? [];
 
@@ -305,15 +284,6 @@ export default function DailyBriefing() {
 								</li>
 							))}
 						</ul>
-						{journal.hasFullEntry && (
-							<Link
-								to="/journal/$date"
-								params={{ date: journal.date }}
-								className="mt-3 inline-block text-sm font-medium text-indigo-600 hover:text-indigo-700"
-							>
-								Read more
-							</Link>
-						)}
 					</>
 				) : (
 					<p className="mt-2 text-sm text-zinc-400">No journal entry for this date</p>
@@ -347,68 +317,6 @@ export default function DailyBriefing() {
 					</>
 				) : (
 					<p className="mt-2 text-sm text-zinc-400">No intake digest for this date</p>
-				)}
-			</section>
-
-			{/* Publish queue card */}
-			<section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-				<h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-					Ready to publish
-				</h2>
-				{publishQueue.length > 0 ? (
-					<ul className="mt-3 space-y-3">
-						{publishQueue.map((item) => (
-							<li
-								key={item.slug}
-								className="flex items-center justify-between gap-2"
-							>
-								<div className="min-w-0 flex-1">
-									<span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-										{item.title}
-									</span>
-									<div className="mt-0.5 flex items-center gap-2">
-										<span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs dark:bg-zinc-800">
-											{item.type}
-										</span>
-										<span
-											className={`rounded px-1.5 py-0.5 text-xs ${statusBadgeClass[item.status] ?? ""}`}
-										>
-											{item.platforms_published}/{item.platforms_total} published
-										</span>
-									</div>
-								</div>
-								<div className="flex items-center gap-2 shrink-0">
-									{item.status !== "published" && (
-										<button
-											type="button"
-											onClick={() => approveItem.mutate(item.slug)}
-											disabled={approveItem.isPending}
-											className={
-												approveItem.variables === item.slug &&
-												approveItem.isSuccess
-													? "rounded bg-green-600 px-3 py-1 text-xs font-medium text-white"
-													: "rounded bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-											}
-										>
-											{approveItem.variables === item.slug &&
-											approveItem.isSuccess
-												? "Approved"
-												: "Approve"}
-										</button>
-									)}
-									<Link
-										to="/studio/$slug"
-										params={{ slug: item.slug }}
-										className="text-xs font-medium text-indigo-600 hover:text-indigo-700"
-									>
-										Edit in Studio
-									</Link>
-								</div>
-							</li>
-						))}
-					</ul>
-				) : (
-					<p className="mt-2 text-sm text-zinc-400">Nothing to publish</p>
 				)}
 			</section>
 

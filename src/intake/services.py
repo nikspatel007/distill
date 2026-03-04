@@ -31,6 +31,7 @@ from distill.intake.models import (
     IntakeState,
     IntakeSynthesisError,
     SeedIdea,
+    ShareItem,
     TopicCluster,
 )
 from distill.intake.prompts import get_daily_intake_prompt, get_unified_intake_prompt
@@ -114,6 +115,102 @@ class SeedStore:
                 published_at=seed.created_at,
                 saved_at=seed.created_at,
                 metadata={"seed_id": seed.id, "seed_type": "idea"},
+            )
+            items.append(item)
+        return items
+
+
+# ===========================================================================
+# Shares  (URL sharing from phone/CLI)
+# ===========================================================================
+
+SHARES_FILENAME = ".distill-shares.json"
+
+
+class ShareStore:
+    """Manages shared URLs in a simple JSON file."""
+
+    def __init__(self, path: Path) -> None:
+        self._path = path / SHARES_FILENAME
+        self._shares: list[ShareItem] = []
+        self._load()
+
+    def _load(self) -> None:
+        if not self._path.exists():
+            self._shares = []
+            return
+        try:
+            data = json.loads(self._path.read_text(encoding="utf-8"))
+            self._shares = [ShareItem.model_validate(s) for s in data]
+        except (json.JSONDecodeError, ValueError, KeyError):
+            logger.warning("Corrupt shares file at %s, starting fresh", self._path)
+            self._shares = []
+
+    def _save(self) -> None:
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        data = [s.model_dump(mode="json") for s in self._shares]
+        self._path.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
+
+    def add(self, url: str, note: str = "", tags: list[str] | None = None) -> ShareItem:
+        """Add a new shared URL."""
+        share = ShareItem(url=url, note=note, tags=tags or [])
+        self._shares.append(share)
+        self._save()
+        return share
+
+    def list_pending(self) -> list[ShareItem]:
+        """Return all unused shares."""
+        return [s for s in self._shares if not s.used]
+
+    def list_all(self) -> list[ShareItem]:
+        """Return all shares."""
+        return list(self._shares)
+
+    def mark_used(self, share_id: str, used_in: str) -> None:
+        """Mark a share as consumed by a digest."""
+        for share in self._shares:
+            if share.id == share_id:
+                share.used = True
+                share.used_in = used_in
+                self._save()
+                return
+
+    def remove(self, share_id: str) -> None:
+        """Remove a share by ID."""
+        self._shares = [s for s in self._shares if s.id != share_id]
+        self._save()
+
+    def update_enrichment(
+        self, share_id: str, title: str = "", author: str = "", excerpt: str = ""
+    ) -> None:
+        """Store fetched title, author, and excerpt back on a share."""
+        for share in self._shares:
+            if share.id == share_id:
+                if title:
+                    share.title = title
+                if author:
+                    share.author = author
+                if excerpt:
+                    share.excerpt = excerpt
+                self._save()
+                return
+
+    def to_content_items(self) -> list[ContentItem]:
+        """Convert unused shares to ContentItems for the intake pipeline."""
+        items: list[ContentItem] = []
+        for share in self.list_pending():
+            item = ContentItem(
+                id=f"share-{share.id}",
+                url=share.url,
+                title=share.url,
+                body="",
+                source=ContentSource.MANUAL,
+                source_id=share.id,
+                content_type=ContentType.ARTICLE,
+                tags=share.tags,
+                published_at=share.created_at,
+                saved_at=share.created_at,
+                metadata={"share_id": share.id, "note": share.note},
             )
             items.append(item)
         return items
@@ -962,7 +1059,7 @@ def fetch_full_text(url: str, timeout: int = 15) -> FullTextResult:
             html,
             include_comments=False,
             include_tables=True,
-            output_format="txt",
+            output_format="markdown",
         )
     except Exception as exc:
         logger.debug("Extraction failed for %s: %s", url, exc)
@@ -984,6 +1081,150 @@ def fetch_full_text(url: str, timeout: int = 15) -> FullTextResult:
         body=extracted,
         author=author,
         title=title,
+        word_count=word_count,
+        success=True,
+    )
+
+
+def _is_x_url(url: str) -> bool:
+    """Check if a URL is an X/Twitter post."""
+    from urllib.parse import urlparse
+
+    host = urlparse(url).hostname or ""
+    return host in ("x.com", "twitter.com", "www.x.com", "www.twitter.com")
+
+
+def _extract_tweet_id(url: str) -> str | None:
+    """Extract tweet/post ID from an X/Twitter URL."""
+    import re
+
+    match = re.search(r"/status/(\d+)", url)
+    return match.group(1) if match else None
+
+
+def _extract_screen_name(url: str) -> str:
+    """Extract screen name from an X/Twitter URL."""
+    from urllib.parse import urlparse
+
+    parts = urlparse(url).path.strip("/").split("/")
+    return parts[0] if parts else ""
+
+
+def fetch_x_post(url: str, timeout: int = 15) -> FullTextResult:
+    """Fetch an X/Twitter post via the FixTweet API.
+
+    Handles regular tweets and X Articles (long-form posts that link
+    via t.co to ``x.com/i/article/...``).  For articles, resolves the
+    t.co redirect and fetches the linked content with trafilatura.
+
+    Args:
+        url: An ``x.com`` or ``twitter.com`` status URL.
+        timeout: HTTP timeout in seconds.
+
+    Returns:
+        :class:`FullTextResult` with tweet text (and any resolved
+        article content appended).
+    """
+    tweet_id = _extract_tweet_id(url)
+    screen_name = _extract_screen_name(url)
+    if not tweet_id or not screen_name:
+        return FullTextResult(error="Could not parse tweet ID from URL")
+
+    # Call FixTweet API
+    api_url = f"https://api.fxtwitter.com/{screen_name}/status/{tweet_id}"
+    try:
+        request = Request(api_url, headers={"User-Agent": _USER_AGENT})  # noqa: S310
+        with urlopen(request, timeout=timeout) as response:  # noqa: S310
+            import json
+
+            data = json.loads(response.read().decode("utf-8"))
+    except (URLError, TimeoutError, OSError) as exc:
+        logger.debug("FixTweet API failed for %s: %s", url, exc)
+        return FullTextResult(error=f"FixTweet fetch failed: {exc}")
+
+    tweet = data.get("tweet", {})
+    author_name = tweet.get("author", {}).get("name", "")
+    tweet_text = tweet.get("text", "")
+
+    # Check for X Article (long-form post)
+    article = tweet.get("article")
+    if isinstance(article, dict):
+        article_title = article.get("title", "")
+        # Extract text from content blocks, preserving structure as markdown
+        content = article.get("content", {})
+        blocks = content.get("blocks", []) if isinstance(content, dict) else []
+        md_parts: list[str] = []
+        if article_title:
+            md_parts.append(f"# {article_title}\n")
+        for b in blocks:
+            text = b.get("text", "")
+            if not text:
+                continue
+            btype = b.get("type", "")
+            if btype == "heading":
+                md_parts.append(f"## {text}")
+            elif btype == "list_item":
+                md_parts.append(f"- {text}")
+            else:
+                md_parts.append(text)
+        article_text = "\n\n".join(md_parts)
+
+        if article_text:
+            return FullTextResult(
+                body=article_text,
+                author=author_name,
+                title=article_title or f"@{screen_name} article",
+                word_count=len(article_text.split()),
+                success=True,
+            )
+
+    # Regular tweet: collect embedded URLs
+    embedded_urls: list[str] = []
+    for entity_url in tweet.get("urls", []):
+        resolved = entity_url.get("url", "")
+        if resolved and not resolved.startswith("https://x.com/") and not resolved.startswith("https://twitter.com/"):
+            embedded_urls.append(resolved)
+
+    # Resolve t.co links from raw_text
+    raw_text = tweet.get("raw_text", {}).get("text", "")
+    if raw_text and not tweet_text and not embedded_urls:
+        import re
+
+        tco_links = re.findall(r"https://t\.co/\w+", raw_text)
+        for tco in tco_links:
+            try:
+                req = Request(tco, headers={"User-Agent": _USER_AGENT})  # noqa: S310
+                with urlopen(req, timeout=timeout) as resp:  # noqa: S310
+                    resolved_url = resp.url
+                    if resolved_url and resolved_url not in embedded_urls:
+                        embedded_urls.append(resolved_url)
+            except Exception:
+                pass
+
+    # Build the body as markdown: tweet text + any fetched article content
+    parts: list[str] = []
+    if tweet_text:
+        parts.append(f"> {tweet_text.replace(chr(10), chr(10) + '> ')}")
+
+    # Fetch linked articles with trafilatura (already returns markdown)
+    for linked_url in embedded_urls:
+        if "x.com/" in linked_url or "twitter.com/" in linked_url:
+            continue
+        linked_result = fetch_full_text(linked_url, timeout=timeout)
+        if linked_result.success:
+            link_title = linked_result.title or linked_url
+            parts.append(f"---\n\n### [{link_title}]({linked_url})\n\n{linked_result.body}")
+
+    if not parts:
+        return FullTextResult(error="No content extracted from tweet")
+
+    body = "\n\n".join(parts)
+    word_count = len(body.split())
+
+    return FullTextResult(
+        body=body,
+        author=author_name,
+        title=f"@{screen_name}: {tweet_text[:80]}..." if len(tweet_text) > 80 else f"@{screen_name}: {tweet_text}" if tweet_text else f"@{screen_name} post",
         word_count=word_count,
         success=True,
     )
@@ -1034,7 +1275,11 @@ def enrich_items(
         if enriched_count > 0:
             time.sleep(_REQUEST_DELAY)
 
-        result = fetch_full_text(item.url)
+        # Use X-specific fetcher for Twitter/X URLs
+        if _is_x_url(item.url):
+            result = fetch_x_post(item.url)
+        else:
+            result = fetch_full_text(item.url)
         if not result.success:
             logger.debug("Could not enrich '%s': %s", item.title or item.url, result.error)
             continue
@@ -1737,15 +1982,40 @@ def _render_seed_section(seeds: list[ContentItem]) -> str:
 
 
 def _render_content_section(items: list[ContentItem]) -> str:
-    """Render external content into a 'What You Read' section."""
+    """Render external content into a 'What You Read' section.
+
+    User-shared items (source=MANUAL) are rendered first in a dedicated
+    section so the LLM prioritizes them.  Remaining items are sorted by
+    recency (newest first).
+    """
     if not items:
         return ""
 
-    sorted_items = sorted(items, key=lambda i: i.published_at or datetime.min, reverse=True)
-    prompt_items = sorted_items[:50]
+    # Separate user-shared items from feed items
+    shared = [i for i in items if i.source == ContentSource.MANUAL]
+    feed = [i for i in items if i.source != ContentSource.MANUAL]
 
-    parts: list[str] = ["# What You Read Today\n"]
-    for item in prompt_items:
+    # Sort feed items by recency
+    feed_sorted = sorted(feed, key=lambda i: i.published_at or datetime.min, reverse=True)
+    feed_items = feed_sorted[:50]
+
+    parts: list[str] = []
+
+    # Shared items first with priority signal
+    if shared:
+        parts.append(
+            "# Personally Shared Links (PRIORITY)\n\n"
+            "You saved these links yourself. They reflect your current "
+            "interests. Cover each one substantively in the digest — "
+            "do not skip them.\n"
+        )
+        for item in shared:
+            parts.append(_render_item(item))
+        parts.append("# What You Read Today\n")
+    else:
+        parts.append("# What You Read Today\n")
+
+    for item in feed_items:
         parts.append(_render_item(item))
 
     return "\n\n---\n\n".join(parts)
@@ -1828,27 +2098,38 @@ def prepare_daily_context(
                 tags.append(tag)
                 seen_tags.add(tag)
 
+    # Separate user-shared items — these always get their own priority section
+    shared_items = [i for i in content_items if i.source == ContentSource.MANUAL]
+    feed_items = [i for i in content_items if i.source != ContentSource.MANUAL]
+
     # Build combined text for LLM prompt
-    if clustered_text and not session_items and not seed_items:
-        # Use topic-clustered context only when no sessions/seeds
-        combined_text = clustered_text
-    else:
-        # Build unified context with sections
-        sections: list[str] = []
+    sections: list[str] = []
 
-        if session_items:
-            sections.append(_render_session_section(session_items))
+    # Shared items always render first with priority signal
+    if shared_items:
+        parts = [
+            "# Personally Shared Links (PRIORITY)\n\n"
+            "You saved these links yourself. They reflect your current "
+            "interests. Cover each one substantively in the digest — "
+            "do not skip them.\n"
+        ]
+        for item in shared_items:
+            parts.append(_render_item(item))
+        sections.append("\n\n---\n\n".join(parts))
 
-        if seed_items:
-            sections.append(_render_seed_section(seed_items))
+    if session_items:
+        sections.append(_render_session_section(session_items))
 
-        if content_items:
-            if clustered_text:
-                sections.append(f"# What You Read Today\n\n{clustered_text}")
-            else:
-                sections.append(_render_content_section(content_items))
+    if seed_items:
+        sections.append(_render_seed_section(seed_items))
 
-        combined_text = "\n\n" + "\n\n".join(sections) if sections else ""
+    if feed_items:
+        if clustered_text:
+            sections.append(f"# What You Read Today\n\n{clustered_text}")
+        else:
+            sections.append(_render_content_section(feed_items))
+
+    combined_text = "\n\n" + "\n\n".join(sections) if sections else ""
 
     return DailyIntakeContext(
         date=target_date,

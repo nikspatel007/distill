@@ -97,6 +97,27 @@ export const CreateSeedSchema = z.object({
 	tags: z.array(z.string()).default([]),
 });
 
+// --- Shares ---
+
+export const ShareItemSchema = z.object({
+	id: z.string(),
+	url: z.string(),
+	note: z.string().default(""),
+	tags: z.array(z.string()).default([]),
+	created_at: z.string(),
+	used: z.boolean().default(false),
+	used_in: z.string().nullable().default(null),
+	title: z.string().default(""),
+	author: z.string().default(""),
+	excerpt: z.string().default(""),
+});
+
+export const CreateShareSchema = z.object({
+	url: z.string().min(1),
+	note: z.string().default(""),
+	tags: z.array(z.string()).default([]),
+});
+
 // --- Editorial Notes ---
 
 export const EditorialNoteSchema = z.object({
@@ -181,6 +202,7 @@ export const DashboardResponseSchema = z.object({
 	activeThreads: z.array(MemoryThreadSchema),
 	recentlyPublished: z.array(PublishedRecordSchema),
 	seedCount: z.number(),
+	shareCount: z.number(),
 	activeNoteCount: z.number(),
 });
 
@@ -516,6 +538,8 @@ export type BlogPostRecord = z.infer<typeof BlogPostRecordSchema>;
 export type BlogState = z.infer<typeof BlogStateSchema>;
 export type SeedIdea = z.infer<typeof SeedIdeaSchema>;
 export type CreateSeed = z.infer<typeof CreateSeedSchema>;
+export type ShareItem = z.infer<typeof ShareItemSchema>;
+export type CreateShare = z.infer<typeof CreateShareSchema>;
 export type EditorialNote = z.infer<typeof EditorialNoteSchema>;
 export type CreateNote = z.infer<typeof CreateNoteSchema>;
 export type JournalFrontmatter = z.infer<typeof JournalFrontmatterSchema>;
@@ -661,6 +685,35 @@ export const StudioPublishRequestSchema = z.object({
 	scheduled_at: z.string().optional(),
 });
 
+// --- Ghost Publishing ---
+
+export const GhostPublishRequestSchema = z.object({
+	target: z.string().min(1),
+	status: z.enum(["draft", "published"]).default("draft"),
+	tags: z.array(z.string()).default([]),
+});
+
+export const GhostTargetSchema = z.object({
+	name: z.string(),
+	label: z.string(),
+	configured: z.boolean(),
+});
+
+export const BatchImageRequestSchema = z.object({
+	mood: z
+		.enum([
+			"reflective",
+			"energetic",
+			"cautionary",
+			"triumphant",
+			"intimate",
+			"technical",
+			"playful",
+			"somber",
+		])
+		.default("reflective"),
+});
+
 /** Schema for the AI SDK chat request body sent by TextStreamChatTransport.
  *  Messages use the AI SDK wire format (parts-based), so we passthrough and
  *  only validate the fields we extract in the endpoint. */
@@ -677,3 +730,6 @@ export type PlatformContent = z.infer<typeof PlatformContentSchema>;
 export type ReviewItem = z.infer<typeof ReviewItemSchema>;
 export type ReviewQueue = z.infer<typeof ReviewQueueSchema>;
 export type StudioPublishRequest = z.infer<typeof StudioPublishRequestSchema>;
+export type GhostPublishRequest = z.infer<typeof GhostPublishRequestSchema>;
+export type GhostTarget = z.infer<typeof GhostTargetSchema>;
+export type BatchImageRequest = z.infer<typeof BatchImageRequestSchema>;

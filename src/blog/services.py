@@ -1155,8 +1155,8 @@ class BlogSynthesizer:
             blog_memory=blog_memory,
         )
         user_prompt = _render_weekly_prompt(context)
-        raw = self._call_claude(system_prompt, user_prompt, f"weekly W{context.week}")
-        return _strip_preamble(raw)
+        label = f"weekly W{context.week}"
+        return self._synthesize_with_validation(system_prompt, user_prompt, label)
 
     def synthesize_thematic(self, context: ThematicBlogContext, blog_memory: str = "") -> str:
         """Transform thematic context into blog prose.
@@ -1180,8 +1180,41 @@ class BlogSynthesizer:
             seed_angle=context.seed_angle,
         )
         user_prompt = _render_thematic_prompt(context)
-        raw = self._call_claude(system_prompt, user_prompt, context.theme.slug)
-        return _strip_preamble(raw)
+        label = context.theme.slug
+        return self._synthesize_with_validation(system_prompt, user_prompt, label)
+
+    def _synthesize_with_validation(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        label: str,
+        max_retries: int = 2,
+    ) -> str:
+        """Synthesize prose, validate against banned patterns, retry if needed."""
+        for attempt in range(1 + max_retries):
+            raw = self._call_claude(system_prompt, user_prompt, label)
+            prose = _strip_preamble(raw)
+            violations = _validate_prose(prose)
+            if not violations:
+                return prose
+            logger.warning(
+                "Blog %s attempt %d/%d has banned patterns: %s",
+                label,
+                attempt + 1,
+                1 + max_retries,
+                "; ".join(violations),
+            )
+            if attempt < max_retries:
+                # Append violations to system prompt for the retry
+                system_prompt = (
+                    f"{system_prompt}\n\nCRITICAL: Your previous draft was rejected "
+                    f"for these violations: {'; '.join(violations)}. "
+                    "Rewrite completely without these patterns. State what things ARE "
+                    "directly. Never define something by negating something else first."
+                )
+        # Return last attempt even if still has violations (don't block pipeline)
+        logger.error("Blog %s still has violations after %d retries, using anyway", label, max_retries)
+        return prose
 
     def synthesize_raw(self, system_prompt: str, user_prompt: str) -> str:
         """Synthesize content from raw system and user prompts."""
@@ -1274,6 +1307,39 @@ class BlogSynthesizer:
             )
         except LLMError as exc:
             raise BlogSynthesisError(str(exc)) from exc
+
+
+# ---------------------------------------------------------------------------
+# Post-generation validation
+# ---------------------------------------------------------------------------
+
+# Regex patterns for banned rhetorical constructions.
+# "X is/are not (just) Y. It is/They are Z" reframing pattern.
+_NEGATION_REFRAME_RE = re.compile(
+    r"\b(?:is|are|was|were)\s+not\s+(?:just\s+)?\w+.*?\.\s+"
+    r"(?:It|They|That|This)\s+(?:is|are|was|were)\b",
+    re.IGNORECASE,
+)
+
+_BANNED_PROSE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
+    (
+        _NEGATION_REFRAME_RE,
+        '"X is not Y. It is Z" reframing construction',
+    ),
+]
+
+
+def _validate_prose(text: str) -> list[str]:
+    """Check generated prose for banned patterns.
+
+    Returns a list of violation descriptions (empty if clean).
+    """
+    violations: list[str] = []
+    for pattern, description in _BANNED_PROSE_PATTERNS:
+        matches = pattern.findall(text)
+        if matches:
+            violations.append(f"{description} ({len(matches)}x)")
+    return violations
 
 
 def _strip_preamble(text: str) -> str:

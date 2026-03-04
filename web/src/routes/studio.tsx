@@ -31,6 +31,10 @@ export default function Studio() {
 	});
 
 	const items = data?.items ?? [];
+	const drafts = items.filter((item) => item.status !== "published");
+	const published = items
+		.filter((item) => item.status === "published")
+		.sort((a, b) => b.generated_at.localeCompare(a.generated_at));
 
 	if (isLoading) {
 		return (
@@ -60,49 +64,38 @@ export default function Studio() {
 					</button>
 				</div>
 
-				{items.length === 0 ? (
-					<div className="rounded-lg border border-zinc-200 p-8 text-center dark:border-zinc-800">
-						<p className="text-zinc-500">
-							No content yet. Click <strong>New Post</strong> to start writing from a journal entry.
-						</p>
-					</div>
-				) : (
-					<div className="space-y-2">
-						{items.map((item) => (
-							<Link
-								key={item.slug}
-								to="/studio/$slug"
-								params={{ slug: item.slug }}
-								className="flex items-center justify-between rounded-lg border border-zinc-200 p-4 transition-colors hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-zinc-800 dark:hover:border-indigo-800 dark:hover:bg-indigo-950/30"
-							>
-								<div className="flex items-center gap-3">
-									<div>
-										<div className="flex min-w-0 items-center gap-2">
-											<span className="truncate font-medium">{item.title}</span>
-											<span
-												className={`rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_STYLES[item.type] ?? DEFAULT_TYPE_STYLE}`}
-											>
-												{item.type.replace("_", " ")}
-											</span>
-										</div>
-										<div className="mt-1 flex items-center gap-3 text-xs text-zinc-500">
-											<DateBadge date={item.generated_at} />
-											{item.platforms_ready > 0 && (
-												<span>
-													{item.platforms_ready} platform
-													{item.platforms_ready !== 1 ? "s" : ""} ready
-												</span>
-											)}
-											{item.platforms_published > 0 && (
-												<span className="text-green-600">{item.platforms_published} published</span>
-											)}
-										</div>
-									</div>
-								</div>
-								<StatusBadge status={item.status} />
-							</Link>
-						))}
-					</div>
+				{/* Drafts section */}
+				<section>
+					<h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-400">
+						Drafts
+					</h3>
+					{drafts.length === 0 ? (
+						<div className="rounded-lg border border-zinc-200 p-8 text-center dark:border-zinc-800">
+							<p className="text-zinc-500">
+								No drafts — create one with <strong>New Post</strong>
+							</p>
+						</div>
+					) : (
+						<div className="space-y-2">
+							{drafts.map((item) => (
+								<StudioItemCard key={item.slug} item={item} />
+							))}
+						</div>
+					)}
+				</section>
+
+				{/* Published section */}
+				{published.length > 0 && (
+					<section>
+						<h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-400">
+							Published
+						</h3>
+						<div className="space-y-2">
+							{published.map((item) => (
+								<StudioItemCard key={item.slug} item={item} />
+							))}
+						</div>
+					</section>
 				)}
 
 				{showJournalPicker && (
@@ -117,6 +110,46 @@ export default function Studio() {
 				)}
 			</div>
 		</div>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Studio item card (shared between Drafts and Published sections)
+// ---------------------------------------------------------------------------
+
+function StudioItemCard({ item }: { item: StudioItem }) {
+	return (
+		<Link
+			to="/studio/$slug"
+			params={{ slug: item.slug }}
+			className="flex items-center justify-between rounded-lg border border-zinc-200 p-4 transition-colors hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-zinc-800 dark:hover:border-indigo-800 dark:hover:bg-indigo-950/30"
+		>
+			<div className="flex items-center gap-3">
+				<div>
+					<div className="flex min-w-0 items-center gap-2">
+						<span className="truncate font-medium">{item.title}</span>
+						<span
+							className={`rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_STYLES[item.type] ?? DEFAULT_TYPE_STYLE}`}
+						>
+							{item.type.replace("_", " ")}
+						</span>
+					</div>
+					<div className="mt-1 flex items-center gap-3 text-xs text-zinc-500">
+						<DateBadge date={item.generated_at} />
+						{item.platforms_ready > 0 && (
+							<span>
+								{item.platforms_ready} platform
+								{item.platforms_ready !== 1 ? "s" : ""} ready
+							</span>
+						)}
+						{item.platforms_published > 0 && (
+							<span className="text-green-600">{item.platforms_published} published</span>
+						)}
+					</div>
+				</div>
+			</div>
+			<StatusBadge status={item.status} />
+		</Link>
 	);
 }
 

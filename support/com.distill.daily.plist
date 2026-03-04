@@ -7,7 +7,7 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/nikpatel/.local/bin/uv</string>
+        <string>/opt/homebrew/bin/uv</string>
         <string>run</string>
         <string>--project</string>
         <string>/Users/nikpatel/Documents/GitHub/distill</string>
@@ -20,6 +20,7 @@
         <string>--output</string>
         <string>./insights</string>
         <string>--use-defaults</string>
+        <string>--global</string>
     </array>
 
     <key>WorkingDirectory</key>

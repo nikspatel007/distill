@@ -475,6 +475,7 @@ source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
     { name = "feedparser" },
+    { name = "google-genai" },
     { name = "psycopg2-binary" },
     { name = "pydantic" },
     { name = "pyjwt" },
@@ -534,6 +535,7 @@ requires-dist = [
     { name = "google-api-python-client", marker = "extra == 'google'", specifier = ">=2.0" },
     { name = "google-auth-oauthlib", marker = "extra == 'all-sources'", specifier = ">=1.0" },
     { name = "google-auth-oauthlib", marker = "extra == 'google'", specifier = ">=1.0" },
+    { name = "google-genai", specifier = ">=1.63.0" },
     { name = "google-genai", marker = "extra == 'images'", specifier = ">=1.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0" },
     { name = "pgvector", marker = "extra == 'db'", specifier = ">=0.3" },

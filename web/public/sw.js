@@ -1,7 +1,7 @@
 /// Service Worker for Distill PWA
 /// Strategy: network-first for API, cache-first for static assets, offline fallback
 
-const CACHE_NAME = "distill-v1";
+const CACHE_NAME = "distill-v2";
 const OFFLINE_URL = "/offline.html";
 
 // Static assets to pre-cache on install

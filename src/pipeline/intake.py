@@ -177,6 +177,15 @@ def generate_intake(
     if _distill_cfg.troopx.max_age_days != 7:
         troopx_config.max_age_days = _distill_cfg.troopx.max_age_days
 
+    from distill.intake.models import DiscoveryIntakeConfig
+
+    discovery_config = DiscoveryIntakeConfig(
+        topics=list(_distill_cfg.discovery.topics),
+        people=list(_distill_cfg.discovery.people),
+        max_results_per_query=_distill_cfg.discovery.max_results_per_query,
+        max_age_days=_distill_cfg.discovery.max_age_days,
+    )
+
     config = IntakeConfig(
         rss=rss_config,
         browser=browser_config,
@@ -188,6 +197,7 @@ def generate_intake(
         gmail=gmail_config,
         session=session_config,
         troopx=troopx_config,
+        discovery=discovery_config,
         model=model,
         target_word_count=target_word_count,
         user_name=_distill_cfg.user.name,
@@ -229,9 +239,32 @@ def generate_intake(
         logger.info("No new content items to process")
         return []
 
+    # Load shared URLs before enrichment so they get full-text fetched
+    from distill.intake import ShareStore
+
+    share_store = ShareStore(output_dir)
+    share_items = share_store.to_content_items()
+    if share_items:
+        all_items.extend(share_items)
+        logger.info("Added %d shared URLs to intake", len(share_items))
+
     # Enrich items: full-text extraction for short articles, then auto-tag
     from distill.intake import enrich_fulltext, enrich_tags
 
+    # Enrich shares first (guaranteed budget) then remaining items
+    if share_items:
+        enrich_fulltext(share_items, min_word_threshold=100, max_concurrent=len(share_items))
+        # Save enriched content back to share records for UI display
+        for item in share_items:
+            share_id = (item.metadata or {}).get("share_id")
+            if isinstance(share_id, str) and item.body:
+                share_store.update_enrichment(
+                    share_id,
+                    title=item.title or "",
+                    author=item.author or "",
+                    excerpt=item.body,
+                )
+        logger.info("Enriched shared URLs")
     enrich_fulltext(all_items, min_word_threshold=100, max_concurrent=20)
     logger.info("Full-text enrichment complete")
 
@@ -272,6 +305,7 @@ def generate_intake(
     if seed_items:
         all_items.extend(seed_items)
         logger.info("Added %d seed ideas to intake", len(seed_items))
+
 
     # Archive raw items after enrichment
     from distill.intake import archive_items, build_daily_index
@@ -329,12 +363,7 @@ def generate_intake(
     synthesizer = IntakeSynthesizer(config)
     prose = synthesizer.synthesize_daily(context, memory_context=memory_text)
 
-    # Generate images (optional — no-op if GOOGLE_AI_API_KEY not set)
-    from distill.intake.images import insert_images_into_prose
-
-    image_prompts, image_paths = generate_images(prose, output_dir, context.date)
-    if image_paths:
-        prose = insert_images_into_prose(prose, image_prompts, image_paths)
+    # Image generation disabled for intake digests — text only
 
     # Fan-out: publish to each enabled target
     written: list[Path] = [archive_path, index_path]
@@ -440,5 +469,11 @@ def generate_intake(
         seed_id = seed_item.metadata.get("seed_id")
         if isinstance(seed_id, str):
             seed_store.mark_used(seed_id, f"intake-{context.date.isoformat()}")
+
+    # Mark consumed shares as used
+    for share_item in share_items:
+        share_id = (share_item.metadata or {}).get("share_id")
+        if isinstance(share_id, str):
+            share_store.mark_used(share_id, f"intake-{context.date.isoformat()}")
 
     return written

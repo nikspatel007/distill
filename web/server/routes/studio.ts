@@ -23,6 +23,7 @@ import {
 } from "../lib/content-store.js";
 import { listFiles, readMarkdown } from "../lib/files.js";
 import { parseFrontmatter } from "../lib/frontmatter.js";
+import { generateImage as generateImageLib } from "../lib/images.js";
 import { createPost, isPostizConfigured, listIntegrations } from "../lib/postiz.js";
 import { PLATFORM_PROMPTS } from "../lib/prompts.js";
 import { getReviewItem, loadReviewQueue, upsertReviewItem } from "../lib/review-queue.js";
@@ -43,7 +44,6 @@ import {
 	runJournal,
 	runPipeline,
 } from "../tools/pipeline.js";
-import { listPostizIntegrations, listPostizPosts, publishContent } from "../tools/publishing.js";
 import { fetchUrl, saveToIntake } from "../tools/research.js";
 import {
 	getTroopxMemory,
@@ -436,14 +436,14 @@ async function publishPlatforms(
 		}
 
 		const provider = PLATFORM_PROVIDER_MAP[platform] ?? platform;
-		const integration = integrations.find((i) => i.provider.includes(provider));
+		const integration = integrations.find((i) => i.provider === provider);
 		if (!integration) {
 			results.push({ platform, success: false, error: `No integration for ${platform}` });
 			continue;
 		}
 
 		try {
-			await createPost(entry.content, [integration.id], postOptions);
+			await createPost(entry.content, [integration.id], { ...postOptions, provider });
 			entry.published = true;
 			if ("published_at" in entry) {
 				entry.published_at = new Date().toISOString();
@@ -657,6 +657,132 @@ app.post("/api/studio/items/:slug/image", zValidator("json", GenerateImageSchema
 });
 
 // ---------------------------------------------------------------------------
+// POST /api/studio/items/:slug/images/batch — generate hero + inline images
+// Extracts prompts from content via AI SDK, generates all in parallel.
+// ---------------------------------------------------------------------------
+const BatchImageSchema = z.object({
+	mood: z
+		.enum([
+			"reflective",
+			"energetic",
+			"cautionary",
+			"triumphant",
+			"intimate",
+			"technical",
+			"playful",
+			"somber",
+		])
+		.default("reflective"),
+});
+
+app.post(
+	"/api/studio/items/:slug/images/batch",
+	zValidator("json", BatchImageSchema),
+	async (c) => {
+		const slug = c.req.param("slug");
+		if (!isImageConfigured()) {
+			return c.json({ error: "Image generation not configured (GOOGLE_AI_API_KEY)" }, 503);
+		}
+		if (!isAgentConfigured()) {
+			return c.json({ error: "ANTHROPIC_API_KEY not configured for prompt extraction" }, 503);
+		}
+
+		const record = getContentRecord(slug);
+		if (!record) {
+			return c.json({ error: "Content not found" }, 404);
+		}
+
+		const { mood } = c.req.valid("json");
+
+		// Extract image prompts from content via AI SDK
+		const { generateText } = await import("ai");
+		const extractionResult = await generateText({
+			model: getModel(),
+			system: `You are an image prompt generator for editorial blog posts. Given a blog post, generate exactly 3 image prompts: 1 hero image and 2 inline images.
+
+Return ONLY valid JSON — no markdown fences, no explanation. The JSON should be an array of objects:
+[
+  { "role": "hero", "prompt": "...", "placement_hint": "top of post" },
+  { "role": "inline", "prompt": "...", "placement_hint": "after section about X" },
+  { "role": "inline", "prompt": "...", "placement_hint": "after section about Y" }
+]
+
+Each prompt should describe a visual metaphor or scene — NOT the article topic literally. Think editorial photography: evocative, atmospheric, symbolic. Focus on composition, lighting, and mood.`,
+			prompt: `Generate 3 image prompts for this blog post:\n\nTitle: ${record.title}\n\n${record.body.slice(0, 3000)}`,
+		});
+
+		let imagePrompts: Array<{ role: string; prompt: string; placement_hint: string }>;
+		try {
+			const cleaned = extractionResult.text.replace(/```json\n?|\n?```/g, "").trim();
+			imagePrompts = JSON.parse(cleaned);
+			if (!Array.isArray(imagePrompts) || imagePrompts.length === 0) {
+				throw new Error("Expected array of prompts");
+			}
+		} catch {
+			return c.json({ error: "Failed to extract image prompts from content" }, 500);
+		}
+
+		// Generate all images in parallel using low-level lib function
+		// (avoids ContentStore race condition — each generateImageTool call
+		// would load/save the store independently, clobbering concurrent writes)
+		const { OUTPUT_DIR } = getConfig();
+		const imageResults = await Promise.all(
+			imagePrompts.slice(0, 3).map(async (ip) => {
+				const result = await generateImageLib(ip.prompt, {
+					outputDir: OUTPUT_DIR,
+					mood,
+					slug,
+				});
+				return { result, role: ip.role, placement_hint: ip.placement_hint, prompt: ip.prompt };
+			}),
+		);
+
+		// Batch-save all images to ContentStore in a single load/save cycle
+		const store = loadContentStore();
+		const liveRecord = store[slug];
+		const responseImages: Array<{
+			url: string | null;
+			role: string;
+			placement_hint: string;
+			error: string | null;
+		}> = [];
+
+		for (const ir of imageResults) {
+			if (ir.result) {
+				const url = `/api/studio/images/${ir.result.relativePath}`;
+				responseImages.push({ url, role: ir.role, placement_hint: ir.placement_hint, error: null });
+				if (liveRecord) {
+					liveRecord.images.push({
+						filename: ir.result.filename,
+						role: ir.role,
+						prompt: ir.prompt,
+						relative_path: ir.result.relativePath,
+					});
+				}
+			} else {
+				responseImages.push({
+					url: null,
+					role: ir.role,
+					placement_hint: ir.placement_hint,
+					error: "Generation failed",
+				});
+			}
+		}
+
+		if (liveRecord) {
+			saveContentStore(store);
+		}
+
+		const generated = responseImages.filter((r) => r.url !== null);
+		return c.json({
+			generated: generated.length,
+			total_requested: imagePrompts.length,
+			images: responseImages,
+		});
+	},
+);
+
+// ---------------------------------------------------------------------------
 // PUT /api/studio/items/:slug/chat — save chat history
 // Prefers ContentStore; falls back to review queue.
 // ---------------------------------------------------------------------------
@@ -736,18 +862,17 @@ ${content}
 
 Be a thoughtful collaborator. Ask questions, suggest angles, explain your choices.
 
-IMPORTANT: When saving or publishing content, ALWAYS specify the platform explicitly based on context. If the author mentions "LinkedIn", save to linkedin. If they mention "Twitter" or "X", save to x. Do NOT rely on the active tab — determine the platform from what the author is discussing.
+IMPORTANT: When saving content, ALWAYS specify the platform explicitly based on context. If the author mentions "LinkedIn", save to linkedin. If they mention "Twitter" or "X", save to x. Do NOT rely on the active tab — determine the platform from what the author is discussing.
 
 When you write or revise content for a platform, call savePlatformContent with the content AND the platform name (ghost, x, linkedin, slack).
 When the author asks you to edit, rewrite, or improve the source post itself, call the updateSourceContent tool with the complete updated post. Always send the FULL updated content, not just the changed section.${isImageConfigured() ? "\nYou can generate images to accompany the content using the generateImage tool. Generate a hero image when you write the first draft, or when the author asks for one." : ""}
 
-When the author asks to publish or schedule content, use the publish tool with the correct platform. The current slug is "${slug ?? ""}". Convert times to ISO 8601 format using the America/Chicago timezone (UTC-6). For example, "9am tomorrow" on 2026-02-23 becomes "2026-02-24T15:00:00Z".
+NOTE: Publishing and scheduling is handled by the Publish panel buttons in the UI, not through this chat. If the author asks to publish, tell them to use the Publish panel on the left side of the screen.
 
 You also have access to tools for:
 - Content management: listContent, getContent, updateStatus, createContent
 - Pipeline: runPipeline, runJournal, runBlog, runIntake, addSeed, addNote
 - Research: fetchUrl (read any URL), saveToIntake (save URL content for future synthesis)
-- Publishing: listIntegrations (connected platforms), publish (post to social), listPosts (recent/upcoming)
 - TroopX: searchTroopx (search workflows/blackboard), getTroopxWorkflow (full workflow details), listTroopxWorkflows (list recent workflows), getTroopxMemory (agent memories)
 
 Use these when the author asks about the broader content pipeline, wants to research a topic, or manage other content.`;
@@ -903,51 +1028,6 @@ Use these when the author asks about the broader content pipeline, wants to rese
 					notes: z.string().optional().describe("Your notes about why this is interesting"),
 				}),
 				execute: async (params) => saveToIntake(params),
-			}),
-
-			// --- Publishing ---
-			listIntegrations: tool({
-				description: "List connected Postiz platform integrations.",
-				inputSchema: z.object({}),
-				execute: async () => listPostizIntegrations(),
-			}),
-			publish: tool({
-				description:
-					"Publish or schedule content to social platforms via Postiz. Defaults to the current content slug and platform. Can pass content directly if platform content isn't saved yet.",
-				inputSchema: z.object({
-					slug: z.string().optional().describe("Content slug (defaults to current)"),
-					platforms: z
-						.array(z.string())
-						.optional()
-						.describe("Platform names: x, linkedin, slack (defaults to current platform)"),
-					mode: z.enum(["draft", "schedule", "now"]),
-					scheduled_at: z
-						.string()
-						.optional()
-						.describe("ISO 8601 datetime for scheduled posts (use America/Chicago timezone)"),
-					content: z
-						.string()
-						.optional()
-						.describe(
-							"Content to publish. If omitted, uses saved platform content or source body.",
-						),
-				}),
-				execute: async (params) =>
-					publishContent({
-						slug: params.slug ?? slug ?? "",
-						platforms: params.platforms ?? [platform],
-						mode: params.mode,
-						scheduled_at: params.scheduled_at,
-						content: params.content,
-					}),
-			}),
-			listPosts: tool({
-				description: "List recent and upcoming posts from Postiz.",
-				inputSchema: z.object({
-					status: z.string().optional(),
-					limit: z.number().optional(),
-				}),
-				execute: async (params) => listPostizPosts(params),
 			}),
 
 			// --- TroopX ---

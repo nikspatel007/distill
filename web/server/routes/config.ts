@@ -43,6 +43,17 @@ configRoutes.put("/api/config", async (c) => {
 	return c.json(merged);
 });
 
+configRoutes.get("/api/config/share-url", async (c) => {
+	const projectDir = getProjectDir();
+	const config = await readConfig(projectDir);
+	const hostname = (config as Record<string, unknown>).server
+		? ((config as Record<string, Record<string, unknown>>).server.hostname as string) ?? ""
+		: "";
+	const { PORT } = getConfig();
+	const shareUrl = hostname ? `http://${hostname}:${PORT}/api/shares` : "";
+	return c.json({ hostname, port: PORT, shareUrl });
+});
+
 configRoutes.get("/api/config/sources", async (c) => {
 	const projectDir = getProjectDir();
 	const config = await readConfig(projectDir);
