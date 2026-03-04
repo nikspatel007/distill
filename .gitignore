@@ -53,6 +53,9 @@ node_modules/
 # Generated output
 insights/
 
+# Docs build output
+docs/site/
+
 # Task / workflow markers
 TASK.md
 AGENTS.md

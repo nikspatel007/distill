@@ -1,0 +1,68 @@
+site_name: Distill
+site_description: Turn your daily reading into a synthesized digest — powered by Claude.
+site_url: https://distill.dev
+repo_url: https://github.com/nikspatel007/distill
+repo_name: nikspatel007/distill
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - content.code.copy
+    - content.tabs.link
+    - search.highlight
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - tables
+  - attr_list
+  - def_list
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Quickstart: getting-started/quickstart.md
+    - Configuration: getting-started/configuration.md
+    - Daily Automation: getting-started/automation.md
+  - Web Dashboard:
+    - Setup: dashboard/setup.md
+    - Mobile (PWA): dashboard/pwa.md
+    - Sharing from Phone: dashboard/sharing.md
+  - Pipelines:
+    - Intake (Reading Digest): pipelines/intake.md
+    - Journal: pipelines/journal.md
+    - Blog: pipelines/blog.md
+  - Integrations:
+    - Ghost CMS: integrations/ghost.md
+    - Postiz (Social): integrations/postiz.md
+    - Optional Sources: integrations/sources.md
+  - Reference:
+    - CLI Commands: reference/cli.md
+    - Environment Variables: reference/env-vars.md
+    - Output Structure: reference/output.md
