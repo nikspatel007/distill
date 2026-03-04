@@ -1675,6 +1675,15 @@ def run_cmd(
                         f"  [green]Graph: {graph_store.node_count()} nodes, "
                         f"{graph_store.edge_count()} edges[/green]"
                     )
+
+                    # Generate executive briefing (best-effort)
+                    try:
+                        from distill.graph.briefing import generate_briefing as _gen_briefing
+
+                        _gen_briefing(output, hours=48.0)
+                        console.print("  [green]Executive briefing generated[/green]")
+                    except Exception as exc:
+                        console.print(f"  [dim]Briefing skipped: {exc}[/dim]")
                 except Exception as exc:
                     report.add_error("graph", str(exc), error_type="stage_error", recoverable=True)
                     console.print(f"  [dim]Graph build skipped: {exc}[/dim]")
@@ -2731,6 +2740,58 @@ def graph_inject(
         console.print(f"[green]Context injected into {claude_md}[/green]")
         console.print()
         console.print(context_md)
+
+
+@graph_app.command()
+def briefing(
+    output: Annotated[
+        str,
+        typer.Option("--output", "-o", help="Output directory"),
+    ] = ".",
+    hours: Annotated[
+        float,
+        typer.Option("--hours", help="Lookback window in hours"),
+    ] = 48.0,
+    model: Annotated[
+        str | None,
+        typer.Option("--model", help="LLM model to use"),
+    ] = None,
+    quiet: Annotated[
+        bool,
+        typer.Option("--quiet", "-q", help="Suppress output"),
+    ] = False,
+) -> None:
+    """Generate an executive briefing from the knowledge graph."""
+    from distill.graph.briefing import BriefingSynthesisError, generate_briefing
+
+    output_path = Path(output)
+    if not quiet:
+        console.print(f"[dim]Generating executive briefing (last {hours}h)...[/dim]")
+
+    try:
+        result = generate_briefing(output_path, hours=hours, model=model)
+    except BriefingSynthesisError as e:
+        console.print(f"[red]Briefing synthesis failed:[/red] {e}")
+        raise typer.Exit(1) from None
+
+    if not quiet:
+        console.print(f"[green]Briefing generated for {result.date}[/green]")
+        console.print()
+        console.print(f"[bold]{result.summary}[/bold]")
+        if result.areas:
+            console.print()
+            for area in result.areas:
+                status_color = {"active": "green", "cooling": "yellow", "emerging": "blue"}.get(
+                    area.status, "white"
+                )
+                console.print(
+                    f"  [{status_color}]{area.name}[/{status_color}] — {area.headline}"
+                )
+        if result.recommendations:
+            console.print()
+            console.print("[bold]Recommendations:[/bold]")
+            for rec in result.recommendations:
+                console.print(f"  {rec.priority}. {rec.action}")
 
 
 @app.command()
