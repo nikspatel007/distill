@@ -4,6 +4,8 @@ Distill raw AI coding sessions into journals, blogs, and multi-platform publicat
 
 Distill reads session data from AI coding assistants (Claude, Codex), ingests content from RSS feeds, browser history, and social platforms, then synthesizes everything into publishable content using Claude LLM.
 
+**[Documentation](https://nikspatel007.github.io/distill/)** | **[Quickstart](#quickstart)** | **[Commands](#commands)**
+
 ## What It Does
 
 ```
@@ -41,7 +43,7 @@ Raw sessions (.claude/, .codex/)     External content (RSS, browser, social)
 
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/) package manager
-- [Claude CLI](https://docs.anthropic.com/en/docs/claude-code) (`claude` command) for LLM synthesis
+- `ANTHROPIC_API_KEY` environment variable (for LLM synthesis)
 
 ### Install
 
@@ -74,26 +76,38 @@ distill intake --output ./insights --use-defaults
 distill run --dir . --output ./insights --use-defaults
 ```
 
+### Web Dashboard
+
+Distill includes a web dashboard for browsing journals, blogs, intake digests, and managing shared links.
+
+```bash
+# Start the server (runs pipeline + serves dashboard)
+distill --output ./insights
+
+# Dashboard only (skip pipeline)
+distill serve --output ./insights
+```
+
+Requires [Bun](https://bun.sh) for the web server. See the [dashboard docs](https://nikspatel007.github.io/distill/dashboard/setup/) for PWA setup and mobile access via Tailscale.
+
 ### Daily Automation
 
 Run the full pipeline automatically every morning:
 
 **macOS (launchd):**
 ```bash
-# Edit the plist with your paths
-cp scripts/daily-intake.sh ~/distill-daily.sh
-# Set environment variables or edit the script:
-export DISTILL_PROJECT_DIR="$HOME/distill"
-export DISTILL_OUTPUT_DIR="$HOME/Documents/Obsidian Vault"
+# Edit the plist with your paths, then load it
+cp support/com.distill.daily.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.distill.daily.plist
 ```
-
-See `scripts/daily-intake.sh` for a ready-to-use template.
 
 **Linux (cron):**
 ```bash
 # Run at 7am daily
 0 7 * * * cd ~/distill && uv run python -m distill run --dir $HOME --output ~/insights --use-defaults
 ```
+
+See the [automation docs](https://nikspatel007.github.io/distill/getting-started/automation/) for full setup details.
 
 ## Commands
 
@@ -104,8 +118,11 @@ See `scripts/daily-intake.sh` for a ready-to-use template.
 | `distill blog` | Generate blog posts from journal entries |
 | `distill intake` | Ingest external content (RSS, browser, social) |
 | `distill run` | Full pipeline: sessions + journal + intake + blog |
+| `distill serve` | Start the web dashboard |
 | `distill seed` | Add a seed idea for future content |
 | `distill seeds` | List pending seed ideas |
+| `distill share` | Share a URL for the next intake digest |
+| `distill shares` | List shared URLs |
 | `distill note` | Add an editorial note to steer content focus |
 | `distill notes` | List active editorial notes |
 | `distill status` | Show pipeline state (last run, counts, configured sources) |
@@ -378,7 +395,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 
 ## Troubleshooting
 
-**Claude CLI not found**: Distill calls `claude -p` for LLM synthesis. Install from [Claude Code docs](https://docs.anthropic.com/en/docs/claude-code). The `analyze` and `intake` commands work without it (no LLM needed for parsing).
+**LLM calls failing**: Distill uses the Anthropic API for LLM synthesis. Set `ANTHROPIC_API_KEY` in your environment. The `analyze` command works without it (no LLM needed for parsing).
 
 **Running a subset of tests**: Some tests depend on local data or optional dependencies:
 ```bash
