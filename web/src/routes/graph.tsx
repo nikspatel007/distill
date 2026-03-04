@@ -329,8 +329,6 @@ function ExplorerTab({ hours }: { hours: number }) {
 		});
 	}, []);
 
-	if (isLoading) return <div className="animate-pulse text-zinc-400">Loading graph...</div>;
-
 	const presentTypes = useMemo(() => {
 		if (!data) return [];
 		const types = new Set<string>();
@@ -339,6 +337,8 @@ function ExplorerTab({ hours }: { hours: number }) {
 		}
 		return ALL_NODE_TYPES.filter((t) => types.has(t));
 	}, [data]);
+
+	if (isLoading) return <div className="animate-pulse text-zinc-400">Loading graph...</div>;
 
 	return (
 		<div className="space-y-4">
