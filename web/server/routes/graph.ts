@@ -531,4 +531,29 @@ app.get("/api/graph/insights", async (c) => {
 	});
 });
 
+// GET /api/graph/briefing — executive briefing
+app.get("/api/graph/briefing", async (c) => {
+	const { OUTPUT_DIR } = getConfig();
+	const briefingPath = join(OUTPUT_DIR, ".distill-briefing.json");
+	try {
+		const raw = await Bun.file(briefingPath).text();
+		const data = JSON.parse(raw);
+		return c.json(data);
+	} catch {
+		return c.json(
+			{
+				date: "",
+				generated_at: "",
+				time_window_hours: 48,
+				summary: "",
+				areas: [],
+				learning: [],
+				risks: [],
+				recommendations: [],
+			},
+			200,
+		);
+	}
+});
+
 export default app;

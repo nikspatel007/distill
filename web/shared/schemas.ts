@@ -248,6 +248,48 @@ export const GraphStatsResponseSchema = z.object({
 	edges_by_type: z.record(z.string(), z.number()),
 });
 
+// --- Executive Briefing ---
+export const BriefingAreaSchema = z.object({
+	name: z.string(),
+	status: z.enum(["active", "cooling", "emerging"]),
+	momentum: z.enum(["accelerating", "steady", "decelerating"]),
+	headline: z.string().default(""),
+	sessions: z.number().default(0),
+	reading_count: z.number().default(0),
+	open_threads: z.array(z.string()).default([]),
+});
+
+export const BriefingLearningSchema = z.object({
+	topic: z.string(),
+	reading_count: z.number().default(0),
+	connection: z.string().default(""),
+	status: z.enum(["active", "emerging", "cooling"]),
+});
+
+export const BriefingRiskSchema = z.object({
+	severity: z.enum(["high", "medium", "low"]),
+	headline: z.string(),
+	detail: z.string().default(""),
+	project: z.string().default(""),
+});
+
+export const BriefingRecommendationSchema = z.object({
+	priority: z.number(),
+	action: z.string(),
+	rationale: z.string().default(""),
+});
+
+export const BriefingResponseSchema = z.object({
+	date: z.string(),
+	generated_at: z.string(),
+	time_window_hours: z.number(),
+	summary: z.string(),
+	areas: z.array(BriefingAreaSchema),
+	learning: z.array(BriefingLearningSchema),
+	risks: z.array(BriefingRiskSchema),
+	recommendations: z.array(BriefingRecommendationSchema),
+});
+
 // --- Editorial Notes ---
 
 export const EditorialNoteSchema = z.object({
@@ -719,6 +761,11 @@ export type GraphNodesResponse = z.infer<typeof GraphNodesResponseSchema>;
 export type GraphInsightsResponse = z.infer<typeof GraphInsightsResponseSchema>;
 export type GraphAboutResponse = z.infer<typeof GraphAboutResponseSchema>;
 export type GraphStatsResponse = z.infer<typeof GraphStatsResponseSchema>;
+export type BriefingArea = z.infer<typeof BriefingAreaSchema>;
+export type BriefingLearning = z.infer<typeof BriefingLearningSchema>;
+export type BriefingRisk = z.infer<typeof BriefingRiskSchema>;
+export type BriefingRecommendation = z.infer<typeof BriefingRecommendationSchema>;
+export type BriefingResponse = z.infer<typeof BriefingResponseSchema>;
 export type CouplingCluster = z.infer<typeof CouplingClusterSchema>;
 export type ErrorHotspot = z.infer<typeof ErrorHotspotSchema>;
 export type ScopeWarning = z.infer<typeof ScopeWarningSchema>;

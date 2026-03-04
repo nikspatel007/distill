@@ -269,4 +269,17 @@ describe("Graph API", () => {
 			"TypeError: cannot read property",
 		);
 	});
+
+	// --- GET /api/graph/briefing ---
+
+	test("GET /api/graph/briefing returns briefing data or empty default", async () => {
+		const res = await app.request("/api/graph/briefing");
+		expect(res.status).toBe(200);
+		const data = await res.json();
+		expect(data).toHaveProperty("summary");
+		expect(data).toHaveProperty("areas");
+		expect(data).toHaveProperty("learning");
+		expect(data).toHaveProperty("risks");
+		expect(data).toHaveProperty("recommendations");
+	});
 });

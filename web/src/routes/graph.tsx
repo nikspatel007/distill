@@ -28,7 +28,7 @@ function relativeTime(hoursAgo: number): string {
 	return `${days}d ago`;
 }
 
-type Tab = "activity" | "explorer" | "insights";
+type Tab = "briefing" | "activity" | "explorer" | "insights";
 type TimeWindow = 24 | 48 | 168 | 720;
 
 const TIME_OPTIONS: { label: string; value: TimeWindow }[] = [
@@ -37,6 +37,191 @@ const TIME_OPTIONS: { label: string; value: TimeWindow }[] = [
 	{ label: "7d", value: 168 },
 	{ label: "30d", value: 720 },
 ];
+
+// ---------------------------------------------------------------------------
+// Briefing Tab
+// ---------------------------------------------------------------------------
+
+function BriefingTab() {
+	const { data, isLoading } = useQuery({
+		queryKey: ["graph", "briefing"],
+		queryFn: async () => {
+			const res = await fetch("/api/graph/briefing");
+			return res.json();
+		},
+	});
+
+	if (isLoading) return <div className="animate-pulse text-zinc-400">Loading briefing...</div>;
+
+	if (!data?.summary) {
+		return (
+			<div className="text-center py-16 text-zinc-500">
+				<p className="text-lg">No briefing generated yet</p>
+				<p className="text-sm mt-2">
+					Run{" "}
+					<code className="bg-zinc-800 px-2 py-0.5 rounded">
+						distill graph briefing --output ./insights
+					</code>{" "}
+					to generate one
+				</p>
+			</div>
+		);
+	}
+
+	const statusColor = (s: string) =>
+		({
+			active: "text-emerald-400 bg-emerald-400/10 border-emerald-400/30",
+			cooling: "text-amber-400 bg-amber-400/10 border-amber-400/30",
+			emerging: "text-blue-400 bg-blue-400/10 border-blue-400/30",
+		})[s] ?? "text-zinc-400 bg-zinc-400/10 border-zinc-400/30";
+
+	const momentumIcon = (m: string) =>
+		({ accelerating: "\u2197", steady: "\u2192", decelerating: "\u2198" })[m] ?? "";
+
+	const severityColor = (s: string) =>
+		({
+			high: "border-red-400/40 bg-red-400/5",
+			medium: "border-amber-400/40 bg-amber-400/5",
+			low: "border-zinc-600 bg-zinc-800/50",
+		})[s] ?? "border-zinc-600 bg-zinc-800/50";
+
+	return (
+		<div className="space-y-8">
+			{/* Summary */}
+			<div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-6">
+				<p className="text-lg text-zinc-200 leading-relaxed">{data.summary}</p>
+				{data.generated_at && (
+					<p className="text-xs text-zinc-600 mt-3">
+						Generated {new Date(data.generated_at).toLocaleString()}
+					</p>
+				)}
+			</div>
+
+			{/* Areas */}
+			{data.areas?.length > 0 && (
+				<section>
+					<h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider mb-3">
+						Focus Areas
+					</h3>
+					<div className="grid gap-3 md:grid-cols-2">
+						{data.areas.map((area: any, i: number) => (
+							<div key={i} className={`border rounded-lg p-4 ${statusColor(area.status)}`}>
+								<div className="flex items-center justify-between mb-1">
+									<span className="font-semibold">{area.name}</span>
+									<span className="text-sm opacity-70">
+										{momentumIcon(area.momentum)} {area.status}
+									</span>
+								</div>
+								<p className="text-sm opacity-80">{area.headline}</p>
+								<div className="flex gap-4 mt-2 text-xs opacity-60">
+									{area.sessions > 0 && <span>{area.sessions} sessions</span>}
+									{area.reading_count > 0 && <span>{area.reading_count} articles</span>}
+								</div>
+								{area.open_threads?.length > 0 && (
+									<div className="mt-2 flex flex-wrap gap-1">
+										{area.open_threads.map((t: string, j: number) => (
+											<span key={j} className="text-xs bg-black/20 rounded px-2 py-0.5">
+												{t}
+											</span>
+										))}
+									</div>
+								)}
+							</div>
+						))}
+					</div>
+				</section>
+			)}
+
+			{/* Learning */}
+			{data.learning?.length > 0 && (
+				<section>
+					<h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider mb-3">
+						Learning
+					</h3>
+					<div className="space-y-2">
+						{data.learning.map((l: any, i: number) => (
+							<div key={i} className="border border-zinc-800 rounded-lg p-4 bg-zinc-900/30">
+								<div className="flex items-center justify-between">
+									<span className="font-medium text-zinc-200">{l.topic}</span>
+									<span
+										className={`text-xs px-2 py-0.5 rounded border ${statusColor(l.status)}`}
+									>
+										{l.status}
+									</span>
+								</div>
+								{l.connection && (
+									<p className="text-sm text-zinc-400 mt-1">{l.connection}</p>
+								)}
+								{l.reading_count > 0 && (
+									<p className="text-xs text-zinc-600 mt-1">{l.reading_count} articles</p>
+								)}
+							</div>
+						))}
+					</div>
+				</section>
+			)}
+
+			{/* Risks & Recommendations */}
+			<div className="grid gap-6 md:grid-cols-2">
+				{/* Risks */}
+				{data.risks?.length > 0 && (
+					<section>
+						<h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider mb-3">
+							Risks
+						</h3>
+						<div className="space-y-2">
+							{data.risks.map((r: any, i: number) => (
+								<div key={i} className={`border rounded-lg p-3 ${severityColor(r.severity)}`}>
+									<div className="flex items-center gap-2">
+										<span
+											className={`text-xs font-bold uppercase ${
+												r.severity === "high"
+													? "text-red-400"
+													: r.severity === "medium"
+														? "text-amber-400"
+														: "text-zinc-400"
+											}`}
+										>
+											{r.severity}
+										</span>
+										<span className="text-sm text-zinc-200">{r.headline}</span>
+									</div>
+									{r.detail && <p className="text-xs text-zinc-500 mt-1">{r.detail}</p>}
+								</div>
+							))}
+						</div>
+					</section>
+				)}
+
+				{/* Recommendations */}
+				{data.recommendations?.length > 0 && (
+					<section>
+						<h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider mb-3">
+							Recommendations
+						</h3>
+						<div className="space-y-2">
+							{data.recommendations.map((rec: any, i: number) => (
+								<div key={i} className="border border-zinc-800 rounded-lg p-3 bg-zinc-900/30">
+									<div className="flex items-start gap-3">
+										<span className="text-lg font-bold text-indigo-400 leading-none mt-0.5">
+											{rec.priority}
+										</span>
+										<div>
+											<p className="text-sm font-medium text-zinc-200">{rec.action}</p>
+											{rec.rationale && (
+												<p className="text-xs text-zinc-500 mt-1">{rec.rationale}</p>
+											)}
+										</div>
+									</div>
+								</div>
+							))}
+						</div>
+					</section>
+				)}
+			</div>
+		</div>
+	);
+}
 
 // ---------------------------------------------------------------------------
 // Activity Tab
@@ -624,7 +809,7 @@ function InsightsTab({ hours }: { hours: number }) {
 
 export default function GraphPage() {
 	const [hours, setHours] = useState<TimeWindow>(48);
-	const [activeTab, setActiveTab] = useState<Tab>("activity");
+	const [activeTab, setActiveTab] = useState<Tab>("briefing");
 
 	return (
 		<div className="mx-auto max-w-5xl p-4 md:p-6">
@@ -652,7 +837,7 @@ export default function GraphPage() {
 				{/* Tab bar */}
 				<div className="border-b border-zinc-200 dark:border-zinc-800">
 					<nav className="-mb-px flex gap-4" aria-label="Graph tabs">
-						{(["activity", "explorer", "insights"] as const).map((tab) => (
+						{(["briefing", "activity", "explorer", "insights"] as const).map((tab) => (
 							<button
 								key={tab}
 								type="button"
@@ -670,6 +855,7 @@ export default function GraphPage() {
 				</div>
 
 				{/* Tab content */}
+				{activeTab === "briefing" && <BriefingTab />}
 				{activeTab === "activity" && <ActivityTab hours={hours} />}
 				{activeTab === "explorer" && <ExplorerTab hours={hours} />}
 				{activeTab === "insights" && <InsightsTab hours={hours} />}
