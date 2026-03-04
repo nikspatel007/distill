@@ -4,7 +4,6 @@ import ForceGraph2D from "react-force-graph-2d";
 import type {
 	GraphAboutResponse,
 	GraphActivityResponse,
-	GraphInsightsResponse,
 	GraphNodesResponse,
 } from "../../shared/schemas.js";
 
@@ -430,24 +429,6 @@ function ExplorerTab({ hours }: { hours: number }) {
 	const [searchQuery, setSearchQuery] = useState("");
 	const [highlightedId, setHighlightedId] = useState<string | null>(null);
 	const [hiddenTypes, setHiddenTypes] = useState<Set<string>>(new Set());
-	const [containerSize, setContainerSize] = useState({ width: 900, height: 600 });
-
-	// Responsive sizing — fill available space
-	useEffect(() => {
-		const measure = () => {
-			if (containerRef.current) {
-				const rect = containerRef.current.getBoundingClientRect();
-				const sidebarWidth = selectedNode?.focus ? 320 : 0;
-				setContainerSize({
-					width: Math.max(rect.width - sidebarWidth, 400),
-					height: Math.max(window.innerHeight - rect.top - 32, 500),
-				});
-			}
-		};
-		measure();
-		window.addEventListener("resize", measure);
-		return () => window.removeEventListener("resize", measure);
-	}, [selectedNode]);
 
 	const { data, isLoading } = useQuery<GraphNodesResponse>({
 		queryKey: ["graph-nodes", hours],
@@ -501,12 +482,13 @@ function ExplorerTab({ hours }: { hours: number }) {
 		return { nodes, links };
 	}, [data, hiddenTypes]);
 
-	// Zoom to fit after data loads
+	// Zoom to fit after data loads — multiple attempts as force layout settles
 	useEffect(() => {
 		if (graphData.nodes.length > 0 && graphRef.current) {
-			setTimeout(() => {
-				graphRef.current?.zoomToFit(400, 60);
-			}, 500);
+			const t1 = setTimeout(() => graphRef.current?.zoomToFit(400, 40), 300);
+			const t2 = setTimeout(() => graphRef.current?.zoomToFit(400, 40), 1200);
+			const t3 = setTimeout(() => graphRef.current?.zoomToFit(400, 40), 3000);
+			return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
 		}
 	}, [graphData.nodes.length]);
 
@@ -626,7 +608,7 @@ function ExplorerTab({ hours }: { hours: number }) {
 	const totalEdges = graphData.links.length;
 
 	return (
-		<div ref={containerRef} className="flex flex-col" style={{ minHeight: "calc(100vh - 200px)" }}>
+		<div ref={containerRef} className="flex flex-col" style={{ height: "calc(100vh - 200px)" }}>
 			{/* Top bar: search + stats */}
 			<div className="flex items-center justify-between gap-4 mb-3">
 				<div className="flex items-center gap-2">
@@ -724,8 +706,8 @@ function ExplorerTab({ hours }: { hours: number }) {
 					</div>
 				</div>
 
-				{/* Graph canvas */}
-				<div className="flex-1 relative bg-zinc-50/30">
+				{/* Graph canvas — auto-sized by ForceGraph2D */}
+				<div className="flex-1 relative bg-zinc-50/30 min-h-0">
 					{graphData.nodes.length > 0 ? (
 						<ForceGraph2D
 							ref={graphRef}
@@ -740,8 +722,6 @@ function ExplorerTab({ hours }: { hours: number }) {
 							onNodeClick={handleNodeClick}
 							nodeCanvasObject={nodeCanvasObject}
 							backgroundColor="#fafafa"
-							width={containerSize.width - 176 - (selectedNode?.focus ? 0 : 0)}
-							height={containerSize.height}
 							cooldownTicks={100}
 							d3AlphaDecay={0.02}
 							d3VelocityDecay={0.3}
@@ -817,172 +797,6 @@ function ExplorerTab({ hours }: { hours: number }) {
 					</div>
 				)}
 			</div>
-		</div>
-	);
-}
-
-// ---------------------------------------------------------------------------
-// Insights Tab
-// ---------------------------------------------------------------------------
-
-function InsightSection({
-	title,
-	subtitle,
-	icon,
-	count,
-	children,
-}: {
-	title: string;
-	subtitle: string;
-	icon: string;
-	count: number;
-	children: React.ReactNode;
-}) {
-	if (count === 0) return null;
-	return (
-		<section>
-			<div className="mb-2 flex items-center gap-2">
-				<span>{icon}</span>
-				<h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">{title}</h3>
-				<span className="text-xs text-zinc-400">({count})</span>
-			</div>
-			<p className="mb-3 text-xs text-zinc-500">{subtitle}</p>
-			<div className="space-y-2">{children}</div>
-		</section>
-	);
-}
-
-function InsightsTab({ hours }: { hours: number }) {
-	const { data, isLoading } = useQuery<GraphInsightsResponse>({
-		queryKey: ["graph-insights", hours],
-		queryFn: async () => {
-			const res = await fetch(`/api/graph/insights?hours=${hours}`);
-			if (!res.ok) throw new Error("Failed to load insights");
-			return res.json();
-		},
-	});
-
-	if (isLoading) return <div className="animate-pulse text-zinc-400">Loading insights...</div>;
-	if (!data) return null;
-
-	const scopeWarnings = data.scope_warnings ?? [];
-	const errorHotspots = data.error_hotspots ?? [];
-	const couplingClusters = data.coupling_clusters ?? [];
-	const recurringProblems = data.recurring_problems ?? [];
-
-	const hasAny =
-		scopeWarnings.length > 0 ||
-		errorHotspots.length > 0 ||
-		couplingClusters.length > 0 ||
-		recurringProblems.length > 0;
-
-	return (
-		<div className="space-y-6">
-			{/* Stats strip */}
-			<div className="grid grid-cols-3 gap-3">
-				<StatCard label="Sessions" value={data.session_count} />
-				<StatCard label="Avg files / session" value={data.avg_files_per_session} />
-				<StatCard label="Total problems" value={data.total_problems} />
-			</div>
-
-			{!hasAny && (
-				<p className="text-sm text-zinc-500">
-					No patterns detected in this time window. Try expanding to 7d or 30d.
-				</p>
-			)}
-
-			{/* Scope Warnings */}
-			<InsightSection
-				title="Scope Warnings"
-				subtitle="Sessions touching many files at once"
-				icon="!"
-				count={scopeWarnings.length}
-			>
-				{scopeWarnings.map((w) => (
-					<div
-						key={w.session_name}
-						className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950"
-					>
-						<p className="truncate text-sm font-medium text-amber-800 dark:text-amber-200">
-							{w.session_name}
-						</p>
-						<div className="mt-1 flex flex-wrap gap-2 text-xs text-amber-700 dark:text-amber-300">
-							{w.project && <span>{w.project}</span>}
-							<span>{w.files_modified} files modified</span>
-							{w.problems_hit > 0 && <span>{w.problems_hit} problems</span>}
-						</div>
-					</div>
-				))}
-			</InsightSection>
-
-			{/* Error Hotspots */}
-			<InsightSection
-				title="Error Hotspots"
-				subtitle="Files most associated with problems"
-				icon="!"
-				count={errorHotspots.length}
-			>
-				{errorHotspots.map((h) => (
-					<div
-						key={h.file}
-						className="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950"
-					>
-						<p className="truncate font-mono text-sm text-red-800 dark:text-red-200">{h.file}</p>
-						<p className="mt-1 text-xs text-red-600 dark:text-red-400">
-							{h.problem_count} problem{h.problem_count !== 1 ? "s" : ""}
-						</p>
-					</div>
-				))}
-			</InsightSection>
-
-			{/* Coupling Clusters */}
-			<InsightSection
-				title="Coupling Clusters"
-				subtitle="Files frequently modified together"
-				icon="!"
-				count={couplingClusters.length}
-			>
-				{couplingClusters.map((cl) => {
-					const key = (cl.files ?? []).join("||");
-					return (
-						<div
-							key={key}
-							className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950"
-						>
-							<div className="space-y-0.5">
-								{(cl.files ?? []).map((f) => (
-									<p key={f} className="truncate font-mono text-sm text-blue-800 dark:text-blue-200">
-										{f}
-									</p>
-								))}
-							</div>
-							<p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
-								{cl.co_modification_count} co-modifications
-							</p>
-						</div>
-					);
-				})}
-			</InsightSection>
-
-			{/* Recurring Problems */}
-			<InsightSection
-				title="Recurring Problems"
-				subtitle="Errors seen across multiple sessions"
-				icon="!"
-				count={recurringProblems.length}
-			>
-				{recurringProblems.map((rp) => (
-					<div
-						key={rp.pattern}
-						className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800"
-					>
-						<p className="text-sm text-zinc-800 dark:text-zinc-200">{rp.pattern}</p>
-						<p className="mt-1 text-xs text-zinc-500">
-							{rp.occurrence_count} occurrences across {(rp.sessions ?? []).length} sessions
-						</p>
-					</div>
-				))}
-			</InsightSection>
 		</div>
 	);
 }
