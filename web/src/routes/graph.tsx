@@ -844,23 +844,25 @@ export default function GraphPage() {
 			<div className="space-y-6">
 				<h2 className="text-2xl font-bold">Knowledge Graph</h2>
 
-				{/* Time window toggle */}
-				<div className="flex items-center gap-2">
-					{TIME_OPTIONS.map((opt) => (
-						<button
-							key={opt.value}
-							type="button"
-							onClick={() => setHours(opt.value)}
-							className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
-								hours === opt.value
-									? "bg-indigo-600 text-white"
-									: "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
-							}`}
-						>
-							{opt.label}
-						</button>
-					))}
-				</div>
+				{/* Time window toggle — only for data tabs, not the pre-computed briefing */}
+				{activeTab !== "briefing" && (
+					<div className="flex items-center gap-2">
+						{TIME_OPTIONS.map((opt) => (
+							<button
+								key={opt.value}
+								type="button"
+								onClick={() => setHours(opt.value)}
+								className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+									hours === opt.value
+										? "bg-indigo-600 text-white"
+										: "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
+								}`}
+							>
+								{opt.label}
+							</button>
+						))}
+					</div>
+				)}
 
 				{/* Tab bar */}
 				<div className="border-b border-zinc-200 dark:border-zinc-800">
