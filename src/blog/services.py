@@ -1321,8 +1321,9 @@ class BlogSynthesizer:
 # Regex patterns for banned rhetorical constructions.
 # "X is/are not (just) Y. It is/They are Z" reframing pattern.
 _NEGATION_REFRAME_RE = re.compile(
-    r"\b(?:is|are|was|were)\s+not\s+(?:just\s+)?\w+.*?\.\s+"
-    r"(?:It|They|That|This)\s+(?:is|are|was|were)\b",
+    r"(?:\b(?:is|are|was|were)\s+not|(?:isn't|aren't|wasn't|weren't)|\w+'s\s+not|\w+'re\s+not)\s+"
+    r"(?:just\s+)?\w+.*?\.\s+"
+    r"(?:It|They|That|This)(?:\s+(?:is|are|was|were)|'s|'re)\b",
     re.IGNORECASE,
 )
 
