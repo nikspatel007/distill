@@ -2197,6 +2197,64 @@ def note_list(
         console.print(f"    [dim]ID: {note.id} | {note.created_at.date()}[/dim]")
 
 
+@app.command(name="brief")
+def brief_cmd(
+    output: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Output directory"),
+    ] = Path("./insights"),
+    date: Annotated[
+        str | None,
+        typer.Option("--date", "-d", help="Target date (YYYY-MM-DD)"),
+    ] = None,
+    no_drafts: Annotated[
+        bool,
+        typer.Option("--no-drafts", help="Skip draft generation"),
+    ] = False,
+) -> None:
+    """Generate a reading brief from today's intake."""
+    import json as _json
+    from datetime import datetime as _dt
+
+    from distill.brief.services import generate_reading_brief
+    from distill.intake.models import ContentItem
+    from distill.voice.store import load_voice_profile
+
+    target = date or _dt.now().strftime("%Y-%m-%d")
+
+    # Load items from archive
+    archive_path = output / "intake" / "archive" / f"{target}.json"
+    if not archive_path.exists():
+        console.print(f"[yellow]No intake archive for {target}[/yellow]")
+        raise typer.Exit(1)
+
+    data = _json.loads(archive_path.read_text(encoding="utf-8"))
+    items_data = data.get("items", data) if isinstance(data, dict) else data
+    items = [ContentItem.model_validate(item) for item in items_data]
+
+    voice_profile = load_voice_profile(output)
+
+    console.print(f"Generating reading brief for {target}...")
+    result = generate_reading_brief(
+        items,
+        target,
+        output,
+        voice_profile=voice_profile,
+        generate_drafts=not no_drafts,
+    )
+
+    console.print(f"\n[bold green]Reading Brief — {target}[/bold green]\n")
+    for i, h in enumerate(result.highlights, 1):
+        console.print(f"[bold]{i}. {h.title}[/bold] ({h.source})")
+        console.print(f"   {h.summary}\n")
+
+    if result.drafts:
+        console.print("[bold]Draft posts:[/bold]")
+        for d in result.drafts:
+            console.print(f"\n[cyan]{d.platform}[/cyan] ({d.char_count} chars):")
+            console.print(d.content)
+
+
 @app.command()
 def brainstorm(
     output: Path = typer.Option(Path("./insights"), help="Output directory"),  # noqa: B008

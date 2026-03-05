@@ -482,4 +482,21 @@ def generate_intake(
         if isinstance(share_id, str):
             share_store.mark_used(share_id, f"intake-{context.date.isoformat()}")
 
+    # --- Generate reading brief ---
+    try:
+        from distill.brief.services import generate_reading_brief as _gen_brief
+        from distill.voice.store import load_voice_profile as _load_voice
+
+        _voice = _load_voice(output_dir)
+        _gen_brief(
+            all_items,
+            context.date.isoformat(),
+            output_dir,
+            voice_profile=_voice,
+            generate_drafts=True,
+        )
+        logger.info("Reading brief generated for %s", context.date)
+    except Exception as exc:
+        logger.warning("Reading brief generation failed: %s", exc)
+
     return written
