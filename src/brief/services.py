@@ -7,6 +7,8 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
+from distill.brief.connection import find_connection
+from distill.brief.learning import compute_learning_pulse
 from distill.brief.models import DraftPost, ReadingBrief, ReadingHighlight
 from distill.brief.prompts import get_draft_post_prompt, get_reading_brief_prompt
 from distill.brief.store import save_reading_brief
@@ -141,11 +143,28 @@ def generate_reading_brief(
             except Exception:
                 pass  # Skip failed drafts, don't block the brief
 
+    # Step 3: Connection engine
+    connection = None
+    try:
+        if highlights:
+            connection = find_connection(highlights, output_dir)
+    except Exception:
+        logger.warning("Connection engine failed", exc_info=True)
+
+    # Step 4: Learning pulse
+    learning_pulse: list = []
+    try:
+        learning_pulse = compute_learning_pulse(output_dir)
+    except Exception:
+        logger.warning("Learning pulse failed", exc_info=True)
+
     brief = ReadingBrief(
         date=target_date,
         generated_at=datetime.now().isoformat(),
         highlights=highlights,
         drafts=drafts,
+        connection=connection,
+        learning_pulse=learning_pulse,
     )
     save_reading_brief(brief, output_dir)
     return brief

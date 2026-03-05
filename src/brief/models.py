@@ -1,7 +1,13 @@
 """Models for the daily reading brief."""
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from distill.brief.connection import ConnectionInsight
+    from distill.brief.learning import TopicTrend
 
 
 class ReadingHighlight(BaseModel):
@@ -27,3 +33,13 @@ class ReadingBrief(BaseModel):
     generated_at: str = ""
     highlights: list[ReadingHighlight] = Field(default_factory=list)
     drafts: list[DraftPost] = Field(default_factory=list)
+    connection: ConnectionInsight | None = None
+    learning_pulse: list[TopicTrend] = Field(default_factory=list)
+
+
+# Rebuild model to resolve forward references from TYPE_CHECKING imports.
+# Import into module globals so Pydantic can find the types during rebuild.
+from distill.brief.connection import ConnectionInsight as ConnectionInsight  # noqa: E402
+from distill.brief.learning import TopicTrend as TopicTrend  # noqa: E402
+
+ReadingBrief.model_rebuild()

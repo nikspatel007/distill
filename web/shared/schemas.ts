@@ -670,11 +670,49 @@ export const DraftPostSchema = z.object({
 	source_highlights: z.array(z.string()).default([]),
 });
 
+export const ConnectionInsightSchema = z.object({
+	today: z.string(),
+	past: z.string(),
+	connection_type: z.string(),
+	explanation: z.string(),
+	strength: z.number().default(0),
+});
+
+export const TopicTrendSchema = z.object({
+	topic: z.string(),
+	status: z.string(), // "trending" | "cooling" | "emerging" | "stable"
+	count: z.number().default(0),
+	recent_count: z.number().default(0),
+	first_seen: z.string().default(""),
+	last_seen: z.string().default(""),
+	sparkline: z.array(z.number()).default([]),
+});
+
 export const ReadingBriefSchema = z.object({
 	date: z.string(),
 	generated_at: z.string().default(""),
 	highlights: z.array(ReadingHighlightSchema).default([]),
 	drafts: z.array(DraftPostSchema).default([]),
+	connection: ConnectionInsightSchema.nullable().default(null),
+	learning_pulse: z.array(TopicTrendSchema).default([]),
+});
+
+// --- Discovery ---
+
+export const DiscoveryItemSchema = z.object({
+	title: z.string(),
+	url: z.string(),
+	source: z.string().default(""),
+	summary: z.string().default(""),
+	topic: z.string().default(""),
+	content_type: z.string().default("article"),
+});
+
+export const DiscoveryResultSchema = z.object({
+	date: z.string(),
+	generated_at: z.string().default(""),
+	items: z.array(DiscoveryItemSchema).default([]),
+	topics_searched: z.array(z.string()).default([]),
 });
 
 // --- Daily Briefing ---
@@ -712,6 +750,7 @@ export const DailyBriefingSchema = z.object({
 	seeds: z.array(SeedIdeaSchema),
 	readingItems: z.array(ReadingItemBriefSchema).default([]),
 	readingBrief: ReadingBriefSchema.nullable().default(null),
+	discovery: DiscoveryResultSchema.nullable().default(null),
 });
 
 // --- Save (edit) ---
@@ -778,7 +817,11 @@ export type BriefingPublishItem = z.infer<typeof BriefingPublishItemSchema>;
 export type DailyBriefing = z.infer<typeof DailyBriefingSchema>;
 export type ReadingHighlight = z.infer<typeof ReadingHighlightSchema>;
 export type DraftPost = z.infer<typeof DraftPostSchema>;
+export type ConnectionInsight = z.infer<typeof ConnectionInsightSchema>;
+export type TopicTrend = z.infer<typeof TopicTrendSchema>;
 export type ReadingBrief = z.infer<typeof ReadingBriefSchema>;
+export type DiscoveryItem = z.infer<typeof DiscoveryItemSchema>;
+export type DiscoveryResult = z.infer<typeof DiscoveryResultSchema>;
 export type ContentItem = z.infer<typeof ContentItemSchema>;
 export type ContentItemsResponse = z.infer<typeof ContentItemsResponseSchema>;
 export type GraphNode = z.infer<typeof GraphNodeSchema>;

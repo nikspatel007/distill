@@ -3,12 +3,15 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
 
-from distill.brief.models import ReadingHighlight
 from distill.memory.models import UnifiedMemory
 from distill.memory.services import load_unified_memory
+
+if TYPE_CHECKING:
+    from distill.brief.models import ReadingHighlight
 
 logger = logging.getLogger(__name__)
 
