@@ -13,7 +13,7 @@ import {
 	X,
 } from "lucide-react";
 import { useState } from "react";
-import type { DailyBriefing, ReadingItemBrief } from "../../shared/schemas.js";
+import type { DailyBriefing, DraftPost, ReadingItemBrief } from "../../shared/schemas.js";
 
 function formatDisplayDate(dateStr: string): string {
 	if (dateStr === "today") return new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
@@ -31,6 +31,86 @@ function isToday(dateStr: string): boolean {
 	if (dateStr === "today") return true;
 	const today = new Date().toISOString().slice(0, 10);
 	return dateStr === today;
+}
+
+function DraftCard({ draft, date }: { draft: DraftPost; date: string }) {
+	const [editing, setEditing] = useState(false);
+	const [content, setContent] = useState(draft.content);
+	const queryClient = useQueryClient();
+
+	const saveDraft = useMutation({
+		mutationFn: async (newContent: string) => {
+			const res = await fetch(`/api/home/drafts/${date}/${draft.platform}`, {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ content: newContent }),
+			});
+			if (!res.ok) throw new Error("Failed to save");
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["home"] });
+			setEditing(false);
+		},
+	});
+
+	const platformLabel = draft.platform === "linkedin" ? "LinkedIn" : "X";
+
+	return (
+		<div className="rounded-lg border border-zinc-100 p-3 dark:border-zinc-800">
+			<div className="mb-2 flex items-center justify-between">
+				<span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+					draft.platform === "linkedin"
+						? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
+						: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+				}`}>
+					{platformLabel}
+				</span>
+				<span className="text-xs text-zinc-400">
+					{content.length} chars
+				</span>
+			</div>
+			{editing ? (
+				<div>
+					<textarea
+						value={content}
+						onChange={(e) => setContent(e.target.value)}
+						className="w-full rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+						rows={8}
+					/>
+					<div className="mt-2 flex gap-2">
+						<button
+							type="button"
+							onClick={() => saveDraft.mutate(content)}
+							disabled={saveDraft.isPending}
+							className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+						>
+							{saveDraft.isPending ? "Saving..." : "Save"}
+						</button>
+						<button
+							type="button"
+							onClick={() => { setContent(draft.content); setEditing(false); }}
+							className="rounded-lg px-3 py-1.5 text-xs text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+						>
+							Cancel
+						</button>
+					</div>
+				</div>
+			) : (
+				<div>
+					<p className="whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-300">
+						{draft.content}
+					</p>
+					<button
+						type="button"
+						onClick={() => setEditing(true)}
+						className="mt-2 flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700"
+					>
+						<PenLine className="h-3 w-3" /> Edit
+					</button>
+				</div>
+			)}
+		</div>
+	);
 }
 
 export default function DailyBriefing() {
@@ -172,6 +252,58 @@ export default function DailyBriefing() {
 					<ChevronRight className="h-5 w-5" />
 				</button>
 			</div>
+
+			{/* 3 Things Worth Knowing */}
+			{data.readingBrief && data.readingBrief.highlights.length > 0 && (
+				<section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+					<h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+						3 things worth knowing
+					</h2>
+					<ul className="mt-3 space-y-4">
+						{data.readingBrief.highlights.map((h) => (
+							<li key={h.title} className="border-l-2 border-indigo-400 pl-3">
+								<div className="flex items-start justify-between gap-2">
+									<div>
+										<span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+											{h.title}
+										</span>
+										<span className="ml-2 text-xs text-zinc-400">
+											{h.source}
+										</span>
+									</div>
+									{h.url && (
+										<a
+											href={h.url}
+											target="_blank"
+											rel="noopener noreferrer"
+											className="shrink-0 text-zinc-400 hover:text-indigo-500"
+										>
+											<ExternalLink className="h-3.5 w-3.5" />
+										</a>
+									)}
+								</div>
+								<p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+									{h.summary}
+								</p>
+							</li>
+						))}
+					</ul>
+				</section>
+			)}
+
+			{/* Ready to Post */}
+			{data.readingBrief && data.readingBrief.drafts.length > 0 && (
+				<section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+					<h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+						Ready to post
+					</h2>
+					<div className="mt-3 space-y-4">
+						{data.readingBrief.drafts.map((draft) => (
+							<DraftCard key={draft.platform} draft={draft} date={data.date} />
+						))}
+					</div>
+				</section>
+			)}
 
 			{/* Brainstorm CTA */}
 			<button
