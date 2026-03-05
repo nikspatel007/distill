@@ -2794,6 +2794,114 @@ def briefing(
                 console.print(f"  {rec.priority}. {rec.action}")
 
 
+# -- Voice Memory sub-app ----------------------------------------------------
+
+voice_app = typer.Typer(help="Voice memory — learn and apply your writing style.")
+app.add_typer(voice_app, name="voice")
+
+
+@voice_app.command(name="show")
+def voice_show(
+    output: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Output directory."),
+    ] = Path("./insights"),
+    category: Annotated[
+        str | None,
+        typer.Option(
+            "--category",
+            "-c",
+            help="Filter by category (tone, specificity, structure, vocabulary, framing).",
+        ),
+    ] = None,
+) -> None:
+    """Display the current voice profile."""
+    from distill.voice.models import RuleCategory
+    from distill.voice.store import load_voice_profile
+
+    profile = load_voice_profile(output)
+    rules = profile.rules
+
+    if category:
+        try:
+            cat = RuleCategory(category.lower())
+            rules = [r for r in rules if r.category == cat]
+        except ValueError:
+            console.print(f"[red]Unknown category: {category}[/red]")
+            raise typer.Exit(1)
+
+    if not rules:
+        console.print("[dim]No voice rules found.[/dim]")
+        return
+
+    console.print(f"[bold]{len(rules)} voice rule(s):[/bold]")
+    for rule in sorted(rules, key=lambda r: (-r.confidence, r.category)):
+        conf = rule.confidence_label
+        console.print(f"  [{conf}] ({rule.category}) {rule.rule}")
+        if rule.examples:
+            console.print(f"    [dim]before:[/dim] {rule.examples.get('before', '')}")
+            console.print(f"    [dim]after:[/dim]  {rule.examples.get('after', '')}")
+
+
+@voice_app.command(name="extract")
+def voice_extract(
+    output: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Output directory."),
+    ] = Path("./insights"),
+) -> None:
+    """Extract voice patterns from Studio chat histories."""
+    from distill.voice.services import extract_voice_rules
+
+    profile = extract_voice_rules(output)
+    console.print(f"[green]Voice profile updated:[/green] {len(profile.rules)} total rules")
+    console.print(f"  Processed {profile.extracted_from} records")
+
+
+@voice_app.command(name="add")
+def voice_add(
+    text: Annotated[str, typer.Argument(help="Voice rule to add.")],
+    category: Annotated[
+        str,
+        typer.Option("--category", "-c", help="Rule category."),
+    ] = "tone",
+    output: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Output directory."),
+    ] = Path("./insights"),
+) -> None:
+    """Manually add a voice rule."""
+    from distill.voice.models import RuleCategory, VoiceRule
+    from distill.voice.store import load_voice_profile, save_voice_profile
+
+    try:
+        cat = RuleCategory(category.lower())
+    except ValueError:
+        console.print(f"[red]Unknown category: {category}[/red]")
+        raise typer.Exit(1)
+
+    profile = load_voice_profile(output)
+    rule = VoiceRule(rule=text, category=cat, confidence=0.6, source_count=1)
+    profile.rules.append(rule)
+    save_voice_profile(profile, output)
+    console.print(f"[green]Rule added:[/green] {text}")
+
+
+@voice_app.command(name="reset")
+def voice_reset(
+    output: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Output directory."),
+    ] = Path("./insights"),
+) -> None:
+    """Reset the voice profile (start fresh)."""
+    from distill.voice.models import VoiceProfile
+    from distill.voice.store import save_voice_profile
+
+    save_voice_profile(VoiceProfile(), output)
+    console.print("[green]Voice profile reset.[/green]")
+
+
 @app.command()
 def mcp(
     output: Annotated[
