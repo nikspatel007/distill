@@ -360,8 +360,14 @@ def generate_intake(
     unified_text = unified.render_for_prompt(focus="intake")
     memory_text = unified_text if unified_text else memory.render_for_prompt()
 
+    # Load voice profile for style guidance
+    from distill.voice.store import load_voice_profile
+
+    voice_profile = load_voice_profile(output_dir)
+    voice_text = voice_profile.render_for_prompt(min_confidence=0.5)
+
     synthesizer = IntakeSynthesizer(config)
-    prose = synthesizer.synthesize_daily(context, memory_context=memory_text)
+    prose = synthesizer.synthesize_daily(context, memory_context=memory_text, voice_context=voice_text)
 
     # Image generation disabled for intake digests — text only
 

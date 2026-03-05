@@ -8,6 +8,7 @@ def get_daily_intake_prompt(
     memory_context: str = "",
     user_name: str = "",
     user_role: str = "software engineer",
+    voice_context: str = "",
 ) -> str:
     """Build the system prompt for daily intake synthesis."""
     memory_section = ""
@@ -21,6 +22,15 @@ interests. Reference previous days naturally when relevant, not as
 a forced callback.
 
 {memory_context}
+"""
+
+    voice_section = ""
+    if voice_context:
+        voice_section = f"""
+
+## Learned Voice Patterns
+
+{voice_context}
 """
 
     identity = f"You are {user_name}, a {user_role}" if user_name else f"You are a {user_role}"
@@ -81,7 +91,7 @@ content only supports 400 words, write 400 words.
 ## Format
 
 First person. Markdown. Link to sources inline. No images.
-{memory_section}
+{memory_section}{voice_section}
 ## Highlights
 
 Start with a HIGHLIGHTS block: 3 to 5 bullet points, each a
@@ -116,6 +126,7 @@ def get_unified_intake_prompt(
     has_seeds: bool = False,
     user_name: str = "",
     user_role: str = "software engineer",
+    voice_context: str = "",
 ) -> str:
     """Build the system prompt for unified daily synthesis.
 
@@ -132,6 +143,15 @@ Use this to connect today to earlier patterns. Reference previous days
 naturally when relevant, not as a forced callback.
 
 {memory_context}
+"""
+
+    voice_section = ""
+    if voice_context:
+        voice_section = f"""
+
+## Learned Voice Patterns
+
+{voice_context}
 """
 
     content_guidance = []
@@ -209,7 +229,7 @@ content only supports 400 words, write 400 words.
 ## Format
 
 First person. Markdown. Link to sources inline. No images.
-{guidance_block}{memory_section}
+{guidance_block}{memory_section}{voice_section}
 ## Highlights
 
 Start with a HIGHLIGHTS block: 3 to 5 bullet points, each a

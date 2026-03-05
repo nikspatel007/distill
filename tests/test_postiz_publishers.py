@@ -68,10 +68,13 @@ class TestPostizBlogPublisher:
         )
         context = MagicMock()
         context.editorial_notes = ""
+        context.voice_context = ""
         result = pub.format_weekly(context, "Weekly prose")
 
         synthesizer.adapt_for_platform.assert_called_once_with(
-            "Weekly prose", "twitter", "weekly", editorial_hint=""
+            "Weekly prose", "twitter", "weekly",
+            editorial_hint="",
+            voice_context="",
         )
         mock_client.create_post.assert_called_once_with(
             "Adapted tweet", ["int-1"], post_type="draft", scheduled_at=None, images=[]

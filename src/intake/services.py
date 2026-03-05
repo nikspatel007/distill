@@ -2159,7 +2159,9 @@ class IntakeSynthesizer:
     def __init__(self, config: IntakeConfig) -> None:
         self._config = config
 
-    def synthesize_daily(self, context: DailyIntakeContext, memory_context: str = "") -> str:
+    def synthesize_daily(
+        self, context: DailyIntakeContext, memory_context: str = "", voice_context: str = ""
+    ) -> str:
         """Transform daily intake context into a research digest.
 
         Uses the unified prompt when sessions or seeds are present,
@@ -2168,6 +2170,7 @@ class IntakeSynthesizer:
         Args:
             context: The assembled daily intake context.
             memory_context: Rendered working memory for continuity.
+            voice_context: Rendered voice rules for style guidance.
 
         Returns:
             Synthesized prose as markdown.
@@ -2180,6 +2183,7 @@ class IntakeSynthesizer:
                 has_seeds=context.has_seeds,
                 user_name=self._config.user_name,
                 user_role=self._config.user_role,
+                voice_context=voice_context,
             )
         else:
             system_prompt = get_daily_intake_prompt(
@@ -2187,6 +2191,7 @@ class IntakeSynthesizer:
                 memory_context=memory_context,
                 user_name=self._config.user_name,
                 user_role=self._config.user_role,
+                voice_context=voice_context,
             )
         user_prompt = context.combined_text
         return self._call_claude(system_prompt, user_prompt, f"intake {context.date.isoformat()}")

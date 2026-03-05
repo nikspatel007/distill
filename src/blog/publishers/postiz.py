@@ -44,11 +44,13 @@ class PostizBlogPublisher(BlogPublisher):
     ) -> str:
         """Adapt weekly prose for social platforms and push to Postiz."""
         editorial_hint = getattr(context, "editorial_notes", "") or ""
+        voice_context = getattr(context, "voice_context", "") or ""
         return self._adapt_and_push(
             prose,
             context_label="weekly",
             post_kind="weekly",
             editorial_hint=editorial_hint,
+            voice_context=voice_context,
             blog_url=blog_url,
             feature_image_url=feature_image_url,
         )
@@ -63,11 +65,13 @@ class PostizBlogPublisher(BlogPublisher):
     ) -> str:
         """Adapt thematic prose for social platforms and push to Postiz."""
         editorial_hint = getattr(context, "editorial_notes", "") or ""
+        voice_context = getattr(context, "voice_context", "") or ""
         return self._adapt_and_push(
             prose,
             context_label="thematic",
             post_kind="thematic",
             editorial_hint=editorial_hint,
+            voice_context=voice_context,
             blog_url=blog_url,
             feature_image_url=feature_image_url,
         )
@@ -104,6 +108,7 @@ class PostizBlogPublisher(BlogPublisher):
         context_label: str,
         post_kind: str,
         editorial_hint: str = "",
+        voice_context: str = "",
         blog_url: str | None = None,
         feature_image_url: str | None = None,
     ) -> str:
@@ -149,7 +154,9 @@ class PostizBlogPublisher(BlogPublisher):
             if self._synthesizer and hasattr(self._synthesizer, "adapt_for_platform"):
                 try:
                     adapted = self._synthesizer.adapt_for_platform(
-                        prose, platform, context_label, editorial_hint=editorial_hint
+                        prose, platform, context_label,
+                        editorial_hint=editorial_hint,
+                        voice_context=voice_context,
                     )
                 except Exception:
                     logger.warning("Failed to adapt for %s, using raw prose", platform)

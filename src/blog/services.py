@@ -1227,6 +1227,7 @@ class BlogSynthesizer:
         slug: str,
         editorial_hint: str = "",
         hashtags: str = "",
+        voice_context: str = "",
     ) -> str:
         """Adapt blog prose for a specific platform.
 
@@ -1236,6 +1237,7 @@ class BlogSynthesizer:
             slug: Post slug for logging.
             editorial_hint: Optional editorial direction to prepend.
             hashtags: Space-separated hashtags for the closing line.
+            voice_context: Rendered voice rules to prepend (use min_confidence=0.3).
 
         Returns:
             Platform-adapted text.
@@ -1248,8 +1250,11 @@ class BlogSynthesizer:
         prompt_key = {"x": "twitter"}.get(platform, platform)
         system_prompt = get_social_prompt(prompt_key, hashtags=hashtags)
         input_text = prose
+        # Voice context first (lowest priority), then editorial hint (highest priority)
+        if voice_context:
+            input_text = voice_context + "\n\n" + input_text
         if editorial_hint:
-            input_text = f"EDITORIAL DIRECTION: {editorial_hint}\n\n{prose}"
+            input_text = f"EDITORIAL DIRECTION: {editorial_hint}\n\n{input_text}"
         return self._call_claude(system_prompt, input_text, f"adapt-{platform}-{slug}")
 
     def extract_blog_memory(
