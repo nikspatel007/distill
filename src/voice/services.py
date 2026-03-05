@@ -105,9 +105,7 @@ def extract_from_record(record: ContentRecord) -> list[VoiceRule]:
         return []
 
     # Format chat history for the LLM
-    chat_text = "\n".join(
-        f"[{msg.role}]: {msg.content}" for msg in record.chat_history
-    )
+    chat_text = "\n".join(f"[{msg.role}]: {msg.content}" for msg in record.chat_history)
 
     system_prompt = get_extraction_prompt()
     user_prompt = f"Analyze this editing conversation and extract voice/style rules:\n\n{chat_text}"
@@ -145,8 +143,7 @@ def extract_voice_rules(output_dir: Path) -> VoiceProfile:
 
     all_records = store.list()
     unprocessed = [
-        r for r in all_records
-        if r.slug not in profile.processed_slugs and len(r.chat_history) >= 2
+        r for r in all_records if r.slug not in profile.processed_slugs and len(r.chat_history) >= 2
     ]
 
     if not unprocessed:
@@ -168,6 +165,8 @@ def extract_voice_rules(output_dir: Path) -> VoiceProfile:
 
     logger.info(
         "Extracted %d new rules from %d records (total: %d rules)",
-        total_new, len(unprocessed), len(profile.rules),
+        total_new,
+        len(unprocessed),
+        len(profile.rules),
     )
     return profile
