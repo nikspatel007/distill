@@ -1,6 +1,7 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { Hono } from "hono";
+import { z } from "zod";
 import {
 	BlogMemorySchema,
 	BlogStateSchema,
@@ -10,6 +11,7 @@ import {
 	IntakeFrontmatterSchema,
 	JournalFrontmatterSchema,
 	type ReadingItemBrief,
+	ReadingBriefSchema,
 	SeedIdeaSchema,
 } from "../../shared/schemas.js";
 import { getConfig } from "../lib/config.js";
@@ -63,7 +65,7 @@ app.get("/api/home/:date", async (c) => {
 	}
 
 	// Load all data in parallel
-	const [journalFiles, intakeRaw, seedsRaw, blogMemory, blogState, intakeArchive] =
+	const [journalFiles, intakeRaw, seedsRaw, blogMemory, blogState, intakeArchive, readingBriefRaw] =
 		await Promise.all([
 			listFiles(join(OUTPUT_DIR, "journal"), new RegExp(`^journal-${date}.*\\.md$`)),
 			readMarkdown(join(OUTPUT_DIR, "intake", `intake-${date}.md`)),
@@ -74,6 +76,7 @@ app.get("/api/home/:date", async (c) => {
 				join(OUTPUT_DIR, "intake", "archive", `${date}.json`),
 				ContentItemsResponseSchema,
 			),
+			readJson(join(OUTPUT_DIR, ".distill-reading-brief.json"), z.array(ReadingBriefSchema)),
 		]);
 
 	// --- Journal brief ---
@@ -158,6 +161,13 @@ app.get("/api/home/:date", async (c) => {
 			}));
 	}
 
+	// --- Reading brief ---
+	let readingBrief = null;
+	if (readingBriefRaw) {
+		const match = readingBriefRaw.find((b) => b.date === date);
+		if (match) readingBrief = match;
+	}
+
 	// --- Publish queue (deduplicated: one entry per post) ---
 	const publishQueue: BriefingPublishItem[] = [];
 	const memoryPosts = blogMemory?.posts ?? [];
@@ -211,6 +221,7 @@ app.get("/api/home/:date", async (c) => {
 		publishQueue,
 		seeds,
 		readingItems,
+		readingBrief,
 	};
 
 	return c.json(response);
@@ -318,6 +329,36 @@ app.post("/api/home/brainstorm", async (c) => {
 	const body = sections.join("\n");
 
 	return c.json({ title: `Brainstorm — ${date}`, body, date });
+});
+
+app.patch("/api/home/drafts/:date/:platform", async (c) => {
+	const { OUTPUT_DIR } = getConfig();
+	const date = c.req.param("date");
+	const platform = c.req.param("platform");
+	const { content } = await c.req.json<{ content: string }>();
+
+	const briefPath = join(OUTPUT_DIR, ".distill-reading-brief.json");
+	const raw = await readFile(briefPath, "utf-8").catch(() => "[]");
+	const briefs = JSON.parse(raw) as Array<Record<string, unknown>>;
+
+	const briefIdx = briefs.findIndex((b) => b.date === date);
+	if (briefIdx === -1) return c.json({ error: "Brief not found" }, 404);
+
+	const brief = briefs[briefIdx] as Record<string, unknown>;
+	const drafts = (brief.drafts as Array<Record<string, unknown>>) ?? [];
+	const draftIdx = drafts.findIndex((d) => d.platform === platform);
+
+	if (draftIdx === -1) {
+		drafts.push({ platform, content, char_count: content.length, source_highlights: [] });
+	} else {
+		drafts[draftIdx] = { ...drafts[draftIdx], content, char_count: content.length };
+	}
+
+	brief.drafts = drafts;
+	briefs[briefIdx] = brief;
+	await writeFile(briefPath, JSON.stringify(briefs, null, 2));
+
+	return c.json({ success: true });
 });
 
 export default app;

@@ -653,6 +653,30 @@ export const ReadingItemBriefSchema = z.object({
 	word_count: z.number().default(0),
 });
 
+// --- Reading Brief ---
+
+export const ReadingHighlightSchema = z.object({
+	title: z.string(),
+	source: z.string(),
+	url: z.string().default(""),
+	summary: z.string(),
+	tags: z.array(z.string()).default([]),
+});
+
+export const DraftPostSchema = z.object({
+	platform: z.string(),
+	content: z.string(),
+	char_count: z.number().default(0),
+	source_highlights: z.array(z.string()).default([]),
+});
+
+export const ReadingBriefSchema = z.object({
+	date: z.string(),
+	generated_at: z.string().default(""),
+	highlights: z.array(ReadingHighlightSchema).default([]),
+	drafts: z.array(DraftPostSchema).default([]),
+});
+
 // --- Daily Briefing ---
 
 export const JournalBriefSchema = z.object({
@@ -687,6 +711,7 @@ export const DailyBriefingSchema = z.object({
 	publishQueue: z.array(BriefingPublishItemSchema),
 	seeds: z.array(SeedIdeaSchema),
 	readingItems: z.array(ReadingItemBriefSchema).default([]),
+	readingBrief: ReadingBriefSchema.nullable().default(null),
 });
 
 // --- Save (edit) ---
@@ -751,6 +776,9 @@ export type IntakeBrief = z.infer<typeof IntakeBriefSchema>;
 export type ReadingItemBrief = z.infer<typeof ReadingItemBriefSchema>;
 export type BriefingPublishItem = z.infer<typeof BriefingPublishItemSchema>;
 export type DailyBriefing = z.infer<typeof DailyBriefingSchema>;
+export type ReadingHighlight = z.infer<typeof ReadingHighlightSchema>;
+export type DraftPost = z.infer<typeof DraftPostSchema>;
+export type ReadingBrief = z.infer<typeof ReadingBriefSchema>;
 export type ContentItem = z.infer<typeof ContentItemSchema>;
 export type ContentItemsResponse = z.infer<typeof ContentItemsResponseSchema>;
 export type GraphNode = z.infer<typeof GraphNodeSchema>;
