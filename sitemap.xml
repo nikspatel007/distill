@@ -2,66 +2,66 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://distill.dev/</loc>
-         <lastmod>2026-03-04</lastmod>
+         <lastmod>2026-03-05</lastmod>
     </url>
     <url>
          <loc>https://distill.dev/dashboard/pwa/</loc>
-         <lastmod>2026-03-04</lastmod>
+         <lastmod>2026-03-05</lastmod>
     </url>
     <url>
          <loc>https://distill.dev/dashboard/setup/</loc>
-         <lastmod>2026-03-04</lastmod>
+         <lastmod>2026-03-05</lastmod>
     </url>
     <url>
          <loc>https://distill.dev/dashboard/sharing/</loc>
-         <lastmod>2026-03-04</lastmod>
+         <lastmod>2026-03-05</lastmod>
     </url>
     <url>
          <loc>https://distill.dev/getting-started/automation/</loc>
-         <lastmod>2026-03-04</lastmod>
+         <lastmod>2026-03-05</lastmod>
     </url>
     <url>
          <loc>https://distill.dev/getting-started/configuration/</loc>
-         <lastmod>2026-03-04</lastmod>
+         <lastmod>2026-03-05</lastmod>
     </url>
     <url>
          <loc>https://distill.dev/getting-started/quickstart/</loc>
-         <lastmod>2026-03-04</lastmod>
+         <lastmod>2026-03-05</lastmod>
     </url>
     <url>
          <loc>https://distill.dev/integrations/ghost/</loc>
-         <lastmod>2026-03-04</lastmod>
+         <lastmod>2026-03-05</lastmod>
     </url>
     <url>
          <loc>https://distill.dev/integrations/postiz/</loc>
-         <lastmod>2026-03-04</lastmod>
+         <lastmod>2026-03-05</lastmod>
     </url>
     <url>
          <loc>https://distill.dev/integrations/sources/</loc>
-         <lastmod>2026-03-04</lastmod>
+         <lastmod>2026-03-05</lastmod>
     </url>
     <url>
          <loc>https://distill.dev/pipelines/blog/</loc>
-         <lastmod>2026-03-04</lastmod>
+         <lastmod>2026-03-05</lastmod>
     </url>
     <url>
          <loc>https://distill.dev/pipelines/intake/</loc>
-         <lastmod>2026-03-04</lastmod>
+         <lastmod>2026-03-05</lastmod>
     </url>
     <url>
          <loc>https://distill.dev/pipelines/journal/</loc>
-         <lastmod>2026-03-04</lastmod>
+         <lastmod>2026-03-05</lastmod>
     </url>
     <url>
          <loc>https://distill.dev/reference/cli/</loc>
-         <lastmod>2026-03-04</lastmod>
+         <lastmod>2026-03-05</lastmod>
     </url>
     <url>
          <loc>https://distill.dev/reference/env-vars/</loc>
-         <lastmod>2026-03-04</lastmod>
+         <lastmod>2026-03-05</lastmod>
     </url>
     <url>
          <loc>https://distill.dev/reference/output/</loc>
-         <lastmod>2026-03-04</lastmod>
+         <lastmod>2026-03-05</lastmod>
     </url>
 </urlset>
