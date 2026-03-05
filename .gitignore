@@ -47,8 +47,10 @@ node_modules/
 # OS
 .DS_Store
 
-# Claude Code
-.claude/
+# Claude Code (session data ignored, skills/commands committed)
+.claude/*
+!.claude/skills/
+!.claude/commands/
 
 # Generated output
 insights/
