@@ -6,9 +6,11 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	ChevronUp,
+	Compass,
 	ExternalLink,
 	Lightbulb,
 	PenLine,
+	Send,
 	Sparkles,
 	X,
 } from "lucide-react";
@@ -50,6 +52,22 @@ function DraftCard({ draft, date }: { draft: DraftPost; date: string }) {
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["home"] });
 			setEditing(false);
+		},
+	});
+
+	const publishDraft = useMutation({
+		mutationFn: async () => {
+			const res = await fetch(`/api/home/drafts/${date}/${draft.platform}/publish`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+			});
+			if (!res.ok) {
+				const data = await res.json().catch(() => ({}));
+				throw new Error((data as { error?: string }).error ?? "Failed to publish");
+			}
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["home"] });
 		},
 	});
 
@@ -100,13 +118,30 @@ function DraftCard({ draft, date }: { draft: DraftPost; date: string }) {
 					<p className="whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-300">
 						{draft.content}
 					</p>
-					<button
-						type="button"
-						onClick={() => setEditing(true)}
-						className="mt-2 flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700"
-					>
-						<PenLine className="h-3 w-3" /> Edit
-					</button>
+					<div className="mt-2 flex items-center gap-2">
+						<button
+							type="button"
+							onClick={() => setEditing(true)}
+							className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700"
+						>
+							<PenLine className="h-3 w-3" /> Edit
+						</button>
+						<button
+							type="button"
+							onClick={() => publishDraft.mutate()}
+							disabled={publishDraft.isPending}
+							className="flex items-center gap-1 text-xs text-green-600 hover:text-green-700 disabled:opacity-50"
+						>
+							<Send className="h-3 w-3" />
+							{publishDraft.isPending ? "Sending..." : "Push to Postiz"}
+						</button>
+						{publishDraft.isError && (
+							<span className="text-xs text-red-500">{publishDraft.error.message}</span>
+						)}
+						{publishDraft.isSuccess && (
+							<span className="text-xs text-green-500">Sent!</span>
+						)}
+					</div>
 				</div>
 			)}
 		</div>
@@ -291,6 +326,23 @@ export default function DailyBriefing() {
 				</section>
 			)}
 
+			{/* Connection */}
+			{data.readingBrief?.connection && (
+				<section className="rounded-xl border border-amber-200 bg-amber-50/50 p-5 dark:border-amber-800 dark:bg-amber-950/30">
+					<h2 className="text-base font-semibold text-amber-900 dark:text-amber-100">
+						Connection
+					</h2>
+					<p className="mt-2 text-sm text-amber-800 dark:text-amber-200">
+						{data.readingBrief.connection.explanation}
+					</p>
+					<div className="mt-2 flex items-center gap-2">
+						<span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+							{data.readingBrief.connection.connection_type}
+						</span>
+					</div>
+				</section>
+			)}
+
 			{/* Ready to Post */}
 			{data.readingBrief && data.readingBrief.drafts.length > 0 && (
 				<section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
@@ -300,6 +352,114 @@ export default function DailyBriefing() {
 					<div className="mt-3 space-y-4">
 						{data.readingBrief.drafts.map((draft) => (
 							<DraftCard key={draft.platform} draft={draft} date={data.date} />
+						))}
+					</div>
+				</section>
+			)}
+
+			{/* Learning Pulse */}
+			{data.readingBrief && data.readingBrief.learning_pulse.length > 0 && (
+				<section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+					<h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+						Learning pulse
+					</h2>
+					<div className="mt-3 space-y-2">
+						{data.readingBrief.learning_pulse.slice(0, 8).map((t) => (
+							<div key={t.topic} className="flex items-center justify-between">
+								<div className="flex items-center gap-2">
+									<span className={`inline-block h-2 w-2 rounded-full ${
+										t.status === "trending" ? "bg-green-500" :
+										t.status === "emerging" ? "bg-blue-500" :
+										t.status === "cooling" ? "bg-orange-500" :
+										"bg-zinc-400"
+									}`} />
+									<span className="text-sm text-zinc-700 dark:text-zinc-300">{t.topic}</span>
+								</div>
+								<div className="flex items-center gap-2">
+									<div className="flex items-end gap-px h-4">
+										{t.sparkline.slice(-7).map((v, i) => (
+											<div
+												key={i}
+												className={`w-1 rounded-t ${v > 0 ? "bg-indigo-400" : "bg-zinc-200 dark:bg-zinc-700"}`}
+												style={{ height: `${Math.max(v * 25, 2)}px` }}
+											/>
+										))}
+									</div>
+									<span className={`rounded-full px-1.5 py-0.5 text-xs ${
+										t.status === "trending" ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" :
+										t.status === "emerging" ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300" :
+										t.status === "cooling" ? "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300" :
+										"bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+									}`}>
+										{t.status}
+									</span>
+								</div>
+							</div>
+						))}
+					</div>
+				</section>
+			)}
+
+			{/* Explore Next */}
+			{data.discovery && data.discovery.items.length > 0 && (
+				<section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+					<div className="flex items-center justify-between">
+						<h2 className="flex items-center gap-2 text-base font-semibold text-zinc-900 dark:text-zinc-100">
+							<Compass className="h-4 w-4 text-indigo-500" />
+							Explore next
+						</h2>
+						{data.discovery.topics_searched.length > 0 && (
+							<div className="flex gap-1">
+								{data.discovery.topics_searched.slice(0, 3).map((t) => (
+									<span key={t} className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+										{t}
+									</span>
+								))}
+							</div>
+						)}
+					</div>
+					<div className="mt-3 space-y-3">
+						{data.discovery.items.map((item) => (
+							<div key={item.url} className="rounded-lg border border-zinc-100 p-3 dark:border-zinc-800">
+								<div className="flex items-start justify-between gap-2">
+									<div className="min-w-0 flex-1">
+										<a
+											href={item.url}
+											target="_blank"
+											rel="noopener noreferrer"
+											className="text-sm font-medium text-zinc-900 hover:text-indigo-600 dark:text-zinc-100 dark:hover:text-indigo-400"
+										>
+											{item.title}
+											<ExternalLink className="ml-1 inline h-3 w-3" />
+										</a>
+										<div className="mt-1 flex items-center gap-2">
+											{item.source && (
+												<span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+													{item.source}
+												</span>
+											)}
+											{item.content_type !== "article" && (
+												<span className="rounded bg-indigo-100 px-1.5 py-0.5 text-xs text-indigo-600 dark:bg-indigo-900 dark:text-indigo-300">
+													{item.content_type}
+												</span>
+											)}
+										</div>
+										{item.summary && (
+											<p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+												{item.summary}
+											</p>
+										)}
+									</div>
+									<button
+										type="button"
+										onClick={() => saveSeed.mutate({ id: item.url, title: item.title, url: item.url, source: item.source, excerpt: item.summary, site_name: item.source, word_count: 0 })}
+										className="shrink-0 rounded p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
+										title="Save for later"
+									>
+										<Bookmark className="h-3.5 w-3.5" />
+									</button>
+								</div>
+							</div>
 						))}
 					</div>
 				</section>

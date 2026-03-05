@@ -8,6 +8,7 @@ import {
 	type BriefingPublishItem,
 	ContentItemsResponseSchema,
 	type DailyBriefing,
+	DiscoveryResultSchema,
 	IntakeFrontmatterSchema,
 	JournalFrontmatterSchema,
 	type ReadingItemBrief,
@@ -17,6 +18,7 @@ import {
 import { getConfig } from "../lib/config.js";
 import { listFiles, readJson, readMarkdown } from "../lib/files.js";
 import { parseFrontmatter } from "../lib/frontmatter.js";
+import { createPost, isPostizConfigured, listIntegrations } from "../lib/postiz.js";
 
 const app = new Hono();
 
@@ -65,7 +67,7 @@ app.get("/api/home/:date", async (c) => {
 	}
 
 	// Load all data in parallel
-	const [journalFiles, intakeRaw, seedsRaw, blogMemory, blogState, intakeArchive, readingBriefRaw] =
+	const [journalFiles, intakeRaw, seedsRaw, blogMemory, blogState, intakeArchive, readingBriefRaw, discoveriesRaw] =
 		await Promise.all([
 			listFiles(join(OUTPUT_DIR, "journal"), new RegExp(`^journal-${date}.*\\.md$`)),
 			readMarkdown(join(OUTPUT_DIR, "intake", `intake-${date}.md`)),
@@ -77,6 +79,7 @@ app.get("/api/home/:date", async (c) => {
 				ContentItemsResponseSchema,
 			),
 			readJson(join(OUTPUT_DIR, ".distill-reading-brief.json"), z.array(ReadingBriefSchema)),
+			readJson(join(OUTPUT_DIR, ".distill-discoveries.json"), z.array(DiscoveryResultSchema)),
 		]);
 
 	// --- Journal brief ---
@@ -168,6 +171,13 @@ app.get("/api/home/:date", async (c) => {
 		if (match) readingBrief = match;
 	}
 
+	// --- Discoveries ---
+	let discovery = null;
+	if (discoveriesRaw) {
+		const match = discoveriesRaw.find((d) => d.date === date);
+		if (match) discovery = match;
+	}
+
 	// --- Publish queue (deduplicated: one entry per post) ---
 	const publishQueue: BriefingPublishItem[] = [];
 	const memoryPosts = blogMemory?.posts ?? [];
@@ -222,6 +232,7 @@ app.get("/api/home/:date", async (c) => {
 		seeds,
 		readingItems,
 		readingBrief,
+		discovery,
 	};
 
 	return c.json(response);
@@ -359,6 +370,52 @@ app.patch("/api/home/drafts/:date/:platform", async (c) => {
 	await writeFile(briefPath, JSON.stringify(briefs, null, 2));
 
 	return c.json({ success: true });
+});
+
+app.post("/api/home/drafts/:date/:platform/publish", async (c) => {
+	if (!isPostizConfigured()) {
+		return c.json({ error: "Postiz not configured" }, 503);
+	}
+
+	const date = c.req.param("date");
+	const platform = c.req.param("platform");
+	const { OUTPUT_DIR } = getConfig();
+
+	// Load the draft content
+	const briefPath = join(OUTPUT_DIR, ".distill-reading-brief.json");
+	const raw = await readFile(briefPath, "utf-8").catch(() => "[]");
+	const briefs = JSON.parse(raw) as Array<Record<string, unknown>>;
+	const brief = briefs.find((b) => b.date === date);
+	if (!brief) return c.json({ error: "Brief not found" }, 404);
+
+	const drafts = (brief.drafts as Array<Record<string, unknown>>) ?? [];
+	const draft = drafts.find((d) => d.platform === platform);
+	if (!draft) return c.json({ error: "Draft not found" }, 404);
+
+	const content = draft.content as string;
+
+	// Map platform to Postiz provider
+	const providerMap: Record<string, string> = {
+		linkedin: "linkedin",
+		x: "x",
+		twitter: "x",
+	};
+	const provider = providerMap[platform] ?? platform;
+
+	// Find matching integration
+	const integrations = await listIntegrations();
+	const matching = integrations.filter(
+		(i) => i.provider.toLowerCase().includes(provider),
+	);
+
+	if (matching.length === 0) {
+		return c.json({ error: `No ${provider} integration found in Postiz` }, 404);
+	}
+
+	const integrationIds = matching.map((i) => i.id);
+	await createPost(content, integrationIds, { postType: "draft", provider });
+
+	return c.json({ success: true, platform: provider, integrations: matching.length });
 });
 
 export default app;
