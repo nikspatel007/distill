@@ -226,6 +226,7 @@ class WeeklyBlogContext(BaseModel):
     reading_themes: list[str] = Field(default_factory=list)
     project_context: str = ""
     editorial_notes: str = ""
+    voice_context: str = ""
 
 
 class ThematicBlogContext(BaseModel):
@@ -241,6 +242,7 @@ class ThematicBlogContext(BaseModel):
     seed_angle: str = ""
     project_context: str = ""
     editorial_notes: str = ""
+    voice_context: str = ""
 
 
 # ---------------------------------------------------------------------------

@@ -384,6 +384,7 @@ def _generate_weekly_posts(
     """Generate weekly synthesis blog posts."""
     from distill.blog import BlogPostRecord, Platform, clean_diagrams, prepare_weekly_context
     from distill.blog.publishers import create_publisher
+    from distill.voice.store import load_voice_profile
 
     written: list[Path] = []
 
@@ -422,6 +423,9 @@ def _generate_weekly_posts(
             context.editorial_notes = editorial_store.render_for_prompt(
                 target=f"week:{year}-W{week:02d}"
             )
+
+        voice_profile = load_voice_profile(output_dir)
+        context.voice_context = voice_profile.render_for_prompt(min_confidence=0.5)
 
         if dry_run:
             print(f"[DRY RUN] Would generate: {slug}")
@@ -612,6 +616,7 @@ def _generate_thematic_posts(
     from distill.blog.publishers import create_publisher
     from distill.intake import SeedStore
     from distill.memory import load_unified_memory
+    from distill.voice.store import load_voice_profile
 
     written: list[Path] = []
 
@@ -681,6 +686,9 @@ def _generate_thematic_posts(
             context.editorial_notes = editorial_store.render_for_prompt(
                 target=f"theme:{theme.slug}"
             )
+
+        voice_profile = load_voice_profile(output_dir)
+        context.voice_context = voice_profile.render_for_prompt(min_confidence=0.5)
 
         if dry_run:
             print(f"[DRY RUN] Would generate: {theme.slug}")

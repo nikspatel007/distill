@@ -1389,6 +1389,10 @@ def _render_weekly_prompt(context: WeeklyBlogContext) -> str:
         lines.append(context.editorial_notes)
         lines.append("")
 
+    if context.voice_context:
+        lines.append(context.voice_context)
+        lines.append("")
+
     lines.append("# Daily Journal Entries")
     lines.append("")
     lines.append(context.combined_prose)
@@ -1419,6 +1423,10 @@ def _render_thematic_prompt(context: ThematicBlogContext) -> str:
 
     if context.editorial_notes:
         lines.append(context.editorial_notes)
+        lines.append("")
+
+    if context.voice_context:
+        lines.append(context.voice_context)
         lines.append("")
 
     lines.append("# Evidence from Journal Entries")
