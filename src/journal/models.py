@@ -71,6 +71,7 @@ class DailyContext(BaseModel):
     tags: list[str] = Field(default_factory=list)
     previous_context: str = ""
     project_context: str = ""
+    voice_context: str = ""
 
     def render_text(self) -> str:
         """Render as structured text for LLM context."""
@@ -85,6 +86,10 @@ class DailyContext(BaseModel):
 
         if self.project_context:
             lines.append(self.project_context)
+            lines.append("")
+
+        if self.voice_context:
+            lines.append(self.voice_context)
             lines.append("")
 
         for i, s in enumerate(self.session_summaries, 1):

@@ -56,6 +56,7 @@ def generate_journal_notes(
     )
     from distill.memory import DailyEntry, load_unified_memory, save_unified_memory
     from distill.trends import detect_trends, render_trends_for_prompt
+    from distill.voice.store import load_voice_profile
 
     config = JournalConfig(
         style=JournalStyle(style),
@@ -92,6 +93,8 @@ def generate_journal_notes(
 
         context = prepare_daily_context(day_sessions, target_date, config)
         context.project_context = project_context
+        voice_profile = load_voice_profile(output_dir)
+        context.voice_context = voice_profile.render_for_prompt(min_confidence=0.5)
         # Use unified memory for prompt context, fall back to legacy
         unified_text = unified.render_for_prompt(focus="sessions")
         context.previous_context = unified_text if unified_text else memory.render_for_prompt()
