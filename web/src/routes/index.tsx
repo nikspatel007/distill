@@ -6,10 +6,14 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	ChevronUp,
+	Check,
+	Clipboard,
 	Compass,
 	ExternalLink,
 	Lightbulb,
+	Loader2,
 	PenLine,
+	RefreshCw,
 	Send,
 	Sparkles,
 	X,
@@ -71,7 +75,17 @@ function DraftCard({ draft, date }: { draft: DraftPost; date: string }) {
 		},
 	});
 
+	const [copied, setCopied] = useState(false);
+
+	const copyToClipboard = async () => {
+		await navigator.clipboard.writeText(content);
+		setCopied(true);
+		setTimeout(() => setCopied(false), 2000);
+	};
+
 	const platformLabel = draft.platform === "linkedin" ? "LinkedIn" : "X";
+	const charLimit = draft.platform === "linkedin" ? 3000 : 280;
+	const charPct = Math.min((content.length / charLimit) * 100, 100);
 
 	return (
 		<div className="rounded-lg border border-zinc-100 p-3 dark:border-zinc-800">
@@ -83,9 +97,19 @@ function DraftCard({ draft, date }: { draft: DraftPost; date: string }) {
 				}`}>
 					{platformLabel}
 				</span>
-				<span className="text-xs text-zinc-400">
-					{content.length} chars
-				</span>
+				<div className="flex items-center gap-2">
+					<div className="flex items-center gap-1">
+						<div className="h-1 w-16 rounded-full bg-zinc-200 dark:bg-zinc-700">
+							<div
+								className={`h-1 rounded-full ${charPct > 90 ? "bg-red-500" : "bg-indigo-400"}`}
+								style={{ width: `${charPct}%` }}
+							/>
+						</div>
+						<span className={`text-xs ${charPct > 90 ? "text-red-500" : "text-zinc-400"}`}>
+							{content.length}/{charLimit}
+						</span>
+					</div>
+				</div>
 			</div>
 			{editing ? (
 				<div>
@@ -119,6 +143,14 @@ function DraftCard({ draft, date }: { draft: DraftPost; date: string }) {
 						{draft.content}
 					</p>
 					<div className="mt-2 flex items-center gap-2">
+						<button
+							type="button"
+							onClick={copyToClipboard}
+							className="flex items-center gap-1 text-xs text-zinc-600 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+						>
+							{copied ? <Check className="h-3 w-3 text-green-500" /> : <Clipboard className="h-3 w-3" />}
+							{copied ? "Copied!" : "Copy"}
+						</button>
 						<button
 							type="button"
 							onClick={() => setEditing(true)}
@@ -160,6 +192,24 @@ export default function DailyBriefing() {
 			const res = await fetch(`/api/home/${date}`);
 			if (!res.ok) throw new Error("Failed to load briefing");
 			return res.json();
+		},
+	});
+
+	const refreshPipeline = useMutation({
+		mutationFn: async () => {
+			const res = await fetch("/api/pipeline/run", { method: "POST" });
+			if (!res.ok) throw new Error("Failed to start pipeline");
+			// Poll until complete
+			for (let i = 0; i < 60; i++) {
+				await new Promise((r) => setTimeout(r, 3000));
+				const status = await fetch("/api/pipeline/status");
+				const data = await status.json() as { status: string };
+				if (data.status === "completed") return;
+				if (data.status === "failed") throw new Error("Pipeline failed");
+			}
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["home"] });
 		},
 	});
 
@@ -277,6 +327,18 @@ export default function DailyBriefing() {
 							Today
 						</button>
 					)}
+					<button
+						type="button"
+						onClick={() => refreshPipeline.mutate()}
+						disabled={refreshPipeline.isPending}
+						className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 disabled:opacity-50 dark:hover:bg-zinc-800"
+						title="Refresh — run pipeline"
+					>
+						{refreshPipeline.isPending
+							? <Loader2 className="h-4 w-4 animate-spin" />
+							: <RefreshCw className="h-4 w-4" />
+						}
+					</button>
 				</div>
 				<button
 					type="button"

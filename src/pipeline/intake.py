@@ -499,4 +499,13 @@ def generate_intake(
     except Exception as exc:
         logger.warning("Reading brief generation failed: %s", exc)
 
+    # --- Run discovery engine ---
+    try:
+        from distill.brief.discovery import discover_content as _discover
+
+        _discover(output_dir, context.date.isoformat())
+        logger.info("Discovery engine completed for %s", context.date)
+    except Exception as exc:
+        logger.warning("Discovery engine failed: %s", exc)
+
     return written
