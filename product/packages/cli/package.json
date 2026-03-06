@@ -1,0 +1,23 @@
+{
+  "name": "@distill/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "distill": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "bun src/index.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@distill/shared": "workspace:*",
+    "@supabase/supabase-js": "^2.45.0",
+    "chokidar": "^4.0.0",
+    "commander": "^12.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -1,0 +1,58 @@
+version: "3.8"
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: distill
+      POSTGRES_PASSWORD: distill_local
+      POSTGRES_DB: distill
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U distill"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "6107:6107"
+    environment:
+      DATABASE_URL: postgresql://distill:distill_local@db:5432/distill
+      SUPABASE_URL: ${SUPABASE_URL:-http://localhost:8000}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-local}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      GOOGLE_AI_API_KEY: ${GOOGLE_AI_API_KEY:-}
+      PORT: 6107
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+
+  cron:
+    build: .
+    restart: unless-stopped
+    command: >
+      sh -c "while true; do
+        echo 'Running daily pipeline at' $(date);
+        bun run packages/server/src/pipeline/daily.ts;
+        sleep 86400;
+      done"
+    environment:
+      DATABASE_URL: postgresql://distill:distill_local@db:5432/distill
+      SUPABASE_URL: ${SUPABASE_URL:-http://localhost:8000}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-local}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      GOOGLE_AI_API_KEY: ${GOOGLE_AI_API_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

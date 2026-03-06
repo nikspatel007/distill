@@ -1,0 +1,15 @@
+{
+  "name": "distill-product",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev": "bun run --filter '*' dev",
+    "dev:server": "bun run --filter @distill/server dev",
+    "dev:web": "bun run --filter @distill/web dev",
+    "build": "bun run --filter '*' build",
+    "test": "bun run --filter '*' test",
+    "db:generate": "bun run --filter @distill/server db:generate",
+    "db:migrate": "bun run --filter @distill/server db:migrate",
+    "db:push": "bun run --filter @distill/server db:push"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "@distill/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "NODE_ENV=production bun src/index.ts",
+    "test": "bun test",
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.46",
+    "@distill/shared": "workspace:*",
+    "@google/genai": "^1.42.0",
+    "@supabase/supabase-js": "^2.49.0",
+    "ai": "^6.0.97",
+    "drizzle-orm": "^0.44.0",
+    "hono": "^4.6.0",
+    "postgres": "^3.4.0",
+    "rss-parser": "^3.13.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.0",
+    "drizzle-kit": "^0.30.0",
+    "typescript": "^5.7.0"
+  }
+}

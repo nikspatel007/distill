@@ -1,0 +1,56 @@
+services:
+  - type: web
+    name: distill-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: distill-db
+          property: connectionString
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GOOGLE_AI_API_KEY
+        sync: false
+      - key: PORT
+        value: 6107
+      - key: NODE_ENV
+        value: production
+    healthCheckPath: /api/health
+
+  - type: cron
+    name: distill-pipeline
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter
+    schedule: "0 11 * * *"  # 6 AM ET = 11 UTC
+    command: "bun run packages/server/src/pipeline/daily.ts"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: distill-db
+          property: connectionString
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GOOGLE_AI_API_KEY
+        sync: false
+
+databases:
+  - name: distill-db
+    plan: starter
+    databaseName: distill
+    user: distill
+    postgresMajorVersion: "16"
