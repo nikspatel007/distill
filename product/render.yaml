@@ -31,7 +31,7 @@ services:
     dockerContext: .
     plan: starter
     schedule: "0 11 * * *"
-    command: "bun run packages/server/src/pipeline/daily.ts"
+    dockerCommand: "bun run packages/server/src/pipeline/daily.ts"
     envVars:
       - key: DATABASE_URL
         sync: false
