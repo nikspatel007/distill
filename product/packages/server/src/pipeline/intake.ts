@@ -205,7 +205,8 @@ export async function runPipelineForUser(
       .from(schema.users)
       .where(eq(schema.users.id, userId));
 
-    if (userProfile?.highlightSharingEnabled) {
+    const prefs = userProfile?.preferences as { shareHighlights?: boolean } | null;
+    if (prefs?.shareHighlights) {
       for (const h of highlights) {
         await db.insert(schema.feedItems).values({
           userId,

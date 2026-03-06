@@ -19,14 +19,17 @@ import {
 export const users = pgTable("users", {
   id: uuid("id").primaryKey(), // matches Supabase auth.users.id
   displayName: text("display_name").notNull(),
-  email: text("email"),
   avatarUrl: text("avatar_url"),
-  timezone: text("timezone").default("America/New_York"),
-  notificationsEnabled: boolean("notifications_enabled").default(true),
-  sessionSharingEnabled: boolean("session_sharing_enabled").default(false),
-  highlightSharingEnabled: boolean("highlight_sharing_enabled").default(true),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  preferences: jsonb("preferences").$type<{
+    notificationsEnabled: boolean;
+    shareSessions: boolean;
+    shareHighlights: boolean;
+  }>().default({
+    notificationsEnabled: true,
+    shareSessions: false,
+    shareHighlights: true,
+  }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
 // --- Shared URLs ---
@@ -131,18 +134,14 @@ export const follows = pgTable("follows", {
 
 export const feedItems = pgTable("feed_items", {
   id: serial("id").primaryKey(),
-  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
   type: text("type").notNull(), // highlight, share, draft_published
   title: text("title").notNull(),
   summary: text("summary"),
   url: text("url"),
-  imageUrl: text("image_url"),
-  metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-}, (t) => [
-  index("feed_items_user_idx").on(t.userId),
-  index("feed_items_created_idx").on(t.createdAt),
-]);
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
 
 // --- Default Feeds (admin-curated RSS feeds) ---
 
@@ -158,18 +157,16 @@ export const defaultFeeds = pgTable("default_feeds", {
 
 export const sessions = pgTable("sessions", {
   id: serial("id").primaryKey(),
-  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
   sessionId: text("session_id").notNull(), // original session UUID
   project: text("project").notNull(),
   summary: text("summary"),
-  rawData: jsonb("raw_data").$type<Record<string, unknown>>(),
-  keyCommits: jsonb("key_commits").$type<string[]>().default([]),
-  toolsUsed: jsonb("tools_used").$type<string[]>().default([]),
-  durationMinutes: integer("duration_minutes").default(0),
-  filesModified: integer("files_modified").default(0),
+  durationMinutes: integer("duration_minutes").notNull(),
+  linesAdded: integer("lines_added").default(0),
+  linesRemoved: integer("lines_removed").default(0),
+  filesChanged: jsonb("files_changed").$type<string[]>().default([]),
   sessionTimestamp: timestamp("session_timestamp", { withTimezone: true }).notNull(),
-  syncedAt: timestamp("synced_at", { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 }, (t) => [
-  index("sessions_user_idx").on(t.userId),
   uniqueIndex("sessions_user_session_idx").on(t.userId, t.sessionId),
 ]);

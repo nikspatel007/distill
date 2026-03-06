@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { apiFetch } from "../lib/api.js";
-import { Link, Check, Loader2 } from "lucide-react";
+import { Link, Check, Loader2, ExternalLink } from "lucide-react";
 
 interface SharedUrl {
   id: number;
@@ -46,37 +46,36 @@ export function SharePage() {
   };
 
   return (
-    <div className="space-y-8">
-      <h2 className="text-2xl font-bold">Share a URL</h2>
+    <div className="space-y-10">
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight text-text-primary mb-1">Share a URL</h2>
+        <p className="text-sm text-text-muted">Add articles, threads, or videos to your reading pipeline.</p>
+      </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <input
-            type="url"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://..."
-            required
-            className="w-full p-3 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none"
-          />
-        </div>
-        <div>
-          <input
-            type="text"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Add a note (optional)"
-            className="w-full p-3 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder-zinc-500 focus:border-purple-500 focus:outline-none"
-          />
-        </div>
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <input
+          type="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://..."
+          required
+          className="w-full h-12 px-4 rounded-xl bg-surface-1 text-text-primary text-sm border border-border-subtle placeholder:text-text-muted focus:border-accent/50 focus:ring-1 focus:ring-accent/20 focus:outline-none transition-colors"
+        />
+        <input
+          type="text"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Add a note (optional)"
+          className="w-full h-12 px-4 rounded-xl bg-surface-1 text-text-primary text-sm border border-border-subtle placeholder:text-text-muted focus:border-accent/50 focus:ring-1 focus:ring-accent/20 focus:outline-none transition-colors"
+        />
         <button
           type="submit"
           disabled={submitting || !url.trim()}
-          className="px-6 py-3 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+          className="h-11 px-6 rounded-xl bg-accent text-surface-0 text-sm font-semibold hover:bg-accent-hover active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
         >
-          {submitting ? <Loader2 size={18} className="animate-spin" /> :
-           success ? <Check size={18} /> :
-           <Link size={18} />}
+          {submitting ? <Loader2 size={16} className="animate-spin" /> :
+           success ? <Check size={16} /> :
+           <Link size={16} />}
           {success ? "Shared!" : "Share"}
         </button>
       </form>
@@ -84,22 +83,38 @@ export function SharePage() {
       {/* Recent shares */}
       {shares.length > 0 && (
         <div>
-          <h3 className="text-lg font-semibold mb-4 text-zinc-300">Recent Shares</h3>
+          <h3 className="text-sm font-semibold text-text-muted uppercase tracking-wider mb-4">Recent Shares</h3>
           <div className="space-y-2">
             {shares.map((s) => (
-              <div key={s.id} className="p-3 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-between">
+              <div key={s.id} className="group p-3.5 rounded-xl bg-surface-1 border border-border-subtle hover:border-border-default transition-colors flex items-center justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-sm text-purple-400 hover:text-purple-300 truncate block">
+                  <a
+                    href={s.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-accent hover:text-accent-hover transition-colors truncate block font-medium"
+                  >
                     {s.title || s.url}
                   </a>
-                  {s.note && <p className="text-xs text-zinc-500 mt-0.5">{s.note}</p>}
+                  {s.note && <p className="text-xs text-text-muted mt-0.5">{s.note}</p>}
                 </div>
-                <div className="flex items-center gap-2 ml-3 shrink-0">
+                <div className="flex items-center gap-2 shrink-0">
                   {s.processedAt ? (
-                    <span className="text-xs text-green-400">Processed</span>
+                    <span className="text-xs text-success font-medium flex items-center gap-1">
+                      <Check size={12} />
+                      Processed
+                    </span>
                   ) : (
-                    <span className="text-xs text-zinc-500">Pending</span>
+                    <span className="text-xs text-text-muted">Pending</span>
                   )}
+                  <a
+                    href={s.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1 rounded text-text-muted hover:text-text-primary opacity-0 group-hover:opacity-100 transition-all"
+                  >
+                    <ExternalLink size={13} />
+                  </a>
                 </div>
               </div>
             ))}
