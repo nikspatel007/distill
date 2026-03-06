@@ -2,11 +2,11 @@ FROM oven/bun:1 AS base
 WORKDIR /app
 
 # Install dependencies
-COPY package.json bun.lock ./
+COPY package.json bun.lock* ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/server/package.json packages/server/
 COPY packages/web/package.json packages/web/
-RUN bun install --frozen-lockfile
+RUN bun install
 
 # Copy source
 COPY packages/shared/ packages/shared/

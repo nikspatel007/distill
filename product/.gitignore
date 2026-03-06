@@ -3,5 +3,5 @@ dist/
 .env
 .env.local
 *.log
-bun.lock
+# bun.lock - committed for reproducible Docker builds
 drizzle/meta/
