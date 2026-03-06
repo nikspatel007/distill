@@ -2,8 +2,16 @@ import { Slot, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { View, StyleSheet } from "react-native";
+import { ShareIntentProvider } from "expo-share-intent";
 import { AuthProvider, useAuth } from "../lib/auth";
+import { useIncomingShareIntent } from "../lib/useShareIntent";
 import { colors } from "../lib/colors";
+
+function ShareIntentHandler() {
+  const { user } = useAuth();
+  useIncomingShareIntent({ isAuthenticated: !!user });
+  return null;
+}
 
 function RootLayoutNav() {
   const { user, loading } = useAuth();
@@ -25,6 +33,7 @@ function RootLayoutNav() {
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
+      <ShareIntentHandler />
       <Slot />
     </View>
   );
@@ -32,9 +41,11 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <RootLayoutNav />
-    </AuthProvider>
+    <ShareIntentProvider>
+      <AuthProvider>
+        <RootLayoutNav />
+      </AuthProvider>
+    </ShareIntentProvider>
   );
 }
 

@@ -16,6 +16,7 @@ import { Link, Check, Loader2, Clipboard } from "lucide-react-native";
 import * as ExpoClipboard from "expo-clipboard";
 import { apiFetch } from "../../lib/api";
 import { colors } from "../../lib/colors";
+import { consumePendingShareUrl } from "../../lib/shareIntentState";
 import type { SharedUrl } from "@distill/shared";
 
 export default function ShareScreen() {
@@ -38,6 +39,14 @@ export default function ShareScreen() {
   useEffect(() => {
     loadShares().finally(() => setLoadingShares(false));
   }, [loadShares]);
+
+  // Pick up any URL shared via the OS share sheet
+  useEffect(() => {
+    const pending = consumePendingShareUrl();
+    if (pending) {
+      setUrl(pending);
+    }
+  }, []);
 
   const handlePasteFromClipboard = async () => {
     const text = await ExpoClipboard.getStringAsync();
