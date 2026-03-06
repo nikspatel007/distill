@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { serveStatic } from "hono/bun";
 import { getConfig } from "./lib/config.js";
 import { authMiddleware } from "./lib/auth.js";
 import briefRoutes from "./routes/brief.js";
@@ -29,6 +30,12 @@ app.route("/api/feed", feedRoutes);
 app.route("/api/sessions", sessionRoutes);
 app.route("/api/chat", chatRoutes);
 app.route("/api/pipeline", pipelineRoutes);
+
+// Serve static web app in production
+if (process.env.NODE_ENV === "production") {
+  app.use("/*", serveStatic({ root: "./packages/web/dist" }));
+  app.get("/*", serveStatic({ root: "./packages/web/dist", path: "/index.html" }));
+}
 
 export type AppType = typeof app;
 export { app };

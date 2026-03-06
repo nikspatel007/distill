@@ -1,7 +1,20 @@
+import { useState } from "react";
 import { useAuth } from "../hooks/useAuth.js";
 
 export function LoginPage() {
-  const { signInWithGoogle, signInWithGithub } = useAuth();
+  const { signInWithGoogle, signInWithGithub, signInWithEmail, signUpWithEmail } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    const fn = mode === "signin" ? signInWithEmail : signUpWithEmail;
+    const { error } = await fn(email, password);
+    if (error) setError(error.message);
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-zinc-950">
@@ -37,6 +50,48 @@ export function LoginPage() {
             Continue with GitHub
           </button>
         </div>
+
+        <div className="my-6 flex items-center gap-3">
+          <div className="h-px flex-1 bg-zinc-800" />
+          <span className="text-zinc-500 text-xs">or</span>
+          <div className="h-px flex-1 bg-zinc-800" />
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full py-3 px-4 rounded-lg bg-zinc-800 text-white border border-zinc-700 focus:border-purple-500 focus:outline-none"
+            required
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full py-3 px-4 rounded-lg bg-zinc-800 text-white border border-zinc-700 focus:border-purple-500 focus:outline-none"
+            required
+            minLength={6}
+          />
+          {error && (
+            <p className="text-red-400 text-sm">{error}</p>
+          )}
+          <button
+            type="submit"
+            className="w-full py-3 px-4 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium hover:from-purple-500 hover:to-blue-500 transition-colors"
+          >
+            {mode === "signin" ? "Sign In" : "Create Account"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+            className="w-full text-zinc-400 text-sm hover:text-white transition-colors"
+          >
+            {mode === "signin" ? "Need an account? Sign up" : "Already have an account? Sign in"}
+          </button>
+        </form>
       </div>
     </div>
   );

@@ -32,7 +32,13 @@ export function useAuth() {
       options: { redirectTo: window.location.origin },
     });
 
+  const signInWithEmail = (email: string, password: string) =>
+    supabase.auth.signInWithPassword({ email, password });
+
+  const signUpWithEmail = (email: string, password: string) =>
+    supabase.auth.signUp({ email, password });
+
   const signOut = () => supabase.auth.signOut();
 
-  return { user, loading, signInWithGoogle, signInWithGithub, signOut };
+  return { user, loading, signInWithGoogle, signInWithGithub, signInWithEmail, signUpWithEmail, signOut };
 }

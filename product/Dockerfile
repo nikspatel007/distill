@@ -5,14 +5,20 @@ WORKDIR /app
 COPY package.json bun.lock ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/server/package.json packages/server/
+COPY packages/web/package.json packages/web/
 RUN bun install --frozen-lockfile
 
 # Copy source
 COPY packages/shared/ packages/shared/
 COPY packages/server/ packages/server/
+COPY packages/web/ packages/web/
+
+# Build web frontend
+RUN cd packages/web && bun run build
 
 # Expose port
 ENV PORT=6107
+ENV NODE_ENV=production
 EXPOSE 6107
 
 # Health check
