@@ -4,5 +4,7 @@ node_modules
 dist
 *.log
 .git
-packages/web
 packages/mobile
+packages/cli
+packages/web/node_modules
+packages/web/dist
