@@ -499,6 +499,25 @@ def generate_intake(
     except Exception as exc:
         logger.warning("Reading brief generation failed: %s", exc)
 
+    # --- Send brief notification ---
+    try:
+        from distill.brief.store import load_reading_brief
+        from distill.shared.config import load_config as _load_cfg
+
+        _cfg = _load_cfg()
+        _brief = load_reading_brief(output_dir, context.date.isoformat())
+        if _brief and _brief.highlights:
+            from distill.shared.notifications import send_brief_notification
+
+            send_brief_notification(
+                _cfg.notifications,
+                _brief,
+                dashboard_url="http://localhost:6107/",
+            )
+            logger.info("Brief notification sent for %s", context.date)
+    except Exception as exc:
+        logger.warning("Brief notification failed: %s", exc)
+
     # --- Run discovery engine ---
     try:
         from distill.brief.discovery import discover_content as _discover

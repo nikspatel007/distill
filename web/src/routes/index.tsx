@@ -1,3 +1,5 @@
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
@@ -12,14 +14,16 @@ import {
 	ExternalLink,
 	Lightbulb,
 	Loader2,
+	MessageCircle,
 	PenLine,
 	RefreshCw,
 	Send,
 	Sparkles,
 	X,
 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DailyBriefing, DraftPost, ReadingItemBrief } from "../../shared/schemas.js";
+import { MarkdownRenderer } from "../components/shared/MarkdownRenderer.js";
 
 function formatDisplayDate(dateStr: string): string {
 	if (dateStr === "today") return new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
@@ -180,9 +184,192 @@ function DraftCard({ draft, date }: { draft: DraftPost; date: string }) {
 	);
 }
 
+const SUGGESTIONS = [
+	"What patterns am I seeing this week?",
+	"Summarize today's reading",
+	"What should I explore next?",
+	"Connect today's reading to what I'm building",
+];
+
+function ChatPanel({ date, onClose }: { date: string; onClose: () => void }) {
+	const scrollRef = useRef<HTMLDivElement>(null);
+	const inputRef = useRef<HTMLTextAreaElement>(null);
+
+	const transport = useMemo(
+		() =>
+			new DefaultChatTransport({
+				api: "/api/home/chat",
+				body: { date },
+			}),
+		[date],
+	);
+
+	const { messages, sendMessage, status } = useChat({ transport });
+
+	const isBusy = status === "submitted" || status === "streaming";
+
+	// Auto-scroll on new messages
+	useEffect(() => {
+		setTimeout(() => {
+			scrollRef.current?.scrollTo({
+				top: scrollRef.current.scrollHeight,
+				behavior: "smooth",
+			});
+		}, 50);
+	}, [messages.length, status]);
+
+	const handleSend = useCallback(() => {
+		const textarea = inputRef.current;
+		if (!textarea) return;
+		const trimmed = textarea.value.trim();
+		if (!trimmed || isBusy) return;
+		textarea.value = "";
+		textarea.style.height = "auto";
+		sendMessage({ text: trimmed });
+	}, [sendMessage, isBusy]);
+
+	const handleKeyDown = useCallback(
+		(e: React.KeyboardEvent) => {
+			if (e.key === "Enter" && !e.shiftKey) {
+				e.preventDefault();
+				handleSend();
+			}
+		},
+		[handleSend],
+	);
+
+	const handleSuggestion = useCallback(
+		(text: string) => {
+			if (isBusy) return;
+			sendMessage({ text });
+		},
+		[sendMessage, isBusy],
+	);
+
+	return (
+		<div className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white shadow-2xl dark:bg-zinc-900 sm:inset-x-auto sm:bottom-4 sm:right-4 sm:w-96 sm:rounded-2xl sm:border sm:border-zinc-200 sm:dark:border-zinc-700"
+			style={{ maxHeight: "min(70vh, 600px)" }}
+		>
+			{/* Header */}
+			<div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-700">
+				<div className="flex items-center gap-2">
+					<MessageCircle className="h-4 w-4 text-indigo-500" />
+					<span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+						Ask about your reading
+					</span>
+				</div>
+				<button
+					type="button"
+					onClick={onClose}
+					className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
+				>
+					<X className="h-4 w-4" />
+				</button>
+			</div>
+
+			{/* Messages */}
+			<div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+				{messages.length === 0 && (
+					<div className="space-y-2">
+						<p className="text-xs text-zinc-400">Try asking:</p>
+						<div className="flex flex-wrap gap-1.5">
+							{SUGGESTIONS.map((s) => (
+								<button
+									key={s}
+									type="button"
+									onClick={() => handleSuggestion(s)}
+									disabled={isBusy}
+									className="rounded-full border border-zinc-200 px-3 py-1.5 text-xs text-zinc-600 transition-colors hover:border-indigo-300 hover:text-indigo-600 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-indigo-600 dark:hover:text-indigo-400"
+								>
+									{s}
+								</button>
+							))}
+						</div>
+					</div>
+				)}
+
+				{messages.map((msg) => (
+					<div
+						key={msg.id}
+						className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+					>
+						<div className="max-w-[85%]">
+							{msg.parts
+								.filter(
+									(p): p is { type: "text"; text: string } =>
+										p.type === "text" && "text" in p && !!p.text,
+								)
+								.map((part, pi) =>
+									msg.role === "user" ? (
+										<div
+											key={`${msg.id}-${pi}`}
+											className="rounded-2xl bg-indigo-600 px-3.5 py-2 text-sm text-white"
+										>
+											<p className="whitespace-pre-wrap">{part.text}</p>
+										</div>
+									) : (
+										<div
+											key={`${msg.id}-${pi}`}
+											className="rounded-2xl bg-zinc-100 px-3.5 py-2 text-sm text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
+										>
+											<MarkdownRenderer
+												content={part.text}
+												className="prose prose-sm prose-zinc dark:prose-invert max-w-none"
+											/>
+										</div>
+									),
+								)}
+						</div>
+					</div>
+				))}
+
+				{status === "submitted" && (
+					<div className="flex justify-start">
+						<div className="flex items-center gap-2 rounded-2xl bg-zinc-100 px-3.5 py-2 text-sm text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+							<span className="inline-flex gap-1">
+								<span className="animate-bounce [animation-delay:0ms]">.</span>
+								<span className="animate-bounce [animation-delay:150ms]">.</span>
+								<span className="animate-bounce [animation-delay:300ms]">.</span>
+							</span>
+							Thinking
+						</div>
+					</div>
+				)}
+			</div>
+
+			{/* Input */}
+			<div className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-700">
+				<div className="flex items-end gap-2">
+					<textarea
+						ref={inputRef}
+						onKeyDown={handleKeyDown}
+						onChange={(e) => {
+							e.target.style.height = "auto";
+							e.target.style.height = `${Math.min(e.target.scrollHeight, 100)}px`;
+						}}
+						disabled={isBusy}
+						placeholder="Ask about your reading..."
+						rows={1}
+						className="flex-1 resize-none rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm placeholder-zinc-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:placeholder-zinc-500"
+					/>
+					<button
+						type="button"
+						onClick={handleSend}
+						disabled={isBusy}
+						className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-30"
+					>
+						<Send className="h-4 w-4" />
+					</button>
+				</div>
+			</div>
+		</div>
+	);
+}
+
 export default function DailyBriefing() {
 	const [date, setDate] = useState("today");
 	const [readingOpen, setReadingOpen] = useState(true);
+	const [chatOpen, setChatOpen] = useState(false);
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 
@@ -707,6 +894,21 @@ export default function DailyBriefing() {
 						))}
 					</ul>
 				</section>
+			)}
+
+			{/* Chat panel */}
+			{chatOpen && <ChatPanel date={data.date} onClose={() => setChatOpen(false)} />}
+
+			{/* Floating chat button */}
+			{!chatOpen && (
+				<button
+					type="button"
+					onClick={() => setChatOpen(true)}
+					className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg transition-transform hover:scale-105 hover:bg-indigo-700 active:scale-95"
+					aria-label="Open chat"
+				>
+					<MessageCircle className="h-6 w-6" />
+				</button>
 			)}
 		</div>
 	);

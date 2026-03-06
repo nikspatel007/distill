@@ -1,5 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
+import { convertToModelMessages, stepCountIs, streamText } from "ai";
 import { Hono } from "hono";
 import { z } from "zod";
 import {
@@ -15,6 +16,7 @@ import {
 	ReadingBriefSchema,
 	SeedIdeaSchema,
 } from "../../shared/schemas.js";
+import { getModel, isAgentConfigured } from "../lib/agent.js";
 import { getConfig } from "../lib/config.js";
 import { listFiles, readJson, readMarkdown } from "../lib/files.js";
 import { parseFrontmatter } from "../lib/frontmatter.js";
@@ -23,6 +25,11 @@ import { createPost, isPostizConfigured, listIntegrations } from "../lib/postiz.
 const app = new Hono();
 
 const TARGET_PLATFORMS = ["twitter", "linkedin", "reddit"] as const;
+
+const HomeChatRequestSchema = z.object({
+	messages: z.array(z.any()),
+	date: z.string().default("today"),
+});
 
 /**
  * Find the latest journal date by scanning journal filenames.
@@ -416,6 +423,114 @@ app.post("/api/home/drafts/:date/:platform/publish", async (c) => {
 	await createPost(content, integrationIds, { postType: "draft", provider });
 
 	return c.json({ success: true, platform: provider, integrations: matching.length });
+});
+
+app.post("/api/home/chat", async (c) => {
+	if (!isAgentConfigured()) {
+		return c.json({ error: "ANTHROPIC_API_KEY not configured" }, 503);
+	}
+
+	const body = await c.req.json();
+	const { messages, date } = HomeChatRequestSchema.parse(body);
+	const { OUTPUT_DIR } = getConfig();
+
+	// Resolve date
+	let resolvedDate = date;
+	if (resolvedDate === "today") {
+		const latestDate = await findLatestDate(OUTPUT_DIR);
+		resolvedDate = latestDate ?? new Date().toISOString().split("T")[0] ?? "";
+	}
+
+	// Load context in parallel
+	const [readingBriefRaw, discoveriesRaw, memoryRaw, journalFiles] = await Promise.all([
+		readJson(join(OUTPUT_DIR, ".distill-reading-brief.json"), z.array(ReadingBriefSchema)),
+		readJson(join(OUTPUT_DIR, ".distill-discoveries.json"), z.array(DiscoveryResultSchema)),
+		readFile(join(OUTPUT_DIR, ".unified-memory.json"), "utf-8").catch(() => "{}"),
+		listFiles(join(OUTPUT_DIR, "journal"), new RegExp(`^journal-${resolvedDate}.*\\.md$`)),
+	]);
+
+	// Build context sections
+	const contextSections: string[] = [];
+
+	// Reading brief
+	const brief = readingBriefRaw?.find((b) => b.date === resolvedDate);
+	if (brief) {
+		contextSections.push("## Today's Reading Brief");
+		for (const h of brief.highlights) {
+			contextSections.push(`- **${h.title}** (${h.source}): ${h.summary}`);
+		}
+		if (brief.connection) {
+			contextSections.push(`\n**Connection:** ${brief.connection.explanation}`);
+		}
+		if (brief.learning_pulse.length > 0) {
+			contextSections.push("\n**Learning Pulse:**");
+			for (const t of brief.learning_pulse) {
+				contextSections.push(`- ${t.topic}: ${t.status} (${t.count} mentions)`);
+			}
+		}
+	}
+
+	// Discoveries
+	const discovery = discoveriesRaw?.find((d) => d.date === resolvedDate);
+	if (discovery && discovery.items.length > 0) {
+		contextSections.push("\n## Recommended Reading");
+		for (const item of discovery.items) {
+			contextSections.push(`- [${item.title}](${item.url}) — ${item.summary}`);
+		}
+	}
+
+	// Memory threads
+	try {
+		const memory = JSON.parse(memoryRaw);
+		const threads = memory.threads ?? [];
+		if (threads.length > 0) {
+			contextSections.push("\n## Active Learning Threads");
+			for (const thread of threads.slice(0, 5)) {
+				contextSections.push(`- **${thread.theme ?? thread.name ?? "Thread"}**: ${thread.summary ?? ""}`);
+			}
+		}
+	} catch {}
+
+	// Journal
+	if (journalFiles.length > 0) {
+		const journalPath = journalFiles[0] ?? "";
+		const journalRaw = await readMarkdown(journalPath);
+		if (journalRaw) {
+			contextSections.push("\n## Today's Journal");
+			contextSections.push(journalRaw.slice(0, 1500));
+		}
+	}
+
+	const contextText = contextSections.join("\n");
+
+	const systemPrompt = `You are the user's personal intelligence assistant for Distill — a system that ingests everything they read and build, then synthesizes highlights and tracks their learning trajectory.
+
+You have access to today's reading brief, learning pulse, active threads, and journal. Answer questions about their reading patterns, help them connect ideas, and suggest angles worth exploring.
+
+## Today's Context (${resolvedDate})
+
+${contextText || "No data available for this date yet. The user may need to run the pipeline first."}
+
+## Guidelines
+- Be concise and conversational — this is a mobile-friendly chat
+- Reference specific articles, topics, and connections from the context
+- When asked about patterns, reference the learning pulse data
+- When asked what to explore, reference the discovery recommendations
+- Help the user connect dots between what they're reading and building
+- Keep responses under 200 words unless the user asks for detail`;
+
+	const modelMessages = await convertToModelMessages(
+		messages as Parameters<typeof convertToModelMessages>[0],
+	);
+
+	const result = streamText({
+		model: getModel(),
+		system: systemPrompt,
+		messages: modelMessages,
+		stopWhen: stepCountIs(3),
+	});
+
+	return result.toUIMessageStreamResponse();
 });
 
 export default app;
