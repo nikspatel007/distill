@@ -1,8 +1,8 @@
 # Distill
 
-Distill raw AI coding sessions into journals, blogs, and multi-platform publications.
+Personal intelligence platform. Ingests everything you read and build, then synthesizes highlights, generates draft posts, tracks your learning trajectory, and discovers what you should read next.
 
-Distill reads session data from AI coding assistants (Claude, Codex), ingests content from RSS feeds, browser history, and social platforms, then synthesizes everything into publishable content using Claude LLM.
+Distill reads session data from AI coding assistants (Claude, Codex), ingests content from RSS feeds, browser history, and social platforms, then synthesizes everything into a Daily View you open every morning — a personalized newspaper built from your own signal.
 
 **[Documentation](https://nikspatel007.github.io/distill/)** | **[Quickstart](#quickstart)** | **[Commands](#commands)**
 
@@ -34,8 +34,11 @@ Raw sessions (.claude/, .codex/)     External content (RSS, browser, social)
 1. **Analyze** -- Parse sessions, compute statistics, detect patterns
 2. **Journal** -- Synthesize daily journal entries from raw sessions via LLM
 3. **Intake** -- Ingest RSS feeds, browser history, social saves into a daily digest
-4. **Blog** -- Generate weekly synthesis posts and thematic deep-dives
-5. **Publish** -- Distribute to Obsidian, Ghost CMS, Twitter/X, LinkedIn, Reddit via Postiz
+4. **Brief** -- Extract top 3 reading highlights + auto-generate LinkedIn/X draft posts
+5. **Connect** -- Link today's reading to past threads, entities, and themes
+6. **Discover** -- Find new content based on your reading patterns (via Claude web search)
+7. **Blog** -- Generate weekly synthesis posts and thematic deep-dives
+8. **Publish** -- Distribute to Obsidian, Ghost CMS, Twitter/X, LinkedIn, Reddit via Postiz
 
 ## Quickstart
 
@@ -76,9 +79,16 @@ distill intake --output ./insights --use-defaults
 distill run --dir . --output ./insights --use-defaults
 ```
 
-### Web Dashboard
+### Web Dashboard (Daily View)
 
-Distill includes a web dashboard for browsing journals, blogs, intake digests, and managing shared links.
+The Daily View is the main product surface — a dashboard you open every morning. It shows:
+
+- **3 Things Worth Knowing** — top reading highlights, ranked by interestingness
+- **Connection** — AI-surfaced link between today's reading and your past threads/entities
+- **Ready to Post** — auto-generated LinkedIn/X drafts with inline editing, copy to clipboard, and Push to Postiz
+- **Learning Pulse** — topic attention sparklines showing what's trending, emerging, and cooling
+- **Explore Next** — content recommendations based on your reading patterns
+- **What You Built** — session highlights from your coding journal
 
 ```bash
 # Start the server (runs pipeline + serves dashboard)
@@ -127,6 +137,9 @@ See the [automation docs](https://nikspatel007.github.io/distill/getting-started
 | `distill notes` | List active editorial notes |
 | `distill status` | Show pipeline state (last run, counts, configured sources) |
 | `distill sessions` | List discovered sessions as JSON |
+| `distill brief` | Generate daily reading brief (3 highlights + draft posts) |
+| `distill voice show` | Show learned writing voice profile |
+| `distill voice extract` | Extract voice rules from editing history |
 
 Run `distill <command> --help` for detailed options.
 
@@ -312,11 +325,15 @@ insights/
   intake/                      # Daily research digests
     obsidian/
       digest-2026-02-08.md
-    archive/                   # Raw ingested items
+    archive/                   # Raw ingested items (JSON per day)
   sessions/                    # Individual session notes
   daily/                       # Daily session summaries
   projects/                    # Per-project notes
   weekly/                      # Weekly session digests
+  .distill-reading-brief.json  # Daily reading briefs (highlights + drafts)
+  .distill-discoveries.json    # Content recommendations
+  .distill-voice.json          # Learned writing voice profile
+  .distill-briefing.json       # Executive briefing data
 ```
 
 ## Project Structure
@@ -326,21 +343,25 @@ src/
   analyzers/           # Pattern detection from session data
   blog/                # Blog synthesis pipeline
     publishers/        # Multi-platform output (obsidian, ghost, postiz, social)
+  brief/               # Daily reading brief + intelligence layer
+    connection.py      # Link reading to past threads/entities
+    discovery.py       # Find new content based on reading patterns
+    learning.py        # Topic attention tracking (trending/cooling/emerging)
+    services.py        # Brief generation orchestration
   formatters/          # Output formatters (Obsidian, project notes, weekly)
   intake/              # Content ingestion pipeline
     parsers/           # Source parsers (RSS, browser, social platforms)
     publishers/        # Intake output publishers
   integrations/        # External service integrations (Postiz, Ghost)
   journal/             # Journal synthesis pipeline
+  memory/              # Unified cross-pipeline memory
+  pipeline/            # Pipeline orchestration (intake, blog, journal, social)
+  voice/               # Learned writing voice (profile, extraction, prompts)
   parsers/             # Session parsers (Claude, Codex)
   cli.py               # CLI entry point (Typer)
-  config.py            # Unified config (.distill.toml loader)
-  core.py              # Pipeline orchestration
-  editorial.py         # Editorial notes store
-  memory.py            # Unified cross-pipeline memory
   store.py             # Content store (JSON or pgvector)
   embeddings.py        # Sentence-transformer embeddings (optional)
-tests/                 # 1700+ tests
+tests/                 # 1800+ tests
 scripts/               # Automation templates
 ```
 

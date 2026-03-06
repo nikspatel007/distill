@@ -30,15 +30,15 @@ src/                    # Source code (flat layout, import as distill.*)
   journal/              # Journal synthesis pipeline
   blog/                 # Blog generation + multi-platform publishing
     publishers/         # Output format publishers (obsidian, ghost, postiz, social)
+  brief/                # Daily reading brief + intelligence layer
   intake/               # Content ingestion (RSS, browser, social)
     parsers/            # Content source parsers
     publishers/         # Intake output publishers
   integrations/         # External service integrations (Postiz, Ghost)
+  memory/               # Unified cross-pipeline memory
+  pipeline/             # Pipeline orchestration (intake, blog, journal, social)
+  voice/                # Learned writing voice system
   cli.py                # CLI entry point (Typer)
-  config.py             # Unified config (.distill.toml + env vars)
-  core.py               # Pipeline orchestration
-  editorial.py          # Editorial notes store
-  memory.py             # Unified cross-pipeline memory
   store.py              # Content store (JSON or pgvector)
 tests/                  # Tests mirror source structure
 ```
@@ -95,7 +95,7 @@ Editorial notes are managed by `src/editorial.py:EditorialStore`. They follow th
 - All secrets come from environment variables, never hardcoded
 - Configuration: `.distill.toml` < env vars < CLI flags
 - Test coverage target: 90%+
-- **Port convention**: API server on 4321, Vite dev on 5173, tests on 3001. Never introduce new ports.
+- **Port convention**: API server on 6107, Vite dev on 6108, tests on 6109. All services use the 6100 series. Never introduce new ports.
 - CLI tests must set `NO_COLOR=1` (and remove `FORCE_COLOR`) to avoid ANSI codes breaking assertions
 
 ## Reporting Issues

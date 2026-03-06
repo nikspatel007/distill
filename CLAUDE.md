@@ -1,6 +1,6 @@
 # Distill
 
-Content pipeline that transforms raw AI coding sessions into publishable content across multiple platforms.
+Personal intelligence platform. Ingests everything you read and build, synthesizes highlights, generates draft posts, tracks your learning trajectory, and discovers what you should read next.
 
 ## Project Structure
 
@@ -25,6 +25,14 @@ src/
       markdown.py             # Plain markdown
       postiz.py               # Postiz social media scheduler
       twitter.py, linkedin.py, reddit.py  # Social publishers
+  brief/                      # Daily reading brief + intelligence layer
+    models.py                 # ReadingBrief, ReadingHighlight, DraftPost
+    services.py               # generate_reading_brief() — orchestrates the full brief
+    store.py                  # JSON persistence (.distill-reading-brief.json)
+    prompts.py                # LLM prompts for highlight extraction + draft generation
+    connection.py             # ConnectionInsight — links today's reading to past threads/entities
+    learning.py               # TopicTrend — topic attention tracking over 14-day window
+    discovery.py              # DiscoveryItem — finds new content based on reading patterns
   formatters/                 # Output formatters
     obsidian.py               # Obsidian markdown (wiki links, frontmatter)
     project.py                # Per-project note formatter
@@ -49,18 +57,33 @@ src/
     memory.py                 # Working memory (cross-session context)
     prompts.py                # Journal generation prompts
     synthesizer.py            # JournalSynthesizer - LLM journal generation
+  memory/                     # Unified cross-pipeline memory
+    models.py                 # UnifiedMemory, DailyEntry, MemoryThread, EntityRecord
+    services.py               # load/save unified memory
+  pipeline/                   # Pipeline orchestration
+    intake.py                 # Intake pipeline (includes brief + discovery generation)
+    blog.py                   # Blog pipeline
+    journal.py                # Journal pipeline
+    social.py                 # Social publishing coordination
+  voice/                      # Voice learning system
+    models.py                 # VoiceProfile, VoiceRule — learned writing style
+    services.py               # Voice extraction from editing history
+    store.py                  # Voice profile persistence (.distill-voice.json)
+    prompts.py                # Voice analysis prompts
+  graph/                      # Knowledge graph + executive briefing
+    briefing.py               # BriefingGenerator — executive-level summary
   measurers/                  # Quality KPI measurers
   models/                     # Core data models (Insight, etc.)
   parsers/                    # Session parsers (Claude, Codex)
+  shared/                     # Shared utilities
+    config.py                 # Unified config (.distill.toml + env vars)
+    llm.py                    # LLM call utilities
   cli.py                      # CLI entry point (Typer app)
-  config.py                   # Unified config (.distill.toml + env vars)
-  core.py                     # Pipeline orchestration (analyze, generate_*, blog)
+  core.py                     # Legacy pipeline orchestration
   editorial.py                # EditorialStore - user steering notes
-  memory.py                   # UnifiedMemory (cross-pipeline, entity tracking)
   store.py                    # JsonStore / PgvectorStore
   embeddings.py               # Sentence-transformer embeddings (optional)
-  narrative.py                # Narrative enrichment for session summaries
-tests/                        # 1700+ tests (unit + integration)
+tests/                        # 1800+ tests (unit + integration)
 ```
 
 ## Essential Commands
@@ -82,7 +105,9 @@ uv run ruff check src/ && uv run ruff format src/
 uv run python -m distill analyze --dir . --output ./insights
 uv run python -m distill journal --dir . --output ./insights --global
 uv run python -m distill blog --output ./insights --type all
+uv run python -m distill intake --output ./insights --use-defaults
 uv run python -m distill run --dir . --output ./insights --use-defaults
+uv run python -m distill brief --output ./insights --date 2026-03-05
 uv run python -m distill note "Emphasize X this week" --target "week:2026-W06"
 ```
 
@@ -96,6 +121,12 @@ Raw sessions (.claude/, .codex/)
     -> Formatters (Obsidian notes, project notes, weekly digests)
     -> Journal synthesizer (LLM: sessions -> daily journal entries)
         + project context from .distill.toml
+    -> Intake (RSS, browser, social -> ContentItem -> daily digest)
+    -> Reading brief (filter reading-only items -> 3 highlights + LinkedIn/X drafts)
+        + voice profile for style consistency
+        + connection engine (link reading to past threads/entities)
+        + learning pulse (topic attention trends over 14 days)
+    -> Discovery engine (active topics -> Claude web search -> curated recommendations)
     -> Blog synthesizer (LLM: journal entries -> weekly/thematic blog posts)
         + project context + editorial notes
     -> Publishers (Obsidian, Ghost, Postiz, social)
@@ -131,6 +162,24 @@ Raw sessions (.claude/, .codex/)
 - Optional: sentence-transformer embeddings + pgvector store
 - Synthesis: LLM daily digest
 - Fan-out: publishers (obsidian, ghost, postiz)
+- After intake: generates reading brief + runs discovery engine
+
+### Reading Brief Pipeline (`src/brief/`)
+- `services.py:generate_reading_brief()` — orchestrates the full brief
+- Filters intake items to reading-only sources (RSS, browser, substack, reddit, gmail, manual, discovery, youtube)
+- Step 1: LLM extracts 3 highlights with interestingness ranking
+- Step 2: LLM generates LinkedIn + X draft posts from highlights (voice profile applied)
+- Step 3: `connection.py:find_connection()` — algorithmic matching against UnifiedMemory (threads, entities, themes)
+- Step 4: `learning.py:compute_learning_pulse()` — scans 14 days of intake archives, classifies topics as trending/cooling/emerging/stable
+- Step 5: `discovery.py:discover_content()` — extracts active topics, asks Claude to find fresh content, deduplicates against already-read URLs
+- Output: `.distill-reading-brief.json` (list of dated briefs) + `.distill-discoveries.json`
+- All steps are wrapped in try/except — failures don't block the pipeline
+
+### Voice System (`src/voice/`)
+- `VoiceProfile` learns writing style from editing history
+- `render_for_prompt(min_confidence=0.5)` injects voice rules into LLM prompts
+- Applied to reading brief drafts and blog synthesis
+- Persistence: `.distill-voice.json`
 
 ## Conventions
 
@@ -176,7 +225,7 @@ All services use the **6100 series** to stay consistent and avoid conflicts.
 cd web && bun test server    # Run server tests
 cd web && bun test src       # Run frontend tests
 cd web && bun run build      # Build frontend (tsc + vite)
-cd web && bun run dev        # Dev mode (vite HMR on 5173 + API on 4321)
+cd web && bun run dev        # Dev mode (vite HMR on 6108 + API on 6107)
 ```
 
 ### Web Conventions
