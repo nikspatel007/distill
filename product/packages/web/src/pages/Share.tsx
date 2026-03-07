@@ -71,7 +71,7 @@ export function SharePage() {
         <button
           type="submit"
           disabled={submitting || !url.trim()}
-          className="h-11 px-6 rounded-xl bg-accent text-surface-0 text-sm font-semibold hover:bg-accent-hover active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+          className="h-11 px-6 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent-hover active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
         >
           {submitting ? <Loader2 size={16} className="animate-spin" /> :
            success ? <Check size={16} /> :

@@ -1,15 +1,17 @@
 import { useAuth } from "./hooks/useAuth.js";
+import { useTheme } from "./hooks/useTheme.js";
 import { LoginPage } from "./pages/Login.js";
 import { DailyView } from "./pages/DailyView.js";
 import { FeedPage } from "./pages/Feed.js";
 import { SharePage } from "./pages/Share.js";
 import { useState } from "react";
-import { LayoutDashboard, Rss, Send, LogOut, ChevronDown } from "lucide-react";
+import { LayoutDashboard, Rss, Send, LogOut, Sun, Moon } from "lucide-react";
 
 type Tab = "daily" | "feed" | "share";
 
 export function App() {
   const { user, loading, signOut } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [tab, setTab] = useState<Tab>("daily");
 
   if (loading) {
@@ -58,8 +60,15 @@ export function App() {
             </nav>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 text-sm text-text-muted">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleTheme}
+              className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-2 transition-colors"
+              title={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+            >
+              {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
+            </button>
+            <div className="hidden sm:flex items-center gap-2 text-sm text-text-muted ml-1">
               <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center text-xs font-semibold text-accent">
                 {user.email?.[0]?.toUpperCase()}
               </div>
