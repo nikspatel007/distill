@@ -9,8 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ai-sdk/react": "^2.0.0",
     "@distill/shared": "workspace:*",
     "@supabase/supabase-js": "^2.49.0",
+    "ai": "^5.0.150",
     "lucide-react": "^0.563.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

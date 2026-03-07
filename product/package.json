@@ -11,5 +11,8 @@
     "db:generate": "bun run --filter @distill/server db:generate",
     "db:migrate": "bun run --filter @distill/server db:migrate",
     "db:push": "bun run --filter @distill/server db:push"
+  },
+  "dependencies": {
+    "jose": "^6.2.0"
   }
 }

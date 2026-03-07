@@ -11,6 +11,7 @@ import sessionRoutes from "./routes/session.js";
 import userRoutes from "./routes/user.js";
 import chatRoutes from "./routes/chat.js";
 import pipelineRoutes from "./routes/pipeline.js";
+import studioRoutes from "./routes/studio.js";
 
 const app = new Hono();
 
@@ -30,6 +31,7 @@ app.route("/api/feed", feedRoutes);
 app.route("/api/sessions", sessionRoutes);
 app.route("/api/chat", chatRoutes);
 app.route("/api/pipeline", pipelineRoutes);
+app.route("/api/studio", studioRoutes);
 
 // Serve static web app in production
 if (process.env.NODE_ENV === "production") {

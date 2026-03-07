@@ -4,10 +4,11 @@ import { LoginPage } from "./pages/Login.js";
 import { DailyView } from "./pages/DailyView.js";
 import { FeedPage } from "./pages/Feed.js";
 import { SharePage } from "./pages/Share.js";
+import { StudioPage } from "./pages/Studio.js";
 import { useState } from "react";
-import { LayoutDashboard, Rss, Send, LogOut, Sun, Moon } from "lucide-react";
+import { LayoutDashboard, Rss, Send, PenLine, LogOut, Sun, Moon } from "lucide-react";
 
-type Tab = "daily" | "feed" | "share";
+type Tab = "daily" | "feed" | "share" | "studio";
 
 export function App() {
   const { user, loading, signOut } = useAuth();
@@ -31,6 +32,7 @@ export function App() {
     { id: "daily" as const, label: "Today", icon: LayoutDashboard },
     { id: "feed" as const, label: "Feed", icon: Rss },
     { id: "share" as const, label: "Share", icon: Send },
+    { id: "studio" as const, label: "Studio", icon: PenLine },
   ];
 
   return (
@@ -104,11 +106,15 @@ export function App() {
       </header>
 
       {/* Content */}
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        {tab === "daily" && <DailyView />}
-        {tab === "feed" && <FeedPage />}
-        {tab === "share" && <SharePage />}
-      </main>
+      {tab === "studio" ? (
+        <StudioPage />
+      ) : (
+        <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+          {tab === "daily" && <DailyView />}
+          {tab === "feed" && <FeedPage />}
+          {tab === "share" && <SharePage />}
+        </main>
+      )}
     </div>
   );
 }

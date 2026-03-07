@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { LayoutDashboard, Users, Share2, Settings } from "lucide-react-native";
+import { LayoutDashboard, Users, PenLine, Share2, Settings } from "lucide-react-native";
 import { colors } from "../../lib/colors";
 
 export default function TabLayout() {
@@ -37,6 +37,15 @@ export default function TabLayout() {
           title: "Feed",
           tabBarIcon: ({ color, size }) => (
             <Users size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="studio"
+        options={{
+          title: "Studio",
+          tabBarIcon: ({ color, size }) => (
+            <PenLine size={size} color={color} />
           ),
         }}
       />

@@ -9,6 +9,17 @@ const EnvSchema = z.object({
   ANTHROPIC_API_KEY: z.string().default(""),
   GOOGLE_AI_API_KEY: z.string().default(""),
   NODE_ENV: z.string().default("development"),
+  // Postiz (social media scheduler)
+  POSTIZ_URL: z.string().default(""),
+  POSTIZ_API_KEY: z.string().default(""),
+  // Ghost CMS (primary instance)
+  GHOST_URL: z.string().default(""),
+  GHOST_ADMIN_API_KEY: z.string().default(""),
+  GHOST_LABEL: z.string().default(""),
+  // Ghost CMS (personal instance)
+  GHOST_PERSONAL_URL: z.string().default(""),
+  GHOST_PERSONAL_ADMIN_API_KEY: z.string().default(""),
+  GHOST_PERSONAL_LABEL: z.string().default(""),
 });
 
 export type ServerConfig = z.infer<typeof EnvSchema>;

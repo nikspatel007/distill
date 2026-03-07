@@ -171,3 +171,40 @@ export const sessions = pgTable("sessions", {
 }, (t) => [
   uniqueIndex("sessions_user_session_idx").on(t.userId, t.sessionId),
 ]);
+
+// --- Studio Items ---
+
+export const studioItems = pgTable("studio_items", {
+  id: serial("id").primaryKey(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  title: text("title").notNull(),
+  slug: text("slug").notNull(),
+  content: text("content"),
+  contentType: text("content_type").notNull().default("journal"),
+  status: text("status").notNull().default("draft"),
+  platformContents: jsonb("platform_contents").$type<
+    Record<string, { content: string; published: boolean; publishedAt: string | null; externalId: string | null }>
+  >().default({}),
+  chatHistory: jsonb("chat_history").$type<
+    Array<{ role: string; content: string; timestamp?: string }>
+  >().default([]),
+  tags: jsonb("tags").$type<string[]>().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex("studio_items_user_slug_idx").on(t.userId, t.slug),
+  index("studio_items_user_status_idx").on(t.userId, t.status),
+]);
+
+// --- Studio Images ---
+
+export const studioImages = pgTable("studio_images", {
+  id: serial("id").primaryKey(),
+  studioItemId: integer("studio_item_id").references(() => studioItems.id, { onDelete: "cascade" }).notNull(),
+  url: text("url").notNull(),
+  prompt: text("prompt").notNull(),
+  role: text("role").notNull().default("hero"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("studio_images_item_idx").on(t.studioItemId),
+]);
