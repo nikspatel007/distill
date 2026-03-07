@@ -1,0 +1,15 @@
+FROM oven/bun:1 AS base
+WORKDIR /app
+
+# Install dependencies
+COPY package.json bun.lock* ./
+COPY packages/shared/package.json packages/shared/
+COPY packages/server/package.json packages/server/
+RUN bun install --production
+
+# Copy source
+COPY packages/shared/ packages/shared/
+COPY packages/server/ packages/server/
+
+# No health check, no web server, no port
+CMD ["bun", "packages/server/src/pipeline/daily.ts"]
