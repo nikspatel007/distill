@@ -14,7 +14,13 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.distill.mobile"
+      "bundleIdentifier": "com.distill.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "entitlements": {
+        "com.apple.security.application-groups": ["group.com.distill.mobile"]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -38,9 +44,18 @@
             "NSExtensionActivationSupportsWebURLWithMaxCount": 1,
             "NSExtensionActivationSupportsWebPageWithMaxCount": 1
           },
-          "androidIntentFilters": ["text/*"]
+          "androidIntentFilters": [
+            "text/*"
+          ]
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "25626cd5-8753-4916-95b9-f7625ee4c269"
+      }
+    },
+    "owner": "nikpatel007"
   }
 }
