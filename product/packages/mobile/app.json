@@ -17,9 +17,6 @@
       "bundleIdentifier": "com.distill.mobile",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      },
-      "entitlements": {
-        "com.apple.security.application-groups": ["group.com.distill.mobile"]
       }
     },
     "android": {
@@ -36,40 +33,12 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store",
-      [
-        "expo-share-intent",
-        {
-          "disableExperimental": true,
-          "iosActivationRules": {
-            "NSExtensionActivationSupportsWebURLWithMaxCount": 1,
-            "NSExtensionActivationSupportsWebPageWithMaxCount": 1
-          },
-          "androidIntentFilters": [
-            "text/*"
-          ]
-        }
-      ]
+      "expo-secure-store"
     ],
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "25626cd5-8753-4916-95b9-f7625ee4c269",
-        "build": {
-          "experimental": {
-            "ios": {
-              "appExtensions": [
-                {
-                  "targetName": "ShareExtension",
-                  "bundleIdentifier": "com.distill.mobile.share-extension",
-                  "entitlements": {
-                    "com.apple.security.application-groups": ["group.com.distill.mobile"]
-                  }
-                }
-              ]
-            }
-          }
-        }
+        "projectId": "25626cd5-8753-4916-95b9-f7625ee4c269"
       }
     },
     "owner": "nikpatel007"
