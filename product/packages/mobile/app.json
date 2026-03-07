@@ -53,7 +53,22 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "25626cd5-8753-4916-95b9-f7625ee4c269"
+        "projectId": "25626cd5-8753-4916-95b9-f7625ee4c269",
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "ShareExtension",
+                  "bundleIdentifier": "com.distill.mobile.share-extension",
+                  "entitlements": {
+                    "com.apple.security.application-groups": ["group.com.distill.mobile"]
+                  }
+                }
+              ]
+            }
+          }
+        }
       }
     },
     "owner": "nikpatel007"
