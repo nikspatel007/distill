@@ -31,9 +31,9 @@ app.get("/latest", async (c) => {
     .orderBy(desc(schema.readingBriefs.date))
     .limit(1);
   if (!brief) {
-    return c.json({ date: new Date().toISOString().slice(0, 10), highlights: [], drafts: [], connection: null, learningPulse: [], discoveries: [] });
+    return c.json({ date: new Date().toISOString().slice(0, 10), highlights: [], drafts: [], connection: null, learningPulse: [], discoveries: [], generatedAt: "" });
   }
-  return c.json(brief);
+  return c.json({ ...brief, generatedAt: brief.createdAt });
 });
 
 export default app;

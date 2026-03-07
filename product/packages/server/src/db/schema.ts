@@ -139,6 +139,7 @@ export const feedItems = pgTable("feed_items", {
   title: text("title").notNull(),
   summary: text("summary"),
   url: text("url"),
+  imageUrl: text("image_url"),
   metadata: jsonb("metadata").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });

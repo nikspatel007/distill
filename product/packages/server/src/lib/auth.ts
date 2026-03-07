@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Context, Next } from "hono";
 import { getConfig } from "./config.js";
 
@@ -14,8 +14,17 @@ declare module "hono" {
   }
 }
 
+let _supabase: SupabaseClient | null = null;
+
+function getSupabase(): SupabaseClient {
+  if (!_supabase) {
+    const config = getConfig();
+    _supabase = createClient(config.SUPABASE_URL, config.SUPABASE_ANON_KEY);
+  }
+  return _supabase;
+}
+
 export async function authMiddleware(c: Context, next: Next) {
-  const config = getConfig();
   const authHeader = c.req.header("Authorization");
 
   if (!authHeader?.startsWith("Bearer ")) {
@@ -23,7 +32,7 @@ export async function authMiddleware(c: Context, next: Next) {
   }
 
   const token = authHeader.slice(7);
-  const supabase = createClient(config.SUPABASE_URL, config.SUPABASE_ANON_KEY);
+  const supabase = getSupabase();
 
   const { data, error } = await supabase.auth.getUser(token);
   if (error || !data.user) {
