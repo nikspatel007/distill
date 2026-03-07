@@ -40,6 +40,7 @@
       [
         "expo-share-intent",
         {
+          "disableExperimental": true,
           "iosActivationRules": {
             "NSExtensionActivationSupportsWebURLWithMaxCount": 1,
             "NSExtensionActivationSupportsWebPageWithMaxCount": 1
